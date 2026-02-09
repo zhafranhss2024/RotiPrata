@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.rotiprata.config.SupabaseProperties;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +27,9 @@ public class SupabaseRestClient {
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalStateException("Supabase REST URL is not configured");
         }
+        if (!baseUrl.endsWith("/")) {
+            baseUrl = baseUrl + "/";
+        }
         this.restClient = restClientBuilder
             .baseUrl(baseUrl)
             .defaultHeader("apikey", supabaseProperties.getAnonKey())
@@ -34,7 +38,9 @@ public class SupabaseRestClient {
             .build();
         this.objectMapper = new ObjectMapper()
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
-            .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true);
+            .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
+            .findAndRegisterModules()
+            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
     }
 
     public <T> List<T> getList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {
