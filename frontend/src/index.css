@@ -1,0 +1,262 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Rotiprata Design System - Gen-Z/Alpha inspired vibrant aesthetic
+   All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Core backgrounds */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 10%;
+
+    /* Cards and surfaces */
+    --card: 0 0% 98%;
+    --card-foreground: 240 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
+
+    /* Primary - Vibrant purple/pink gradient base */
+    --primary: 280 85% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Electric blue */
+    --secondary: 200 100% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted - Soft gray */
+    --muted: 240 5% 94%;
+    --muted-foreground: 240 5% 45%;
+
+    /* Accent - Neon green */
+    --accent: 150 80% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Borders and inputs */
+    --border: 240 5% 90%;
+    --input: 240 5% 90%;
+    --ring: 280 85% 55%;
+
+    --radius: 1rem;
+
+    /* Category colors */
+    --category-slang: 0 85% 60%;
+    --category-meme: 175 75% 45%;
+    --category-dance: 200 90% 55%;
+    --category-social: 145 65% 50%;
+    --category-cultural: 45 95% 60%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(280 85% 55%) 0%, hsl(320 85% 55%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(200 100% 50%) 0%, hsl(240 85% 60%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(150 80% 45%) 0%, hsl(180 80% 50%) 100%);
+    --gradient-feed: linear-gradient(180deg, transparent 0%, hsl(240 10% 10% / 0.8) 100%);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5% 26%;
+    --sidebar-primary: 280 85% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 94%;
+    --sidebar-accent-foreground: 240 5% 26%;
+    --sidebar-border: 240 5% 90%;
+    --sidebar-ring: 280 85% 55%;
+
+    /* Safe areas for mobile */
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+
+    /* Bottom nav height */
+    --bottom-nav-height: 4.5rem;
+  }
+
+  .dark {
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 8%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 6%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 280 85% 65%;
+    --primary-foreground: 240 10% 4%;
+
+    --secondary: 200 100% 60%;
+    --secondary-foreground: 240 10% 4%;
+
+    --muted: 240 5% 18%;
+    --muted-foreground: 240 5% 65%;
+
+    --accent: 150 80% 50%;
+    --accent-foreground: 240 10% 4%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 240 5% 20%;
+    --input: 240 5% 20%;
+    --ring: 280 85% 65%;
+
+    --sidebar-background: 240 10% 6%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 280 85% 65%;
+    --sidebar-primary-foreground: 240 10% 4%;
+    --sidebar-accent: 240 5% 15%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 240 5% 18%;
+    --sidebar-ring: 280 85% 65%;
+
+    --gradient-feed: linear-gradient(180deg, transparent 0%, hsl(240 10% 4% / 0.9) 100%);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    padding-top: var(--safe-area-top);
+    padding-bottom: var(--safe-area-bottom);
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-secondary {
+    background: var(--gradient-secondary);
+  }
+
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+
+  .gradient-feed {
+    background: var(--gradient-feed);
+  }
+
+  .text-gradient-primary {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Snap scroll for TikTok-style feed */
+  .snap-mandatory-y {
+    scroll-snap-type: y mandatory;
+  }
+
+  .snap-start {
+    scroll-snap-align: start;
+  }
+
+  .snap-center {
+    scroll-snap-align: center;
+  }
+
+  /* Safe area padding utilities */
+  .pb-safe {
+    padding-bottom: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
+  }
+
+  .mb-safe {
+    margin-bottom: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
+  }
+
+  /* Full screen height accounting for safe areas */
+  .h-screen-safe {
+    height: calc(100vh - var(--safe-area-top) - var(--safe-area-bottom));
+  }
+
+  .min-h-screen-safe {
+    min-height: calc(100vh - var(--safe-area-top) - var(--safe-area-bottom));
+  }
+
+  /* Touch-friendly targets */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Category badge colors */
+  .badge-slang {
+    background-color: hsl(var(--category-slang));
+    color: white;
+  }
+
+  .badge-meme {
+    background-color: hsl(var(--category-meme));
+    color: white;
+  }
+
+  .badge-dance {
+    background-color: hsl(var(--category-dance));
+    color: white;
+  }
+
+  .badge-social {
+    background-color: hsl(var(--category-social));
+    color: white;
+  }
+
+  .badge-cultural {
+    background-color: hsl(var(--category-cultural));
+    color: hsl(240 10% 10%);
+  }
+
+  /* Glass morphism effect */
+  .glass {
+    @apply bg-background/80 backdrop-blur-lg;
+  }
+
+  .glass-dark {
+    @apply bg-background/60 backdrop-blur-xl;
+  }
+}

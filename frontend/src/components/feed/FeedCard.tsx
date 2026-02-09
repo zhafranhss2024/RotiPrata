@@ -1,0 +1,194 @@
+import React from 'react';
+import { Heart, MessageCircle, Share2, Bookmark, Flag, ChevronLeft, ExternalLink } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import type { Content, Category } from '@/types';
+
+interface FeedCardProps {
+  content: Content;
+  isActive?: boolean;
+  onSwipeLeft?: () => void;
+  onVote?: (type: 'educational') => void;
+  onSave?: () => void;
+  onShare?: () => void;
+  onFlag?: () => void;
+  onQuizClick?: () => void;
+}
+
+// TODO: Replace with Java backend API calls
+// POST /api/content/{id}/vote - Vote on content
+// POST /api/content/{id}/save - Save/bookmark content
+// POST /api/content/{id}/view - Track view
+// POST /api/content/{id}/flag - Flag content
+
+export function FeedCard({
+  content,
+  isActive = false,
+  onSwipeLeft,
+  onVote,
+  onSave,
+  onShare,
+  onFlag,
+  onQuizClick,
+}: FeedCardProps) {
+  const getCategoryBadgeClass = (type?: string) => {
+    switch (type) {
+      case 'slang': return 'badge-slang';
+      case 'meme': return 'badge-meme';
+      case 'dance_trend': return 'badge-dance';
+      case 'social_practice': return 'badge-social';
+      case 'cultural_reference': return 'badge-cultural';
+      default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  return (
+    <div className="relative w-full h-full snap-start">
+      {/* Background media */}
+      <div className="absolute inset-0 bg-muted">
+        {content.content_type === 'video' && content.media_url ? (
+          <video
+            src={content.media_url}
+            className="w-full h-full object-cover"
+            loop
+            muted={!isActive}
+            autoPlay={isActive}
+            playsInline
+          />
+        ) : content.content_type === 'image' && content.media_url ? (
+          <img
+            src={content.media_url}
+            alt={content.title}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center gradient-primary">
+            <span className="text-6xl">🧠</span>
+          </div>
+        )}
+      </div>
+
+      {/* Gradient overlay */}
+      <div className="absolute inset-0 gradient-feed" />
+
+      {/* Swipe left indicator */}
+      <button
+        onClick={onSwipeLeft}
+        className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-white/70 hover:text-white transition-colors touch-target"
+      >
+        <span className="text-sm font-medium">Learn more</span>
+        <ChevronLeft className="h-5 w-5 rotate-180" />
+      </button>
+
+      {/* Content info - bottom section */}
+      <div className="absolute bottom-0 left-0 right-16 p-4 pb-8">
+        {/* Category badge */}
+        {content.category && (
+          <Badge className={cn("mb-3", getCategoryBadgeClass(content.category.type))}>
+            {content.category.name}
+          </Badge>
+        )}
+
+        {/* Title */}
+        <h2 className="text-xl font-bold text-white mb-2 line-clamp-2">
+          {content.title}
+        </h2>
+
+        {/* Learning objective */}
+        {content.learning_objective && (
+          <div className="flex items-center gap-2 mb-3">
+            <Badge variant="secondary" className="bg-white/20 text-white border-0">
+              🎯 Learn: {content.learning_objective}
+            </Badge>
+          </div>
+        )}
+
+        {/* Description */}
+        {content.description && (
+          <p className="text-white/80 text-sm line-clamp-2 mb-3">
+            {content.description}
+          </p>
+        )}
+
+        {/* Creator info */}
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+            <span className="text-sm">👤</span>
+          </div>
+          <span className="text-white/80 text-sm font-medium">
+            @{content.creator?.username || 'anonymous'}
+          </span>
+        </div>
+
+        {/* Quick quiz button */}
+        {onQuizClick && (
+          <Button
+            onClick={onQuizClick}
+            className="mt-4 gradient-secondary border-0 text-white"
+            size="sm"
+          >
+            🧩 Take Quick Quiz
+          </Button>
+        )}
+      </div>
+
+      {/* Right side actions */}
+      <div className="absolute right-4 bottom-24 flex flex-col items-center gap-4">
+        {/* Educational value vote */}
+        <button
+          onClick={() => onVote?.('educational')}
+          className="flex flex-col items-center gap-1 text-white touch-target"
+        >
+          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
+            <Heart className="h-6 w-6" />
+          </div>
+          <span className="text-xs font-medium">{content.educational_value_votes}</span>
+        </button>
+
+        {/* Comments - link to detail */}
+        <button
+          onClick={onSwipeLeft}
+          className="flex flex-col items-center gap-1 text-white touch-target"
+        >
+          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
+            <MessageCircle className="h-6 w-6" />
+          </div>
+          <span className="text-xs font-medium">Details</span>
+        </button>
+
+        {/* Save/Bookmark */}
+        <button
+          onClick={onSave}
+          className="flex flex-col items-center gap-1 text-white touch-target"
+        >
+          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
+            <Bookmark className="h-6 w-6" />
+          </div>
+          <span className="text-xs font-medium">Save</span>
+        </button>
+
+        {/* Share */}
+        <button
+          onClick={onShare}
+          className="flex flex-col items-center gap-1 text-white touch-target"
+        >
+          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
+            <Share2 className="h-6 w-6" />
+          </div>
+          <span className="text-xs font-medium">Share</span>
+        </button>
+
+        {/* Flag */}
+        <button
+          onClick={onFlag}
+          className="flex flex-col items-center gap-1 text-white/60 hover:text-white touch-target"
+        >
+          <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center hover:bg-white/20 transition-colors">
+            <Flag className="h-4 w-4" />
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+}

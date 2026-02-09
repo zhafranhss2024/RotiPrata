@@ -1,0 +1,21 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: rotiprata
+server:
+  port: ${PORT:8080}
+
+supabase:
+  url: ${SUPABASE_URL}
+  anon-key: ${SUPABASE_ANON_KEY}
+  rest-url: ${SUPABASE_REST_URL:}
+  storage:
+    buckets:
+      content-media: content-media
+      avatars: avatars
+      lesson-media: lesson-media
+      badges: badges
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}

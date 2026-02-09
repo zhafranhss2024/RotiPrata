@@ -1,0 +1,58 @@
+package com.rotiprata.api;
+
+import com.rotiprata.domain.Profile;
+import com.rotiprata.domain.ThemePreference;
+import com.rotiprata.security.SecurityUtils;
+import com.rotiprata.application.UserService;
+import com.rotiprata.api.dto.ThemePreferenceRequest;
+import jakarta.validation.Valid;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @GetMapping("/me")
+    public Profile me(@AuthenticationPrincipal Jwt jwt) {
+        return userService.getOrCreateProfileFromJwt(jwt, SecurityUtils.getAccessToken());
+    }
+
+    @GetMapping("/me/roles")
+    public List<String> roles(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return userService.getRoles(userId, SecurityUtils.getAccessToken())
+            .stream()
+            .map(role -> role.name().toLowerCase())
+            .toList();
+    }
+
+    @GetMapping("/me/preferences")
+    public String themePreference(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        Profile profile = userService.getOrCreateProfileFromJwt(jwt, SecurityUtils.getAccessToken());
+        return profile.getThemePreference().name().toLowerCase();
+    }
+
+    @PutMapping("/me/preferences")
+    public Profile updateThemePreference(
+        @AuthenticationPrincipal Jwt jwt,
+        @Valid @RequestBody ThemePreferenceRequest request
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        ThemePreference preference = ThemePreference.valueOf(request.themePreference().toUpperCase());
+        return userService.updateThemePreference(userId, preference, SecurityUtils.getAccessToken());
+    }
+}

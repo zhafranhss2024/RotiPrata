@@ -1,0 +1,266 @@
+application {
+  config {
+    baseName Rotiprata
+    applicationType monolith
+    packageName com.rotiprata
+    authenticationType jwt
+    prodDatabaseType postgresql
+    devDatabaseType postgresql
+    buildTool maven
+    clientFramework react
+    clientPackageManager npm
+  }
+}
+
+enum AppRole {
+  USER,
+  ADMIN
+}
+
+enum ContentStatus {
+  PENDING,
+  APPROVED,
+  REJECTED
+}
+
+enum ContentType {
+  VIDEO,
+  IMAGE,
+  TEXT
+}
+
+enum ThemePreference {
+  SYSTEM,
+  LIGHT,
+  DARK
+}
+
+enum CategoryType {
+  SLANG,
+  MEME,
+  SOCIAL_PRACTICE,
+  DANCE_TREND,
+  OTHER
+}
+
+entity Category {
+  id UUID
+  name String required unique
+  type CategoryType required
+  description String
+  iconUrl String
+  color String
+  createdAt Instant required
+}
+
+entity Content {
+  id UUID
+  creatorId UUID required
+  title String required
+  description String
+  contentType ContentType required
+  mediaUrl String
+  thumbnailUrl String
+  status ContentStatus
+  learningObjective String
+  originExplanation String
+  definitionLiteral String
+  definitionUsed String
+  olderVersionReference String
+  educationalValueVotes Integer
+  viewCount Integer
+  featured Boolean
+  reviewedBy UUID
+  reviewedAt Instant
+  reviewFeedback String
+  createdAt Instant required
+  updatedAt Instant required
+}
+
+entity ContentFlag {
+  id UUID
+  reportedBy UUID required
+  reason String required
+  description String
+  status String
+  resolvedBy UUID
+  resolvedAt Instant
+  createdAt Instant required
+}
+
+entity ContentTag {
+  id UUID
+  tag String required
+  createdAt Instant required
+}
+
+entity ContentVote {
+  id UUID
+  userId UUID required
+  voteType String required
+  createdAt Instant required
+}
+
+entity Lesson {
+  id UUID
+  createdBy UUID required
+  title String required
+  description String
+  headerMediaUrl String
+  summary String
+  learningObjectives String
+  estimatedMinutes Integer
+  xpReward Integer
+  badgeName String
+  badgeIconUrl String
+  difficultyLevel Integer
+  published Boolean
+  completionCount Integer
+  originContent String
+  definitionContent String
+  usageExamples String
+  loreContent String
+  evolutionContent String
+  comparisonContent String
+  createdAt Instant required
+  updatedAt Instant required
+}
+
+entity LessonConcept {
+  id UUID
+  orderIndex Integer
+  createdAt Instant required
+}
+
+entity ModerationQueue {
+  id UUID
+  submittedAt Instant required
+  priority Integer
+  assignedTo UUID
+  notes String
+}
+
+entity Profile {
+  id UUID
+  userId UUID required unique
+  username String required unique
+  displayName String
+  avatarUrl String
+  bio String
+  dateOfBirth LocalDate
+  genAlpha Boolean
+  themePreference ThemePreference
+  verified Boolean
+  reputationPoints Integer
+  currentStreak Integer
+  longestStreak Integer
+  lastActivityDate LocalDate
+  totalHoursLearned BigDecimal
+  createdAt Instant required
+  updatedAt Instant required
+}
+
+entity Quiz {
+  id UUID
+  title String required
+  description String
+  quizType String
+  timeLimitSeconds Integer
+  passingScore Integer
+  createdBy UUID required
+  createdAt Instant required
+  updatedAt Instant required
+}
+
+entity QuizQuestion {
+  id UUID
+  questionText String required
+  questionType String
+  mediaUrl String
+  options String
+  correctAnswer String required
+  explanation String
+  points Integer
+  orderIndex Integer
+  createdAt Instant required
+}
+
+entity SavedContent {
+  id UUID
+  userId UUID required
+  savedAt Instant required
+}
+
+entity UserAchievement {
+  id UUID
+  userId UUID required
+  achievementName String required
+  achievementType String
+  iconUrl String
+  description String
+  earnedAt Instant required
+}
+
+entity UserConceptMastered {
+  id UUID
+  userId UUID required
+  masteredAt Instant required
+}
+
+entity UserLessonProgress {
+  id UUID
+  userId UUID required
+  status String
+  progressPercentage Integer
+  currentSection String
+  startedAt Instant
+  completedAt Instant
+  lastAccessedAt Instant
+  createdAt Instant required
+}
+
+entity UserQuizResult {
+  id UUID
+  userId UUID required
+  score Integer required
+  maxScore Integer required
+  percentage BigDecimal required
+  passed Boolean
+  answers String
+  timeTakenSeconds Integer
+  attemptedAt Instant required
+}
+
+entity UserRole {
+  id UUID
+  userId UUID required
+  role AppRole required
+  assignedAt Instant required
+  assignedBy UUID
+}
+
+entity BrowsingHistory {
+  id UUID
+  userId UUID required
+  viewedAt Instant required
+}
+
+relationship ManyToOne {
+  Content{category} to Category
+  ContentFlag{content} to Content
+  ContentTag{content} to Content
+  ContentVote{content} to Content
+  LessonConcept{lesson} to Lesson
+  LessonConcept{content} to Content
+  ModerationQueue{content} to Content
+  Quiz{lesson} to Lesson
+  Quiz{content} to Content
+  QuizQuestion{quiz} to Quiz
+  SavedContent{content} to Content
+  SavedContent{lesson} to Lesson
+  UserConceptMastered{content} to Content
+  UserLessonProgress{lesson} to Lesson
+  UserQuizResult{quiz} to Quiz
+  BrowsingHistory{content} to Content
+  BrowsingHistory{lesson} to Lesson
+}

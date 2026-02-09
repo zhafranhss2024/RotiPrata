@@ -1,1 +1,7 @@
-
+/target/
+/.idea/
+*.iml
+*.log
+.env
+/node_modules/
+.vscode/
