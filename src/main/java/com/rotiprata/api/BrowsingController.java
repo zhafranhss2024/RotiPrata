@@ -3,6 +3,10 @@ package com.rotiprata.api;
 import java.util.List;
 
 import com.rotiprata.application.BrowsingService;
+import com.rotiprata.domain.Content;
+
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -11,24 +15,21 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/browse")
 public class BrowsingController {
-    
+
     private final BrowsingService browsingService;
 
-    public BrowsingController(BrowsingService broswingService) {
-        this.browsingService = broswingService;
+    public BrowsingController(BrowsingService browsingService) {
+        this.browsingService = browsingService;
     }
 
     @GetMapping("/query")
-    public List<Content> search(@RequestParam(required = false) String query, @RequestParam(required = false) String[] filter) {
+    public List<Content> search(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String[] filter,
+            @AuthenticationPrincipal Jwt jwt 
+    ) {
+        String accessToken = jwt.getTokenValue();
 
-        // After I implement the AI suggestions??
-        // if (query == null) {
-        //     return browsingService.getSuggestions();
-        // } else {
-        //     return browsingService.search(query, filter);
-        // }
-
-        return browsingService.search(query, filter);
-
+        return browsingService.search(query, filter, accessToken);
     }
 }

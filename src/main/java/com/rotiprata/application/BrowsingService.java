@@ -5,29 +5,28 @@ import java.util.List;
 
 import org.springframework.stereotype.Service;
 
-import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
+import com.rotiprata.domain.Content;
 
 @Service
 public class BrowsingService {
-    
-    private final SuperbaseRestClient superbaseRestClient;
 
-    public BrowsingService(SuperbaseClient superbaseClient) {
-        this.superbaseRestClient = superbaseClient;
+    private final ContentService contentService;
+
+    public BrowsingService(ContentService contentService) {
+        this.contentService = contentService;
     }
 
-    // To change the object type after implementing parent class of content and lessons?
-    public List<Content> search(String query, String[] filter) {
+    public List<Content> search(String query, String[] filter, String accessToken) {
 
         List<Content> results = new ArrayList<>();
-        
-        // 1. Get Contents
-        List<Content> contents = searchContent(query, filters);
-        
-        // 2. Get Lessons
-        List<Lesson> lessons = searchLessons(query, filters);
+
+        List<Content> contents = contentService.getFilteredContent(query, filter, accessToken);
+        results.addAll(contents);
+
+        // TODO: Get lessons if Lesson extends Content
+        // List<Lesson> lessons = lessonService.getFilteredLessons(query, filter, accessToken);
+        // results.addAll(lessons);
 
         return results;
-
     }
 }
