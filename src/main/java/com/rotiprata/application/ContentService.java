@@ -11,6 +11,7 @@ import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 @Service
 public class ContentService {
 
+    private static final String ID = "id";
     private static final String TITLE = "title";
     private static final String DESCRIPTION = "description";
     private static final String CONTENT_TYPE = "content_type";
@@ -24,20 +25,35 @@ public class ContentService {
     public List<ContentSearchDTO> getFilteredContent(String query, String filter, String accessToken) {
         String path = "/content";
 
-        String selectColumns = String.join(",", TITLE, DESCRIPTION, CONTENT_TYPE);
-
+        String selectColumns = String.join(",", ID, TITLE, DESCRIPTION, CONTENT_TYPE);
         String filterQuery = String.format("select=%s&%s=ilike.*%s*", selectColumns, TITLE, query);
 
         if (filter != null && !filter.isEmpty()) {
             filterQuery += "&" + CONTENT_TYPE + "=eq." + filter;
         }
 
-        return supabaseRestClient.getList(
+        List<ContentSearchDTO> resultsFromDb = supabaseRestClient.getList(
             path,
             filterQuery,
             accessToken,
             new TypeReference<List<ContentSearchDTO>>() {}
         );
+
+        return resultsFromDb.stream()
+            .map(c -> {
+                String desc = c.description();
+                String snippet = (desc != null && desc.length() > 100)
+                    ? desc.substring(0, 100) + "..."
+                    : desc;
+
+                return new ContentSearchDTO(
+                    c.id(),
+                    c.title(),
+                    c.contentType(),
+                    null,   
+                    snippet
+                );
+            })
+            .toList();
     }
 }
-
