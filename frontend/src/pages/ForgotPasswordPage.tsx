@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
 import { requestPasswordReset } from '@/lib/api';
+import { ApiError } from '@/lib/apiClient';
+import { formatRateLimitMessage } from '@/lib/rateLimit';
 
 const ForgotPasswordPage = () => {
   const [email, setEmail] = useState('');
@@ -23,10 +25,14 @@ const ForgotPasswordPage = () => {
     try {
       const redirectTo = `${window.location.origin}/reset-password`;
       await requestPasswordReset(email, redirectTo);
-      setMessage('Password reset link sent. Check your email for the next steps.');
+      setMessage("If an account exists for this email, you'll receive a reset link shortly.");
     } catch (err) {
       console.error('Password reset request failed', err);
-      setError('Unable to send reset email. Please try again.');
+      if (err instanceof ApiError && err.code === 'rate_limited') {
+        setError(formatRateLimitMessage(err.retryAfterSeconds));
+      } else {
+        setMessage("If an account exists for this email, you'll receive a reset link shortly.");
+      }
     } finally {
       setIsSubmitting(false);
     }

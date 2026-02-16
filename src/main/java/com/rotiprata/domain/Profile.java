@@ -17,8 +17,6 @@ public class Profile {
 
     private UUID userId;
 
-    private String username;
-
     private String displayName;
 
     private String avatarUrl;

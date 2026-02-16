@@ -10,6 +10,7 @@ supabase:
   url: ${SUPABASE_URL}
   anon-key: ${SUPABASE_ANON_KEY}
   rest-url: ${SUPABASE_REST_URL:}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
   storage:
     buckets:
       content-media: content-media

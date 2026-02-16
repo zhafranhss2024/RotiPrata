@@ -19,7 +19,7 @@ Auth
   Returns: tokens + user info.  
   Supabase backing: `POST /auth/v1/token?grant_type=password`
 - `POST /auth/register`  
-  Body: `{ email, password, username, isGenAlpha?, redirectTo? }`  
+  Body: `{ email, password, displayName, isGenAlpha?, redirectTo? }`  
   Returns: tokens or email confirmation required flag.  
   Supabase backing: `POST /auth/v1/signup`
 - `POST /auth/forgot-password`  
@@ -38,6 +38,9 @@ Auth
   Query: `redirectTo?`  
   Returns 302 redirect to Supabase OAuth.  
   Supabase backing: `GET /auth/v1/authorize`
+- `GET /auth/username-available`  
+  Query: `displayName` (or `username` for backward-compat)  
+  Returns `{ available, normalized }` based on `display_name_registry` view.
 - `GET /auth/me`  
   Header: `Authorization: Bearer <token>`  
   Returns or creates the profile mapped to the JWT.  

@@ -16,12 +16,25 @@ export const shouldAutoFallbackToMocks = () => autoMocks;
 export class ApiError extends Error {
   status?: number;
   body?: string;
+  code?: string;
+  fieldErrors?: Record<string, string>;
+  retryAfterSeconds?: number;
 
-  constructor(message: string, status?: number, body?: string) {
+  constructor(
+    message: string,
+    status?: number,
+    body?: string,
+    code?: string,
+    fieldErrors?: Record<string, string>,
+    retryAfterSeconds?: number
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.code = code;
+    this.fieldErrors = fieldErrors;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -68,8 +81,32 @@ const apiRequest = async <T>(path: string, options: RequestInit = {}): Promise<T
   });
 
   if (!response.ok) {
-    const bodyText = await response.text().catch(() => "");
-    throw new ApiError(`API request failed: ${response.status}`, response.status, bodyText);
+    const contentType = response.headers.get("content-type") || "";
+    let bodyText = "";
+    let jsonBody: { code?: string; message?: string; fieldErrors?: Record<string, string>; retryAfterSeconds?: number } | null = null;
+
+    if (contentType.includes("application/json")) {
+      jsonBody = await response.json().catch(() => null);
+    } else {
+      bodyText = await response.text().catch(() => "");
+    }
+
+    if (!bodyText && jsonBody) {
+      bodyText = JSON.stringify(jsonBody);
+    }
+
+    const retryAfterHeader = response.headers.get("Retry-After");
+    const retryAfterSeconds = jsonBody?.retryAfterSeconds ?? (retryAfterHeader ? Number(retryAfterHeader) : undefined);
+    const message = jsonBody?.message || `API request failed: ${response.status}`;
+
+    throw new ApiError(
+      message,
+      response.status,
+      bodyText,
+      jsonBody?.code,
+      jsonBody?.fieldErrors,
+      Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined
+    );
   }
 
   return readResponseBody(response) as Promise<T>;

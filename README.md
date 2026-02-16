@@ -26,6 +26,8 @@ Copy `.env.template` to `.env` and fill in values:
 The backend loads `.env` automatically at startup.
 Set `FRONTEND_URL` to the public frontend base URL so auth emails can redirect back to your UI.
 Optionally set `SUPABASE_REST_URL` to override the default `SUPABASE_URL/rest/v1`.
+Set `SUPABASE_SERVICE_ROLE_KEY` for admin lookups used to detect duplicate emails.
+**Do not leak or expose this key** (keep it server-side only and never commit it to the repo).
 
 
 ## Run the backend (development)

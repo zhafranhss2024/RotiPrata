@@ -11,7 +11,7 @@ interface AuthContextType {
   register: (
     email: string,
     password: string,
-    username: string,
+    displayName: string,
     isGenAlpha?: boolean
   ) => Promise<{ success: boolean; error?: string; requiresVerification?: boolean; message?: string }>;
   logout: () => Promise<void>;

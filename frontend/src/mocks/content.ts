@@ -42,7 +42,6 @@ export const mockContents: Content[] = [
     creator: {
       id: "user1",
       user_id: "user1",
-      username: "alphaking",
       display_name: "Alpha King",
       avatar_url: null,
       bio: null,
@@ -94,7 +93,6 @@ export const mockContents: Content[] = [
     creator: {
       id: "user2",
       user_id: "user2",
-      username: "genzmeme",
       display_name: "Gen Z Meme",
       avatar_url: null,
       bio: null,
@@ -146,7 +144,6 @@ export const mockContents: Content[] = [
     creator: {
       id: "user3",
       user_id: "user3",
-      username: "ohiogang",
       display_name: "Ohio Gang",
       avatar_url: null,
       bio: null,
@@ -198,7 +195,6 @@ export const mockContents: Content[] = [
     creator: {
       id: "user4",
       user_id: "user4",
-      username: "slangmaster",
       display_name: "Slang Master",
       avatar_url: null,
       bio: null,
@@ -250,7 +246,6 @@ export const mockContents: Content[] = [
     creator: {
       id: "user5",
       user_id: "user5",
-      username: "ampfan",
       display_name: "AMP Fan",
       avatar_url: null,
       bio: null,

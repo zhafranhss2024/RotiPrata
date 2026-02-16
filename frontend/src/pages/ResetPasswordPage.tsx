@@ -7,6 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft } from 'lucide-react';
 import { resetPassword } from '@/lib/api';
+import { PasswordStrength } from '@/components/auth/PasswordStrength';
+import { isPasswordCompliant, PASSWORD_POLICY_MESSAGE } from '@/lib/passwordPolicy';
+import { ApiError } from '@/lib/apiClient';
+import { formatRateLimitMessage } from '@/lib/rateLimit';
 
 const extractAccessToken = () => {
   const hash = window.location.hash.replace(/^#/, '');
@@ -33,8 +37,8 @@ const ResetPasswordPage = () => {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    if (!isPasswordCompliant(password)) {
+      setError(PASSWORD_POLICY_MESSAGE);
       return;
     }
 
@@ -51,6 +55,20 @@ const ResetPasswordPage = () => {
       setConfirmPassword('');
     } catch (err) {
       console.error('Reset password failed', err);
+      if (err instanceof ApiError) {
+        if (err.code === 'rate_limited') {
+          setError(formatRateLimitMessage(err.retryAfterSeconds));
+          return;
+        }
+        if (err.fieldErrors?.password) {
+          setError(err.fieldErrors.password);
+          return;
+        }
+        if (err.message) {
+          setError(err.message);
+          return;
+        }
+      }
       setError('Unable to reset password. Please try again.');
     } finally {
       setIsSubmitting(false);
@@ -100,6 +118,7 @@ const ResetPasswordPage = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                   />
+                  <PasswordStrength password={password} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>

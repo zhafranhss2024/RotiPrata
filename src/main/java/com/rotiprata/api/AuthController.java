@@ -8,6 +8,7 @@ import com.rotiprata.api.dto.ForgotPasswordRequest;
 import com.rotiprata.api.dto.LoginRequest;
 import com.rotiprata.api.dto.RegisterRequest;
 import com.rotiprata.api.dto.ResetPasswordRequest;
+import com.rotiprata.api.dto.DisplayNameAvailabilityResponse;
 import com.rotiprata.security.SecurityUtils;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -85,6 +86,29 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.FOUND)
             .header(HttpHeaders.LOCATION, url)
             .build();
+    }
+
+    @GetMapping("/username-available")
+    public DisplayNameAvailabilityResponse usernameAvailable(
+        @RequestParam(value = "displayName", required = false) String displayName,
+        @RequestParam(value = "username", required = false) String username
+    ) {
+        String candidate = (displayName != null && !displayName.isBlank()) ? displayName : username;
+        if (candidate == null) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Display name must be 3-30 characters and use letters, numbers, dot, underscore, or hyphen."
+            );
+        }
+        if (!userService.isDisplayNameFormatValid(candidate)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Display name must be 3-30 characters and use letters, numbers, dot, underscore, or hyphen."
+            );
+        }
+        String normalized = userService.normalizeDisplayName(candidate);
+        boolean available = !userService.isDisplayNameTaken(normalized);
+        return new DisplayNameAvailabilityResponse(available, normalized);
     }
 
     @GetMapping("/me")

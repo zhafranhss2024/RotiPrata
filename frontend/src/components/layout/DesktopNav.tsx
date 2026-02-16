@@ -19,7 +19,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 const navItems = [
   { label: 'Feed', href: '/', icon: Home },
   { label: 'Explore', href: '/explore', icon: Search },
-  { label: 'Lessons', href: '/lessons', icon: BookOpen },
+  { label: 'Lesson Hub', href: '/lessons', icon: BookOpen },
 ];
 
 export function DesktopNav() {

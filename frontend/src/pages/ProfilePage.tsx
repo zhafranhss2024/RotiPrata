@@ -106,6 +106,9 @@ const ProfilePage = () => {
     );
   }
 
+  const displayName = profile.display_name || 'User';
+  const displayInitial = displayName ? displayName[0] : 'U';
+
   return (
     <MainLayout>
       <div className="container max-w-2xl mx-auto px-4 py-6 md:py-8 pb-safe">
@@ -115,17 +118,19 @@ const ProfilePage = () => {
             <Avatar className="w-20 h-20">
               <AvatarImage src={profile.avatar_url || undefined} />
               <AvatarFallback className="gradient-primary text-white text-2xl">
-                {profile.display_name?.[0] || profile.username[0]}
+                {displayInitial}
               </AvatarFallback>
             </Avatar>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold">{profile.display_name || profile.username}</h1>
+                <h1 className="text-xl font-bold">{displayName}</h1>
                 {profile.is_verified && (
                   <Badge className="bg-secondary text-secondary-foreground">âœ“ Verified</Badge>
                 )}
               </div>
-              <p className="text-muted-foreground">@{profile.username}</p>
+              {profile.display_name && (
+                <p className="text-muted-foreground">@{profile.display_name}</p>
+              )}
               {profile.bio && <p className="text-sm mt-1">{profile.bio}</p>}
               
               {/* Role badges */}

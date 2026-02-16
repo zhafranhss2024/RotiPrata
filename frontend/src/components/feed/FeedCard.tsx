@@ -117,7 +117,7 @@ export function FeedCard({
             <span className="text-sm">👤</span>
           </div>
           <span className="text-white/80 text-sm font-medium">
-            @{content.creator?.username || 'anonymous'}
+            @{content.creator?.display_name || 'anonymous'}
           </span>
         </div>
 

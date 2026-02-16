@@ -9,6 +9,7 @@ public class SupabaseProperties {
     private String url;
     private String anonKey;
     private String restUrl;
+    private String serviceRoleKey;
     private Storage storage = new Storage();
 
     public String getUrl() {
@@ -40,6 +41,14 @@ public class SupabaseProperties {
 
     public void setRestUrl(String restUrl) {
         this.restUrl = restUrl;
+    }
+
+    public String getServiceRoleKey() {
+        return serviceRoleKey;
+    }
+
+    public void setServiceRoleKey(String serviceRoleKey) {
+        this.serviceRoleKey = serviceRoleKey;
     }
 
     public Storage getStorage() {

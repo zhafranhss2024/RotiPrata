@@ -71,10 +71,16 @@ export type AuthSessionResponse = {
   message?: string;
 };
 
+export type DisplayNameAvailabilityResponse = {
+  available: boolean;
+  normalized: string;
+};
+
 const withMockFallback = async <T>(
   label: string,
   fallback: () => T,
-  request: () => Promise<T>
+  request: () => Promise<T>,
+  options?: { allowAutoFallback?: boolean }
 ): Promise<T> => {
   if (shouldUseMocks()) {
     return fallback();
@@ -82,7 +88,8 @@ const withMockFallback = async <T>(
   try {
     return await request();
   } catch (error) {
-    if (shouldAutoFallbackToMocks()) {
+    const allowAutoFallback = options?.allowAutoFallback ?? true;
+    if (shouldAutoFallbackToMocks() && allowAutoFallback) {
       console.warn(`[mocks] ${label} -> falling back to dummy data`, error);
       return fallback();
     }
@@ -207,13 +214,14 @@ export const loginUser = (email: string, password: string) =>
       tokenType: "bearer",
       expiresIn: 3600,
     }),
-    () => apiPost<AuthSessionResponse>(`/auth/login`, { email, password })
+    () => apiPost<AuthSessionResponse>(`/auth/login`, { email, password }),
+    { allowAutoFallback: false }
   );
 
 export const registerUser = (
   email: string,
   password: string,
-  username: string,
+  displayName: string,
   isGenAlpha?: boolean
 ) =>
   withMockFallback(
@@ -226,22 +234,41 @@ export const registerUser = (
       userId: "mock-user",
       email,
     }),
-    () => apiPost<AuthSessionResponse>(`/auth/register`, { email, password, username, isGenAlpha })
+    () => apiPost<AuthSessionResponse>(`/auth/register`, { email, password, displayName, isGenAlpha }),
+    { allowAutoFallback: false }
   );
 
 export const logoutUser = () => apiPost<void>(`/auth/logout`);
 
 export const requestPasswordReset = (email: string, redirectTo?: string) =>
-  apiPost<void>(`/auth/forgot-password`, { email, redirectTo });
+  withMockFallback(
+    "auth-forgot-password",
+    () => undefined as void,
+    () => apiPost<void>(`/auth/forgot-password`, { email, redirectTo }),
+    { allowAutoFallback: false }
+  );
 
 export const resetPassword = (accessToken: string, newPassword: string) =>
-  apiPost<void>(`/auth/reset-password`, { accessToken, password: newPassword });
+  withMockFallback(
+    "auth-reset-password",
+    () => undefined as void,
+    () => apiPost<void>(`/auth/reset-password`, { accessToken, password: newPassword }),
+    { allowAutoFallback: false }
+  );
 
 export const buildGoogleOAuthUrl = (redirectTo: string) => {
   const base = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(/\/$/, "");
   const target = `${base}/auth/login/google?redirectTo=${encodeURIComponent(redirectTo)}`;
   return target;
 };
+
+export const checkDisplayNameAvailability = (displayName: string) =>
+  withMockFallback(
+    "auth-display-name-available",
+    () => ({ available: true, normalized: displayName.trim().toLowerCase() }),
+    () => apiGet<DisplayNameAvailabilityResponse>(`/auth/username-available?displayName=${encodeURIComponent(displayName)}`),
+    { allowAutoFallback: false }
+  );
 
 export const fetchCurrentUser = () =>
   withMockFallback("auth-me", () => mockAuthUser, () => apiGet<Profile>(`/auth/me`));

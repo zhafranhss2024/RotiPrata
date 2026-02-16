@@ -12,6 +12,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,6 +23,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class UserService {
     private static final TypeReference<List<Profile>> PROFILE_LIST = new TypeReference<>() {};
     private static final TypeReference<List<UserRole>> USER_ROLE_LIST = new TypeReference<>() {};
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final SupabaseRestClient supabaseRestClient;
 
@@ -42,23 +45,49 @@ public class UserService {
         return profiles.get(0);
     }
 
+    public boolean isDisplayNameTaken(String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            return false;
+        }
+        String normalized = normalizeDisplayName(displayName);
+        try {
+            List<Profile> profiles = supabaseRestClient.getList(
+                "display_name_registry",
+                buildQuery(Map.of(
+                    "display_name", "eq." + normalized,
+                    "select", "display_name"
+                )),
+                null,
+                PROFILE_LIST
+            );
+            return !profiles.isEmpty();
+        } catch (ResponseStatusException ex) {
+            if (ex.getStatusCode().value() == HttpStatus.UNAUTHORIZED.value()
+                || ex.getStatusCode().value() == HttpStatus.FORBIDDEN.value()) {
+                log.warn("Display name availability check skipped due to RLS restrictions");
+                return false;
+            }
+            throw ex;
+        }
+    }
+
     public Profile getOrCreateProfileFromJwt(org.springframework.security.oauth2.jwt.Jwt jwt, String accessToken) {
         UUID userId = SecurityUtils.getUserId(jwt);
         String email = jwt.getClaimAsString("email");
         Map<String, Object> metadata = jwt.getClaim("user_metadata");
 
-        String username = null;
+        String displayName = null;
         Boolean isGenAlpha = null;
         if (metadata != null) {
-            Object usernameValue = metadata.get("username");
-            if (usernameValue == null) {
-                usernameValue = metadata.get("preferred_username");
+            Object displayNameValue = metadata.get("display_name");
+            if (displayNameValue == null) {
+                displayNameValue = metadata.get("preferred_username");
             }
-            if (usernameValue == null) {
-                usernameValue = metadata.get("full_name");
+            if (displayNameValue == null) {
+                displayNameValue = metadata.get("full_name");
             }
-            if (usernameValue != null) {
-                username = usernameValue.toString();
+            if (displayNameValue != null) {
+                displayName = displayNameValue.toString();
             }
 
             Object genAlphaValue = metadata.get("is_gen_alpha");
@@ -67,10 +96,10 @@ public class UserService {
             }
         }
 
-        return getOrCreateProfile(userId, email, username, isGenAlpha, accessToken);
+        return getOrCreateProfile(userId, email, displayName, isGenAlpha, accessToken);
     }
 
-    public Profile getOrCreateProfile(UUID userId, String email, String usernameHint, Boolean isGenAlpha, String accessToken) {
+    public Profile getOrCreateProfile(UUID userId, String email, String displayNameHint, Boolean isGenAlpha, String accessToken) {
         String token = requireAccessToken(accessToken);
         List<Profile> profiles = supabaseRestClient.getList(
             "profiles",
@@ -82,13 +111,19 @@ public class UserService {
             return profiles.get(0);
         }
 
-        String username = buildUniqueUsername(usernameHint, email);
-        Profile created = createProfile(userId, username, usernameHint, isGenAlpha, token);
+        String displayName = buildUniqueDisplayName(displayNameHint, email);
+        Profile created = createProfile(userId, displayName, isGenAlpha, token, true);
         ensureUserRole(userId, token);
         return created;
     }
 
-    public Profile ensureProfile(UUID userId, String username, Boolean isGenAlpha, String accessToken) {
+    public Profile ensureProfile(
+        UUID userId,
+        String displayName,
+        Boolean isGenAlpha,
+        String accessToken,
+        boolean allowSuffix
+    ) {
         String token = requireAccessToken(accessToken);
         List<Profile> existing = supabaseRestClient.getList(
             "profiles",
@@ -101,11 +136,7 @@ public class UserService {
             boolean needsUpdate = false;
             Map<String, Object> patch = new HashMap<>();
             if (profile.getDisplayName() == null) {
-                patch.put("display_name", username);
-                needsUpdate = true;
-            }
-            if (profile.getUsername() == null) {
-                patch.put("username", username);
+                patch.put("display_name", displayName);
                 needsUpdate = true;
             }
             if (needsUpdate) {
@@ -124,7 +155,7 @@ public class UserService {
             return profile;
         }
 
-        Profile created = createProfile(userId, username, username, isGenAlpha, token);
+        Profile created = createProfile(userId, displayName, isGenAlpha, token, allowSuffix);
         ensureUserRole(userId, token);
         return created;
     }
@@ -160,27 +191,36 @@ public class UserService {
         return updated.get(0);
     }
 
-    private Profile createProfile(UUID userId, String username, String displayName, Boolean isGenAlpha, String accessToken) {
-        String candidate = username;
+    private Profile createProfile(UUID userId, String displayName, Boolean isGenAlpha, String accessToken) {
+        return createProfile(userId, displayName, isGenAlpha, accessToken, true);
+    }
+
+    private Profile createProfile(
+        UUID userId,
+        String displayName,
+        Boolean isGenAlpha,
+        String accessToken,
+        boolean allowSuffix
+    ) {
+        String candidate = displayName;
         try {
-            return insertProfile(userId, candidate, displayName, isGenAlpha, accessToken);
+            return insertProfile(userId, candidate, isGenAlpha, accessToken);
         } catch (ResponseStatusException ex) {
-            if (ex.getStatusCode().value() == HttpStatus.CONFLICT.value()) {
+            if (allowSuffix && ex.getStatusCode().value() == HttpStatus.CONFLICT.value()) {
                 String suffix = userId.toString().substring(0, 6);
                 String fallback = candidate + "-" + suffix;
                 if (!fallback.equals(candidate)) {
-                    return insertProfile(userId, fallback, displayName, isGenAlpha, accessToken);
+                    return insertProfile(userId, fallback, isGenAlpha, accessToken);
                 }
             }
             throw ex;
         }
     }
 
-    private Profile insertProfile(UUID userId, String username, String displayName, Boolean isGenAlpha, String accessToken) {
+    private Profile insertProfile(UUID userId, String displayName, Boolean isGenAlpha, String accessToken) {
         Map<String, Object> insert = new HashMap<>();
         insert.put("user_id", userId);
-        insert.put("username", username);
-        insert.put("display_name", displayName != null && !displayName.isBlank() ? displayName : username);
+        insert.put("display_name", displayName);
         insert.put("is_gen_alpha", isGenAlpha != null && isGenAlpha);
         insert.put("created_at", OffsetDateTime.now());
         insert.put("updated_at", OffsetDateTime.now());
@@ -211,10 +251,10 @@ public class UserService {
         supabaseRestClient.postList("user_roles", insert, accessToken, USER_ROLE_LIST);
     }
 
-    private String buildUniqueUsername(String usernameHint, String email) {
+    private String buildUniqueDisplayName(String displayNameHint, String email) {
         String base = null;
-        if (usernameHint != null && !usernameHint.isBlank()) {
-            base = usernameHint.trim();
+        if (displayNameHint != null && !displayNameHint.isBlank()) {
+            base = displayNameHint.trim();
         } else if (email != null && email.contains("@")) {
             base = email.substring(0, email.indexOf('@'));
         }
@@ -229,6 +269,24 @@ public class UserService {
         }
 
         return base;
+    }
+
+    public boolean isDisplayNameFormatValid(String displayName) {
+        if (displayName == null) {
+            return false;
+        }
+        String trimmed = displayName.trim();
+        if (trimmed.length() < 3 || trimmed.length() > 30) {
+            return false;
+        }
+        return trimmed.matches("^[a-zA-Z0-9._-]+$");
+    }
+
+    public String normalizeDisplayName(String displayName) {
+        if (displayName == null) {
+            return null;
+        }
+        return displayName.trim().toLowerCase();
     }
 
     private String buildQuery(Map<String, String> params) {

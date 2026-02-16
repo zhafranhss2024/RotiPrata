@@ -9,7 +9,13 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { buildGoogleOAuthUrl } from '@/lib/api';
+import { buildGoogleOAuthUrl, checkDisplayNameAvailability } from '@/lib/api';
+import { PasswordStrength } from '@/components/auth/PasswordStrength';
+import { isPasswordCompliant, PASSWORD_POLICY_MESSAGE } from '@/lib/passwordPolicy';
+import {
+  isDisplayNameFormatValid,
+  DISPLAY_NAME_POLICY_MESSAGE,
+} from '@/lib/displayNamePolicy';
 
 // Backend: /api/auth/register
 // OAuth (Google) is not wired yet.
@@ -21,7 +27,7 @@ const RegisterPage = () => {
   const from = (location.state as { from?: string } | null)?.from || '/';
   const [formData, setFormData] = useState({
     email: '',
-    username: '',
+    displayName: '',
     password: '',
     confirmPassword: '',
     isGenAlpha: false,
@@ -30,6 +36,7 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [displayNameStatus, setDisplayNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error'>('idle');
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -37,10 +44,53 @@ const RegisterPage = () => {
     }
   }, [from, isAuthenticated, isLoading, navigate]);
 
+  useEffect(() => {
+    const raw = formData.displayName;
+    if (!raw.trim()) {
+      setDisplayNameStatus('idle');
+      return;
+    }
+    if (!isDisplayNameFormatValid(raw)) {
+      setDisplayNameStatus('invalid');
+      return;
+    }
+    setDisplayNameStatus('checking');
+    const timeout = window.setTimeout(async () => {
+      try {
+        const result = await checkDisplayNameAvailability(raw);
+        setDisplayNameStatus(result.available ? 'available' : 'taken');
+      } catch (err) {
+        console.error('Display name check failed', err);
+        setDisplayNameStatus('error');
+      }
+    }, 500);
+    return () => window.clearTimeout(timeout);
+  }, [formData.displayName]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setMessage('');
+
+    if (!isDisplayNameFormatValid(formData.displayName)) {
+      setError(DISPLAY_NAME_POLICY_MESSAGE);
+      return;
+    }
+
+    if (displayNameStatus === 'checking') {
+      setError('Checking display name availability. Please wait.');
+      return;
+    }
+
+    if (displayNameStatus === 'taken') {
+      setError('Display name already in use.');
+      return;
+    }
+
+    if (displayNameStatus === 'error') {
+      setError('Unable to verify display name availability. Please try again.');
+      return;
+    }
 
     // Validation
     if (formData.password !== formData.confirmPassword) {
@@ -53,15 +103,15 @@ const RegisterPage = () => {
       return;
     }
 
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (!isPasswordCompliant(formData.password)) {
+      setError(PASSWORD_POLICY_MESSAGE);
       return;
     }
     
     const result = await register(
       formData.email,
       formData.password,
-      formData.username,
+      formData.displayName,
       formData.isGenAlpha
     );
     if (result.success) {
@@ -151,15 +201,24 @@ const RegisterPage = () => {
                 )}
                 
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
+                  <Label htmlFor="displayName">Display name</Label>
                   <Input
-                    id="username"
+                    id="displayName"
                     type="text"
                     placeholder="cooluser123"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                    value={formData.displayName}
+                    onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
                     required
                   />
+                  {formData.displayName && (
+                    <p className="text-xs text-muted-foreground">
+                      {displayNameStatus === 'checking' && 'Checking availability...'}
+                      {displayNameStatus === 'available' && 'Display name is available.'}
+                      {displayNameStatus === 'taken' && 'Display name is already taken.'}
+                      {displayNameStatus === 'invalid' && DISPLAY_NAME_POLICY_MESSAGE}
+                      {displayNameStatus === 'error' && 'Unable to check display name right now.'}
+                    </p>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -195,6 +254,7 @@ const RegisterPage = () => {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
+                  <PasswordStrength password={formData.password} />
                 </div>
                 
                 <div className="space-y-2">

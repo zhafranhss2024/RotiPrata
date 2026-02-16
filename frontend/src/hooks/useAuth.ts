@@ -7,7 +7,9 @@ import {
   logoutUser,
   registerUser,
 } from '@/lib/api';
+import { ApiError } from '@/lib/apiClient';
 import { clearTokens, getAccessToken, setTokens } from '@/lib/tokenStorage';
+import { formatRateLimitMessage } from '@/lib/rateLimit';
 
 // NOTE: Real backend API calls live in src/lib/api.ts.
 // When VITE_USE_MOCKS=true or set to auto without a backend, calls fall back to dummy data.
@@ -74,15 +76,27 @@ export function useAuth() {
     } catch (error) {
       console.error('Login failed', error);
       setState(prev => ({ ...prev, isLoading: false }));
+      if (error instanceof ApiError) {
+        if (error.code === 'rate_limited') {
+          return { success: false, error: formatRateLimitMessage(error.retryAfterSeconds) };
+        }
+        if (error.code === 'invalid_credentials') {
+          return { success: false, error: 'Invalid email or password.' };
+        }
+        if (error.message) {
+          return { success: false, error: error.message };
+        }
+        return { success: false, error: 'Login failed' };
+      }
       return { success: false, error: 'Login failed' };
     }
   }, [checkAuth]);
 
-  const register = useCallback(async (email: string, password: string, username: string, isGenAlpha?: boolean) => {
+  const register = useCallback(async (email: string, password: string, displayName: string, isGenAlpha?: boolean) => {
     setState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      const result = await registerUser(email, password, username, isGenAlpha);
+      const result = await registerUser(email, password, displayName, isGenAlpha);
       if (result.accessToken) {
         setTokens(result.accessToken, result.refreshToken, result.tokenType);
         await checkAuth();
@@ -100,6 +114,22 @@ export function useAuth() {
     } catch (error) {
       console.error('Registration failed', error);
       setState(prev => ({ ...prev, isLoading: false }));
+      if (error instanceof ApiError) {
+        if (error.code === 'email_in_use') {
+          return { success: false, error: 'Email already in use.' };
+        }
+        if (error.code === 'username_in_use') {
+          return { success: false, error: 'Display name already in use.' };
+        }
+        if (error.code === 'rate_limited') {
+          return { success: false, error: formatRateLimitMessage(error.retryAfterSeconds) };
+        }
+        if (error.fieldErrors) {
+          const first = Object.values(error.fieldErrors)[0];
+          return { success: false, error: first || error.message || 'Registration failed' };
+        }
+        return { success: false, error: error.message || 'Registration failed' };
+      }
       return { success: false, error: 'Registration failed' };
     }
   }, [checkAuth]);

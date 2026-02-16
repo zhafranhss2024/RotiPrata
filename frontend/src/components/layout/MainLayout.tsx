@@ -22,8 +22,7 @@ export function MainLayout({
       
       <main 
         className={cn(
-          !fullScreen && "pb-safe md:pt-16",
-          !fullScreen && !hideNav && "pb-nav-height md:pb-0",
+          !fullScreen && "md:pt-16",
           className
         )}
       >

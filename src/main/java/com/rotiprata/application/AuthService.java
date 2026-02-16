@@ -1,6 +1,7 @@
 package com.rotiprata.application;
 
 import com.rotiprata.infrastructure.supabase.SupabaseAuthClient;
+import com.rotiprata.infrastructure.supabase.SupabaseAdminClient;
 import com.rotiprata.infrastructure.supabase.SupabaseSessionResponse;
 import com.rotiprata.infrastructure.supabase.SupabaseSignupResponse;
 import com.rotiprata.infrastructure.supabase.SupabaseUser;
@@ -12,6 +13,8 @@ import com.rotiprata.api.dto.ResetPasswordRequest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
@@ -19,16 +22,20 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private final SupabaseAuthClient supabaseAuthClient;
+    private final SupabaseAdminClient supabaseAdminClient;
     private final UserService userService;
     private final String frontendUrl;
 
     public AuthService(
         SupabaseAuthClient supabaseAuthClient,
+        SupabaseAdminClient supabaseAdminClient,
         UserService userService,
         @org.springframework.beans.factory.annotation.Value("${app.frontend-url:http://localhost:5173}") String frontendUrl
     ) {
         this.supabaseAuthClient = supabaseAuthClient;
+        this.supabaseAdminClient = supabaseAdminClient;
         this.userService = userService;
         this.frontendUrl = frontendUrl;
     }
@@ -38,14 +45,38 @@ public class AuthService {
             SupabaseSessionResponse session = supabaseAuthClient.login(request.email(), request.password());
             return toAuthResponse(session, false, null);
         } catch (RestClientResponseException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password", ex);
+            log.warn("Login failed for email {} status {}", request.email(), ex.getRawStatusCode());
+            String body = ex.getResponseBodyAsString();
+            if (body != null) {
+                String normalized = body.toLowerCase();
+                if (normalized.contains("email not confirmed") || normalized.contains("confirm your email")) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Email not confirmed. Check your inbox.", ex);
+                }
+            }
+            int status = ex.getRawStatusCode();
+            if (status == HttpStatus.BAD_REQUEST.value() || status == HttpStatus.UNAUTHORIZED.value()) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password", ex);
+            }
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Authentication service unavailable", ex);
         }
     }
 
     public AuthSessionResponse register(RegisterRequest request) {
         try {
+            if (!userService.isDisplayNameFormatValid(request.displayName())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Display name must be 3-30 characters and use letters, numbers, dot, underscore, or hyphen.");
+            }
+            String normalizedDisplayName = userService.normalizeDisplayName(request.displayName());
+            if (supabaseAdminClient.emailExists(request.email())) {
+                log.warn("Registration failed: email already registered {}", request.email());
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
+            }
+            if (userService.isDisplayNameTaken(normalizedDisplayName)) {
+                log.warn("Registration failed: display name already taken {}", normalizedDisplayName);
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Display name already taken");
+            }
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("username", request.username());
+            metadata.put("display_name", request.displayName());
             if (request.isGenAlpha() != null) {
                 metadata.put("is_gen_alpha", request.isGenAlpha());
             }
@@ -75,11 +106,22 @@ public class AuthService {
             SupabaseUser user = response.getUser();
             if (user != null && user.getId() != null) {
                 UUID userId = UUID.fromString(user.getId());
-                userService.ensureProfile(userId, request.username(), request.isGenAlpha(), response.getSession().getAccessToken());
+                userService.ensureProfile(
+                    userId,
+                    request.displayName(),
+                    request.isGenAlpha(),
+                    response.getSession().getAccessToken(),
+                    false
+                );
             }
 
             return toAuthResponse(response.getSession(), false, null);
         } catch (RestClientResponseException ex) {
+            if (isEmailAlreadyRegistered(ex)) {
+                log.warn("Registration failed: email already registered {} status {}", request.email(), ex.getRawStatusCode());
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered", ex);
+            }
+            log.warn("Registration failed for email {} status {}", request.email(), ex.getRawStatusCode());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to register user", ex);
         }
     }
@@ -89,6 +131,7 @@ public class AuthService {
             String redirectTo = resolveRedirectTo(request.redirectTo(), "/reset-password");
             supabaseAuthClient.recoverPassword(request.email(), redirectTo);
         } catch (RestClientResponseException ex) {
+            log.warn("Password reset email request failed for email {} status {}", request.email(), ex.getRawStatusCode());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to send reset email", ex);
         }
     }
@@ -97,6 +140,7 @@ public class AuthService {
         try {
             supabaseAuthClient.updatePassword(request.accessToken(), request.password());
         } catch (RestClientResponseException ex) {
+            log.warn("Password reset failed status {}", ex.getRawStatusCode());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to reset password", ex);
         }
     }
@@ -108,6 +152,7 @@ public class AuthService {
         try {
             supabaseAuthClient.logout(accessToken);
         } catch (RestClientResponseException ex) {
+            log.warn("Logout failed status {}", ex.getRawStatusCode());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to logout", ex);
         }
     }
@@ -141,5 +186,17 @@ public class AuthService {
         String base = frontendUrl.endsWith("/") ? frontendUrl.substring(0, frontendUrl.length() - 1) : frontendUrl;
         String suffix = path.startsWith("/") ? path : "/" + path;
         return base + suffix;
+    }
+
+    private boolean isEmailAlreadyRegistered(RestClientResponseException ex) {
+        String body = ex.getResponseBodyAsString();
+        if (body == null || body.isBlank()) {
+            return false;
+        }
+        String normalized = body.toLowerCase();
+        return normalized.contains("already registered")
+            || normalized.contains("already exists")
+            || normalized.contains("user already")
+            || normalized.contains("email address already");
     }
 }

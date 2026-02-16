@@ -67,23 +67,27 @@ public class SupabaseRestClient {
         try {
             String responseBody;
             if ("GET".equals(method)) {
-                responseBody = restClient.get()
-                    .uri(uri)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                    .retrieve()
-                    .body(String.class);
+                var request = restClient.get().uri(uri);
+                if (accessToken != null && !accessToken.isBlank()) {
+                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+                }
+                responseBody = request.retrieve().body(String.class);
             } else if ("POST".equals(method)) {
-                responseBody = restClient.post()
-                    .uri(uri)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                var request = restClient.post().uri(uri);
+                if (accessToken != null && !accessToken.isBlank()) {
+                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+                }
+                responseBody = request
                     .header("Prefer", "return=representation")
                     .body(serialize(body))
                     .retrieve()
                     .body(String.class);
             } else if ("PATCH".equals(method)) {
-                responseBody = restClient.patch()
-                    .uri(uri)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                var request = restClient.patch().uri(uri);
+                if (accessToken != null && !accessToken.isBlank()) {
+                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+                }
+                responseBody = request
                     .header("Prefer", "return=representation")
                     .body(serialize(body))
                     .retrieve()

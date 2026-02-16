@@ -8,7 +8,6 @@ const now = new Date().toISOString();
 export const mockProfile: Profile = {
   id: "1",
   user_id: "user1",
-  username: "brainrot_learner",
   display_name: "Brain Rot Learner",
   avatar_url: null,
   bio: "Learning Gen Alpha culture one skibidi at a time",
