@@ -2,8 +2,8 @@ package com.rotiprata.api;
 
 import java.util.List;
 
+import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.application.BrowsingService;
-import com.rotiprata.domain.Content;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -22,10 +22,10 @@ public class BrowsingController {
         this.browsingService = browsingService;
     }
 
-    @GetMapping("/query")
-    public List<Content> search(
+    @GetMapping("/search")
+    public List<ContentSearchDTO> search(
             @RequestParam(required = false) String query,
-            @RequestParam(required = false) String[] filter,
+            @RequestParam(required = false) String filter,
             @AuthenticationPrincipal Jwt jwt 
     ) {
         String accessToken = jwt.getTokenValue();

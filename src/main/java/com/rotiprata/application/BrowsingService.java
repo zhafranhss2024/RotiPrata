@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import com.rotiprata.api.dto.ContentSearchDTO;
 
-import com.rotiprata.domain.Content;
 
 @Service
 public class BrowsingService {
@@ -16,11 +16,11 @@ public class BrowsingService {
         this.contentService = contentService;
     }
 
-    public List<Content> search(String query, String[] filter, String accessToken) {
+    public List<ContentSearchDTO> search(String query, String filter, String accessToken) {
 
-        List<Content> results = new ArrayList<>();
+        List<ContentSearchDTO> results = new ArrayList<>();
 
-        List<Content> contents = contentService.getFilteredContent(query, filter, accessToken);
+        List<ContentSearchDTO> contents = contentService.getFilteredContent(query, filter, accessToken);
         results.addAll(contents);
 
         // TODO: Get lessons if Lesson extends Content
