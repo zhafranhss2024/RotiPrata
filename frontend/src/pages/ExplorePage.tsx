@@ -52,7 +52,7 @@ const ExplorePage = () => {
       .catch((error) => console.warn('Failed to load browsing history', error));
   }, []);
 
-  const filters = ['Video', 'Lesson', 'Slang', 'Meme', 'Dance'];
+  const filters = ['video', 'lesson', 'slang', 'meme', 'dance'];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault(); 
