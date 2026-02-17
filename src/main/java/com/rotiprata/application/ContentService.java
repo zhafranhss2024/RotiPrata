@@ -29,7 +29,7 @@ public class ContentService {
         String filterQuery = String.format("select=%s&%s=ilike.*%s*", selectColumns, TITLE, query);
 
         if (filter != null && !filter.isEmpty()) {
-            filterQuery += "&" + CONTENT_TYPE + "=eq." + filter;
+            filterQuery += "&" + CONTENT_TYPE + "=eq." + filter.toLowerCase();
         }
 
         List<ContentSearchDTO> resultsFromDb = supabaseRestClient.getList(

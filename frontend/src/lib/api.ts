@@ -105,7 +105,7 @@ export const searchContent = (query: string, filter?: string | null) =>
     "search",
     // () => mockSearchResults,
     () => [],
-    () => apiGet<SearchResult[]>(`/search?q=${encodeURIComponent(query)}&filter=${filter || ""}`)
+    () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
 
 export const fetchRecommendations = () =>
