@@ -33,7 +33,7 @@ const ExplorePage = () => {
   const [activeTab, setActiveTab] = useState('trending');
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<{ id: string; type: string; title: string; snippet?: string }[]>([]);
+  const [searchResults, setSearchResults] = useState<{ id: string; content_type: string; title: string; snippet?: string }[]>([]);
   const [trendingContent, setTrendingContent] = useState<{ id: string; title: string; category: string; views: string }[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<{ id: string; title: string; items: string[] }[]>([]);
   const [browsingHistory, setBrowsingHistory] = useState<{ id: string; title: string; type: string; viewedAt: string }[]>([]);
@@ -66,12 +66,20 @@ const ExplorePage = () => {
 
     setIsSearching(true);
 
-    const debounceTimeout = setTimeout(() => {
-      searchContent(searchQuery, selectedFilter)
-        .then(setSearchResults)
-        .catch((error) => console.warn('Search failed', error))
-        .finally(() => setIsSearching(false));
-    }, 300); 
+  const debounceTimeout = setTimeout(() => {
+    searchContent(searchQuery, selectedFilter)
+      .then((results) => {
+        console.log("Search results:", results);
+
+        // Log just the types
+        results.forEach((r) => console.log("Type:", r.contentType));
+
+        setSearchResults(results);
+      })
+      .catch((error) => console.warn('Search failed', error))
+      .finally(() => setIsSearching(false));
+  }, 300);
+
 
     return () => clearTimeout(debounceTimeout);
   }, [searchQuery, selectedFilter]);
@@ -137,14 +145,14 @@ const ExplorePage = () => {
               <div className="space-y-3">
                 {searchResults.map((result) => (
                   <Link
-                    key={`${result.type}-${result.id}`}
-                    to={result.type === 'lesson' ? `/lessons/${result.id}` : `/content/${result.id}`}
+                    key={`${result.content_type}-${result.id}`}
+                    to={result.content_type === 'lesson' ? `/lessons/${result.id}` : `/content/${result.id}`}
                   >
                     <Card className="hover:bg-muted/50 transition-colors">
                       <CardContent className="p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                           <Badge variant="secondary" className="text-xs">
-                            {result.type}
+                            {result.content_type}
                           </Badge>
                         </div>
                         <h3 className="font-semibold">{result.title}</h3>

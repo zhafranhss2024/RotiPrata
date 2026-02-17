@@ -48,9 +48,9 @@ public class ContentService {
 
                 return new ContentSearchDTO(
                     c.id(),
+                    c.content_type(),
                     c.title(),
-                    c.contentType(),
-                    null,   
+                    c.description(),   
                     snippet
                 );
             })
