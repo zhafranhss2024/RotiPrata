@@ -1,11 +1,11 @@
-﻿import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+﻿import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { resetPassword } from '@/lib/api';
 import { PasswordStrength } from '@/components/auth/PasswordStrength';
 import { isPasswordCompliant, PASSWORD_POLICY_MESSAGE } from '@/lib/passwordPolicy';
@@ -20,12 +20,49 @@ const extractAccessToken = () => {
 };
 
 const ResetPasswordPage = () => {
+  const navigate = useNavigate();
   const accessToken = useMemo(() => extractAccessToken(), []);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [redirectDelayMs, setRedirectDelayMs] = useState(2000);
+
+  const passwordsMismatch = password.length > 0 && confirmPassword.length > 0 && password !== confirmPassword;
+
+  const startRedirect = (opts: { error?: string; message?: string; delayMs?: number }) => {
+    if (opts.error) {
+      setError(opts.error);
+    }
+    if (opts.message) {
+      setMessage(opts.message);
+    }
+    if (opts.delayMs !== undefined) {
+      setRedirectDelayMs(opts.delayMs);
+    }
+    setIsRedirecting(true);
+  };
+
+  useEffect(() => {
+    if (!accessToken) {
+      startRedirect({
+        error: 'Missing or invalid reset token. Redirecting to sign in...',
+        delayMs: 2000,
+      });
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!isRedirecting) return;
+    const timeoutId = window.setTimeout(() => {
+      navigate('/login', { replace: true });
+    }, redirectDelayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [isRedirecting, navigate, redirectDelayMs]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +70,10 @@ const ResetPasswordPage = () => {
     setError('');
 
     if (!accessToken) {
-      setError('Reset token missing. Please request a new reset link.');
+      startRedirect({
+        error: 'Missing or invalid reset token. Redirecting to sign in...',
+        delayMs: 2000,
+      });
       return;
     }
 
@@ -50,7 +90,10 @@ const ResetPasswordPage = () => {
     setIsSubmitting(true);
     try {
       await resetPassword(accessToken, password);
-      setMessage('Password updated. You can now sign in.');
+      startRedirect({
+        message: 'Password updated. Redirecting to sign in...',
+        delayMs: 1200,
+      });
       setPassword('');
       setConfirmPassword('');
     } catch (err) {
@@ -62,6 +105,17 @@ const ResetPasswordPage = () => {
         }
         if (err.fieldErrors?.password) {
           setError(err.fieldErrors.password);
+          return;
+        }
+        if (
+          err.status === 401 ||
+          err.status === 403 ||
+          (err.message && /(token|jwt|expired)/i.test(err.message))
+        ) {
+          startRedirect({
+            error: 'Missing or invalid reset token. Redirecting to sign in...',
+            delayMs: 2000,
+          });
           return;
         }
         if (err.message) {
@@ -94,7 +148,7 @@ const ResetPasswordPage = () => {
             <CardContent>
               {!accessToken && (
                 <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm mb-4">
-                  Reset token missing. Please request a new reset link.
+                  Missing or invalid reset token. Redirecting to sign in...
                 </div>
               )}
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -108,30 +162,66 @@ const ResetPasswordPage = () => {
                     {error}
                   </div>
                 )}
+                {isRedirecting && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Redirecting to sign in...
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="password">New Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
                   <PasswordStrength password={password} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirmPassword">Confirm Password</Label>
-                  <Input
-                    id="confirmPassword"
-                    type="password"
-                    placeholder="••••••••"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="confirmPassword"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  {passwordsMismatch && (
+                    <p className="text-sm text-destructive">Passwords do not match.</p>
+                  )}
                 </div>
-                <Button type="submit" className="w-full" size="lg" disabled={isSubmitting || !accessToken}>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  size="lg"
+                  disabled={isSubmitting || !accessToken || passwordsMismatch || isRedirecting}
+                >
                   {isSubmitting ? 'Updating...' : 'Update password'}
                 </Button>
               </form>

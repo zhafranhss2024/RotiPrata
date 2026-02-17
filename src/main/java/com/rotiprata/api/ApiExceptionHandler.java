@@ -38,7 +38,8 @@ public class ApiExceptionHandler {
             ? ex.getReason()
             : status.getReasonPhrase();
         String code = mapStatusToCode(status, message);
-        ApiErrorResponse body = new ApiErrorResponse(code, message, null, null);
+        Long retryAfterSeconds = status == HttpStatus.TOO_MANY_REQUESTS ? 3600L : null;
+        ApiErrorResponse body = new ApiErrorResponse(code, message, null, retryAfterSeconds);
         return ResponseEntity.status(status).body(body);
     }
 

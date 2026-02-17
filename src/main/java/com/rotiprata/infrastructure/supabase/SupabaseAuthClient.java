@@ -55,7 +55,13 @@ public class SupabaseAuthClient {
     public void recoverPassword(String email, String redirectTo) {
         SupabaseRecoveryRequest request = new SupabaseRecoveryRequest(email, redirectTo);
         restClient.post()
-            .uri("/recover")
+            .uri(uriBuilder -> {
+                var builder = uriBuilder.path("/recover");
+                if (redirectTo != null && !redirectTo.isBlank()) {
+                    builder.queryParam("redirect_to", redirectTo);
+                }
+                return builder.build();
+            })
             .body(request)
             .retrieve()
             .toBodilessEntity();

@@ -29,7 +29,7 @@ const ForgotPasswordPage = () => {
     } catch (err) {
       console.error('Password reset request failed', err);
       if (err instanceof ApiError && err.code === 'rate_limited') {
-        setError(formatRateLimitMessage(err.retryAfterSeconds));
+        setError('Reset email not sent. Please wait 1 hour before trying again.');
       } else {
         setMessage("If an account exists for this email, you'll receive a reset link shortly.");
       }

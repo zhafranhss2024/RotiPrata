@@ -117,11 +117,28 @@ public class AuthService {
 
             return toAuthResponse(response.getSession(), false, null);
         } catch (RestClientResponseException ex) {
+            String responseBody = ex.getResponseBodyAsString();
+            String supabaseErrorCode = null;
+            if (ex.getResponseHeaders() != null) {
+                supabaseErrorCode = ex.getResponseHeaders().getFirst("x_sb_error_code");
+            }
+            log.warn(
+                "Registration failed for email {} status {} supabase_error_code {} body {}",
+                request.email(),
+                ex.getRawStatusCode(),
+                supabaseErrorCode,
+                responseBody
+            );
+            String normalizedBody = responseBody == null ? "" : responseBody.toLowerCase();
+            if (ex.getRawStatusCode() == HttpStatus.TOO_MANY_REQUESTS.value()
+                || "over_email_send_rate_limit".equalsIgnoreCase(supabaseErrorCode)
+                || normalizedBody.contains("rate limit")) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Email rate limit exceeded", ex);
+            }
             if (isEmailAlreadyRegistered(ex)) {
                 log.warn("Registration failed: email already registered {} status {}", request.email(), ex.getRawStatusCode());
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered", ex);
             }
-            log.warn("Registration failed for email {} status {}", request.email(), ex.getRawStatusCode());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to register user", ex);
         }
     }
@@ -132,6 +149,9 @@ public class AuthService {
             supabaseAuthClient.recoverPassword(request.email(), redirectTo);
         } catch (RestClientResponseException ex) {
             log.warn("Password reset email request failed for email {} status {}", request.email(), ex.getRawStatusCode());
+            if (ex.getRawStatusCode() == HttpStatus.TOO_MANY_REQUESTS.value()) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Email rate limit exceeded", ex);
+            }
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to send reset email", ex);
         }
     }

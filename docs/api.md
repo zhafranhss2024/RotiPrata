@@ -25,6 +25,7 @@ Auth
 - `POST /auth/forgot-password`  
   Body: `{ email, redirectTo? }`  
   Sends password recovery email.  
+  Note: `redirectTo` must be allowlisted in Supabase Auth settings.  
   Supabase backing: `POST /auth/v1/recover`
 - `POST /auth/reset-password`  
   Body: `{ accessToken, password }`  

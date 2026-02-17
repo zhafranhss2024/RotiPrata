@@ -78,7 +78,7 @@ export function useAuth() {
       setState(prev => ({ ...prev, isLoading: false }));
       if (error instanceof ApiError) {
         if (error.code === 'rate_limited') {
-          return { success: false, error: formatRateLimitMessage(error.retryAfterSeconds) };
+          return { success: false, error: 'Confirmation email not sent. Please wait 1 hour before trying again.' };
         }
         if (error.code === 'invalid_credentials') {
           return { success: false, error: 'Invalid email or password.' };
@@ -121,8 +121,11 @@ export function useAuth() {
         if (error.code === 'username_in_use') {
           return { success: false, error: 'Display name already in use.' };
         }
-        if (error.code === 'rate_limited') {
-          return { success: false, error: formatRateLimitMessage(error.retryAfterSeconds) };
+        if (error.code === 'rate_limited' || error.status === 429) {
+          return {
+            success: false,
+            error: 'Confirmation email not sent. Please wait 1 hour before trying again.',
+          };
         }
         if (error.fieldErrors) {
           const first = Object.values(error.fieldErrors)[0];
