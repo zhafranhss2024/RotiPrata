@@ -26,10 +26,10 @@ public class ContentService {
         String path = "/content";
 
         String selectColumns = String.join(",", ID, TITLE, DESCRIPTION, CONTENT_TYPE);
-        String filterQuery = String.format("select=%s&%s=ilike.*%s*", selectColumns, TITLE, query);
+        String filterQuery = String.format("select=%s&title=ilike.*%s*&limit=10", selectColumns, query.trim());
 
         if (filter != null && !filter.isEmpty()) {
-            filterQuery += "&" + CONTENT_TYPE + "=eq." + filter.toLowerCase();
+            filterQuery += "&content_type=eq." + filter.toLowerCase();
         }
 
         List<ContentSearchDTO> resultsFromDb = supabaseRestClient.getList(

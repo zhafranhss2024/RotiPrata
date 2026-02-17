@@ -55,19 +55,26 @@ const ExplorePage = () => {
   const filters = ['Video', 'Lesson', 'Slang', 'Meme', 'Dance'];
 
   const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); 
+  };
 
+  useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
 
     setIsSearching(true);
-    searchContent(searchQuery, selectedFilter)
-      .then(setSearchResults)
-      .catch((error) => console.warn('Search failed', error))
-      .finally(() => setIsSearching(false));
-  };
+
+    const debounceTimeout = setTimeout(() => {
+      searchContent(searchQuery, selectedFilter)
+        .then(setSearchResults)
+        .catch((error) => console.warn('Search failed', error))
+        .finally(() => setIsSearching(false));
+    }, 300); 
+
+    return () => clearTimeout(debounceTimeout);
+  }, [searchQuery, selectedFilter]);
 
   const handleClearHistory = () => {
     clearBrowsingHistory()
