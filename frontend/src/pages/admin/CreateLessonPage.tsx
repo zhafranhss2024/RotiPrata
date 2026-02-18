@@ -8,9 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, 
+  BookOpen,
+  Check,
   Plus, 
   X, 
-  GripVertical,
   Trash2,
   Save,
 } from 'lucide-react';
@@ -41,6 +42,11 @@ const CreateLessonPage = () => {
     comparison_content: '',
   });
   const [quizQuestions, setQuizQuestions] = useState<Partial<QuizQuestion>[]>([]);
+
+  const isFormValid =
+    formData.title.trim().length > 0 &&
+    formData.summary.trim().length > 0 &&
+    formData.description.trim().length > 0;
 
   const handleAddObjective = () => {
     setFormData(prev => ({
@@ -130,8 +136,16 @@ const CreateLessonPage = () => {
         usage_examples: formData.usage_examples.filter(e => e.trim()),
       });
 
-      if (quizQuestions.length > 0) {
-        await createLessonQuiz(lesson.id, quizQuestions);
+      const validQuestions = quizQuestions
+        .map((question) => ({
+          ...question,
+          question_text: question.question_text?.trim() ?? '',
+          explanation: question.explanation?.trim() ?? '',
+        }))
+        .filter((question) => question.question_text);
+
+      if (validQuestions.length > 0) {
+        await createLessonQuiz(lesson.id, validQuestions);
       }
 
       navigate('/admin');
@@ -150,8 +164,21 @@ const CreateLessonPage = () => {
           <Link to="/admin" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-2xl font-bold">Create Lesson</h1>
+          <div>
+            <h1 className="text-2xl font-bold">Create Lesson</h1>
+            <p className="text-sm text-muted-foreground">Admin-only workspace for publishing lessons to all users</p>
+          </div>
         </div>
+
+        <Card className="border-primary/25 bg-primary/5">
+          <CardContent className="p-4 flex items-start gap-3">
+            <BookOpen className="h-5 w-5 mt-0.5 text-primary" />
+            <div>
+              <p className="text-sm font-medium">Lesson publishing target</p>
+              <p className="text-sm text-muted-foreground">Every lesson created here is published for learner accounts once saved.</p>
+            </div>
+          </CardContent>
+        </Card>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Info */}
@@ -246,6 +273,31 @@ const CreateLessonPage = () => {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle>Publishing</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-md border border-border px-3 py-2 bg-muted/40 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Audience</p>
+                  <p className="text-xs text-muted-foreground">Learner accounts (default)</p>
+                </div>
+                <Badge variant="secondary">All users</Badge>
+              </div>
+              <div className="rounded-md border border-border px-3 py-2 bg-muted/40 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Visibility</p>
+                  <p className="text-xs text-muted-foreground">Published immediately after creation</p>
+                </div>
+                <Badge className="bg-success text-success-foreground">
+                  <Check className="h-3 w-3 mr-1" />
+                  Live
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Learning Objectives */}
           <Card>
             <CardHeader>
@@ -277,6 +329,22 @@ const CreateLessonPage = () => {
                   )}
                 </div>
               ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Lesson Preview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <h3 className="text-lg font-semibold">{formData.title || 'Untitled lesson'}</h3>
+              <p className="text-sm text-muted-foreground">{formData.summary || 'A short summary will appear here.'}</p>
+              <p className="text-sm leading-relaxed">{formData.description || 'A full lesson description will appear here when entered.'}</p>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Badge variant="outline">{formData.estimated_minutes} min</Badge>
+                <Badge variant="outline">{formData.xp_reward} XP</Badge>
+                <Badge variant="outline">Level {formData.difficulty_level}</Badge>
+              </div>
             </CardContent>
           </Card>
 
@@ -468,7 +536,7 @@ const CreateLessonPage = () => {
             <Button type="button" variant="outline" className="flex-1" onClick={() => navigate('/admin')}>
               Cancel
             </Button>
-            <Button type="submit" className="flex-1 gradient-primary border-0" disabled={isSubmitting}>
+            <Button type="submit" className="flex-1 gradient-primary border-0" disabled={isSubmitting || !isFormValid}>
               <Save className="h-4 w-4 mr-2" />
               {isSubmitting ? 'Creating...' : 'Create Lesson'}
             </Button>
