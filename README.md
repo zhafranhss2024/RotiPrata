@@ -29,6 +29,17 @@ Optionally set `SUPABASE_REST_URL` to override the default `SUPABASE_URL/rest/v1
 Set `SUPABASE_SERVICE_ROLE_KEY` for admin lookups used to detect duplicate emails.
 **Do not leak or expose this key** (keep it server-side only and never commit it to the repo).
 
+## BEFORE RUNNING BACKEND (For MacOS)
+```bash
+brew install maven
+```
+
+## If your openJDK is NOT running version 17 (For MacOS)
+```bash
+brew install openjdk@17
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+export PATH="$JAVA_HOME/bin:$PATH"
+```
 
 ## Run the backend (development)
 ```bash
