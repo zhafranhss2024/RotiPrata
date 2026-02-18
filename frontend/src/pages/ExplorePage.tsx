@@ -23,6 +23,7 @@ import {
   fetchRecommendations,
   fetchTrendingContent,
   searchContent,
+  saveBrowsingHistory,
 } from '@/lib/api';
 
 // Backend: /api/search, /api/trending, /api/users/me/history, /api/recommendations
@@ -146,7 +147,15 @@ const ExplorePage = () => {
                 {searchResults.map((result) => (
                   <Link
                     key={`${result.content_type}-${result.id}`}
-                    to={result.content_type === 'lesson' ? `/lessons/${result.id}` : `/content/${result.id}`}
+                    to="/lessons"
+                    // to={result.content_type === 'lesson' ? `/lessons/${result.id}` : `/content/${result.id}`}
+                    onClick={() => {
+                        console.log("Clicked result:", result); 
+                        saveBrowsingHistory(
+                          result.content_type === 'video' ? result.id : undefined,
+                          result.content_type === 'lesson' ? result.id : undefined
+                        );
+                      }}
                   >
                     <Card className="hover:bg-muted/50 transition-colors">
                       <CardContent className="p-4">

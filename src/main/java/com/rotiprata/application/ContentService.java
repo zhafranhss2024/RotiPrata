@@ -15,6 +15,7 @@ public class ContentService {
     private static final String TITLE = "title";
     private static final String DESCRIPTION = "description";
     private static final String CONTENT_TYPE = "content_type";
+    
 
     private final SupabaseRestClient supabaseRestClient;
 

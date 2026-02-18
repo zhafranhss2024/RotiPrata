@@ -3,7 +3,9 @@ package com.rotiprata.api;
 import com.rotiprata.domain.Profile;
 import com.rotiprata.domain.ThemePreference;
 import com.rotiprata.security.SecurityUtils;
+import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.UserService;
+import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -11,18 +13,22 @@ import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
     private final UserService userService;
+    private final BrowsingService browsingService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, BrowsingService browsingService) {
         this.userService = userService;
+        this.browsingService = browsingService;
     }
 
     @GetMapping("/me")
@@ -54,5 +60,14 @@ public class UserController {
         UUID userId = SecurityUtils.getUserId(jwt);
         ThemePreference preference = ThemePreference.valueOf(request.themePreference().toUpperCase());
         return userService.updateThemePreference(userId, preference, SecurityUtils.getAccessToken());
+    }
+
+    @PostMapping("/me/history")
+    public void saveHistory(
+        @RequestBody SaveHistoryDTO request,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        String accessToken = jwt.getTokenValue();
+        browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
     }
 }

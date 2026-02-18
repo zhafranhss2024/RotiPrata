@@ -108,6 +108,11 @@ export const searchContent = (query: string, filter?: string | null) =>
     () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
 
+export const saveBrowsingHistory = (contentId?: string, lessonId?: string) => {
+  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null };
+  apiPost<void>(`/users/me/history`, body);
+};
+
 export const fetchRecommendations = () =>
   withMockFallback("recommendations", () => mockAiSuggestions, () => apiGet(`/recommendations`));
 
