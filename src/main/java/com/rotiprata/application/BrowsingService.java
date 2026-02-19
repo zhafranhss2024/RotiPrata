@@ -1,13 +1,16 @@
 package com.rotiprata.application;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.api.dto.SaveHistoryDTO;
+import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.dto.BrowsingHistoryDTO;
@@ -38,29 +41,41 @@ public class BrowsingService {
         return results;
     }
 
-    public void saveHistory(String contentId, String lessonId, String accessToken) {
-        String path = "/browsing_history";
-
+    public void saveHistory(String contentId, String lessonId, String accessToken, String userId) {
         if (contentId == null && lessonId == null) return;
 
-        SaveHistoryDTO dto = new SaveHistoryDTO();
-        if (contentId != null) dto.setContentId(contentId);
-        if (lessonId != null) dto.setLessonId(lessonId);
+        String itemId = contentId != null ? contentId : lessonId;
 
-        supabaseRestClient.postList(
+        SaveHistoryDTO dto = new SaveHistoryDTO();
+        dto.setItemId(itemId);
+        dto.setContentId(contentId);
+        dto.setLessonId(lessonId);
+        dto.setViewedAt(Instant.now());
+
+        String path = "/browsing_history";
+        String query = "on_conflict=user_id,item_id";
+
+        System.out.println("DTO: " + dto.getItemId());
+
+        try {
+            supabaseRestClient.upsertList(
                 path,
+                query,
                 dto,
                 accessToken,
                 new TypeReference<List<Map<String, Object>>>() {}
-        );
+            );   
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
-        System.out.println("OK");
-    } 
-
-    public List<BrowsingHistoryDTO> getHistory(String userId) {
-        String path = "/browsing_history";
-
+        System.out.println("OK (UPSERT)");
     }
+
+    // public List<BrowsingHistoryDTO> getHistory(String userId) {
+    //     String path = "/browsing_history";
+
+    // }
 
 
 }

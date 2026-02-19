@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class BrowsingHistoryDTO {
 
     private UUID id;
-    
+
     @JsonProperty("user_id")
     private UUID userId;
 

@@ -5,8 +5,7 @@ import com.rotiprata.domain.ThemePreference;
 import com.rotiprata.security.SecurityUtils;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.UserService;
-import com.rotiprata.api.dto.SaveHistoryDTO;
-import com.rotiprata.api.dto.BrowsingHistoryDTO;
+import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -18,7 +17,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -65,17 +63,18 @@ public class UserController {
 
     @PostMapping("/me/history")
     public void saveHistory(
-        @RequestBody SaveHistoryDTO request,
+        @RequestBody SaveHistoryRequestDTO request,
         @AuthenticationPrincipal Jwt jwt
     ) {
         String accessToken = jwt.getTokenValue();
-        browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
+        System.out.println("Content ID: " + request.getContentId());
+        browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken, jwt.getSubject());
     }
 
-    @GetMapping("/me/history")
-    public List<BrowsingHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
-        String userId = jwt.getSubject();
-        return browsingService.getHistory(userId);
-    }
+    // @GetMapping("/me/history")
+    // public List<BrowsingHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
+    //     String userId = jwt.getSubject();
+    //     return browsingService.getHistory(userId);
+    // }
 
 }

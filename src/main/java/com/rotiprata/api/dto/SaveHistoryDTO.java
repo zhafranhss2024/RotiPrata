@@ -1,14 +1,32 @@
 package com.rotiprata.api.dto;
 
+import java.time.Instant;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class SaveHistoryDTO {
 
-    private String content_id; 
-    private String lesson_id;  
 
-    // getters & setters
-    public String getContentId() { return content_id; }
-    public void setContentId(String content_id) { this.content_id = content_id; }
+    @JsonProperty("item_id")
+    private String itemId; 
 
-    public String getLessonId() { return lesson_id; }
-    public void setLessonId(String lesson_id) { this.lesson_id = lesson_id; }
+    @JsonProperty("content_id")
+    private String contentId;
+
+    @JsonProperty("lesson_id")
+    private String lessonId;
+
+    @JsonProperty("viewed_at")  
+    private Instant viewedAt;
+
+    public String getItemId() { return itemId; }
+    public void setItemId(String itemId) { this.itemId = itemId; }
+
+    public String getContentId() { return contentId; }
+    public void setContentId(String contentId) { this.contentId = contentId; }
+
+    public String getLessonId() { return lessonId; }
+    public void setLessonId(String lessonId) { this.lessonId = lessonId; }
+
+    public Instant getViewedAt() { return viewedAt; }
+    public void setViewedAt(Instant viewedAt) { this.viewedAt = viewedAt; }
 }

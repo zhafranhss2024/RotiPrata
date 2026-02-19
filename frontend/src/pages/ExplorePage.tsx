@@ -70,11 +70,6 @@ const ExplorePage = () => {
   const debounceTimeout = setTimeout(() => {
     searchContent(searchQuery, selectedFilter)
       .then((results) => {
-        console.log("Search results:", results);
-
-        // Log just the types
-        results.forEach((r) => console.log("Type:", r.contentType));
-
         setSearchResults(results);
       })
       .catch((error) => console.warn('Search failed', error))
