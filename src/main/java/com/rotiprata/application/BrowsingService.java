@@ -5,10 +5,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
+
 import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.dto.BrowsingHistoryDTO;
 
 
 @Service
@@ -54,6 +56,11 @@ public class BrowsingService {
 
         System.out.println("OK");
     } 
+
+    public List<BrowsingHistoryDTO> getHistory(String userId) {
+        String path = "/browsing_history";
+
+    }
 
 
 }

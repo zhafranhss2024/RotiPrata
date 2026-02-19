@@ -6,6 +6,7 @@ import com.rotiprata.security.SecurityUtils;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.UserService;
 import com.rotiprata.api.dto.SaveHistoryDTO;
+import com.rotiprata.api.dto.BrowsingHistoryDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -70,4 +71,11 @@ public class UserController {
         String accessToken = jwt.getTokenValue();
         browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
     }
+
+    @GetMapping("/me/history")
+    public List<BrowsingHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
+        String userId = jwt.getSubject();
+        return browsingService.getHistory(userId);
+    }
+
 }
