@@ -8,7 +8,8 @@ import type { Content } from '@/types';
 interface FeedCardProps {
   content: Content;
   isActive?: boolean;
-  onSwipeLeft?: () => void;
+  commentCount: number;
+  onCommentClick?: () => void;
   onVote?: (type: 'educational') => void;
   onSave?: () => void;
   onShare?: () => void;
@@ -34,7 +35,8 @@ type FloatingHeart = {
 export function FeedCard({
   content,
   isActive = false,
-  onSwipeLeft,
+  commentCount,
+  onCommentClick,
   onVote,
   onSave,
   onShare,
@@ -183,10 +185,10 @@ export function FeedCard({
 
       {/* Swipe left indicator */}
       <button
-        onClick={onSwipeLeft}
+        onClick={onCommentClick}
         className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-white/70 hover:text-white transition-colors touch-target"
       >
-        <span className="text-sm font-medium">Learn more</span>
+        <span className="text-sm font-medium">Comments</span>
         <ChevronLeft className="h-5 w-5 rotate-180" />
       </button>
 
@@ -255,15 +257,15 @@ export function FeedCard({
           <span className="text-xs font-medium">{likeCount}</span>
         </button>
 
-        {/* Comments - link to detail */}
+        {/* Comments */}
         <button
-          onClick={onSwipeLeft}
+          onClick={onCommentClick}
           className="flex flex-col items-center gap-1 text-white touch-target"
         >
           <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
             <MessageCircle className="h-6 w-6" />
           </div>
-          <span className="text-xs font-medium">Details</span>
+          <span className="text-xs font-medium">{commentCount}</span>
         </button>
 
         {/* Save/Bookmark */}

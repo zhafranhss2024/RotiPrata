@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { FeedCard } from './FeedCard';
-import { ContentDetailSheet } from './ContentDetailSheet';
+import { CommentSheet, type FeedComment } from './CommentSheet';
 import { QuizSheet } from '../quiz/QuizSheet';
 import type { Content, Quiz } from '@/types';
 import { fetchContentQuiz, flagContent, saveContent, trackContentView, voteContent } from '@/lib/api';
@@ -15,6 +15,12 @@ interface FeedContainerProps {
 // Backend: /api/content/{id} actions.
 // Dummy behavior is used when mocks are enabled.
 
+
+const defaultComments: Omit<FeedComment, 'id'>[] = [
+  { author: 'brainrot_learner', text: 'This actually made the slang click for me.' },
+  { author: 'memeprof', text: 'The usage example is super accurate 😂' },
+];
+
 export function FeedContainer({
   contents,
   onLoadMore,
@@ -25,9 +31,10 @@ export function FeedContainer({
     "h-[calc(100vh-var(--bottom-nav-height)-var(--safe-area-bottom))] md:h-[calc(100vh-4rem)] md:mt-16";
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [commentsByContent, setCommentsByContent] = useState<Record<string, FeedComment[]>>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Track active content on scroll
@@ -65,9 +72,39 @@ export function FeedContainer({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
-  const handleSwipeLeft = (content: Content) => {
+
+  useEffect(() => {
+    setCommentsByContent((prev) => {
+      const next = { ...prev };
+      let changed = false;
+
+      contents.forEach((content) => {
+        if (next[content.id]) return;
+
+        next[content.id] = defaultComments.map((comment, index) => ({
+          id: `seed-${content.id}-${index}`,
+          ...comment,
+        }));
+        changed = true;
+      });
+
+      return changed ? next : prev;
+    });
+  }, [contents]);
+
+  const handleCommentClick = (content: Content) => {
     setSelectedContent(content);
-    setShowDetail(true);
+    setShowComments(true);
+  };
+
+  const handlePostComment = (contentId: string, commentText: string) => {
+    setCommentsByContent((prev) => ({
+      ...prev,
+      [contentId]: [
+        ...(prev[contentId] ?? []),
+        { id: `comment-${Date.now()}`, author: 'you', text: commentText },
+      ],
+    }));
   };
 
   const handleQuizClick = (content: Content) => {
@@ -151,7 +188,8 @@ export function FeedContainer({
             <FeedCard
               content={content}
               isActive={index === activeIndex}
-              onSwipeLeft={() => handleSwipeLeft(content)}
+              commentCount={(commentsByContent[content.id] ?? []).length}
+              onCommentClick={() => handleCommentClick(content)}
               onVote={(type) => handleVote(content.id, type)}
               onSave={() => handleSave(content.id)}
               onShare={() => handleShare(content)}
@@ -171,11 +209,13 @@ export function FeedContainer({
         )}
       </div>
 
-      {/* Content detail sheet */}
-      <ContentDetailSheet
+      {/* Comment sheet */}
+      <CommentSheet
         content={selectedContent}
-        open={showDetail}
-        onOpenChange={setShowDetail}
+        open={showComments}
+        comments={selectedContent ? commentsByContent[selectedContent.id] ?? [] : []}
+        onOpenChange={setShowComments}
+        onPostComment={handlePostComment}
       />
 
       {/* Quiz sheet */}
