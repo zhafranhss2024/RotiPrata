@@ -1,4 +1,4 @@
-﻿# Rotiprata
+# Rotiprata
 
 Rotiprata is a full-stack learning platform inspired by TikTok-style feeds to teach Gen Alpha brainrot and cultural trends. This repository contains a Spring Boot backend (Supabase PostgREST-backed) and a React frontend wired to the Java API.
 
@@ -20,6 +20,22 @@ Rotiprata is a full-stack learning platform inspired by TikTok-style feeds to te
 ## API docs
 See `docs/api.md` for the current backend endpoints and the remaining endpoints expected by the frontend.
 
+## One-step dev start (recommended)
+These scripts install prerequisites (Java 17, Maven, Node.js), install media tooling, then start
+the backend and frontend in separate shells.
+
+Windows:
+```powershell
+.\scripts\dev-start.ps1
+```
+
+macOS:
+```bash
+./scripts/dev-start.sh
+```
+
+## Manual setup (advanced / troubleshooting)
+ONLY IF ABOVE ONE STEP DEV START DOES NOT WORK
 ## Environment variables (backend)
 Copy `.env.template` to `.env` and fill in values:
 
@@ -29,12 +45,27 @@ Optionally set `SUPABASE_REST_URL` to override the default `SUPABASE_URL/rest/v1
 Set `SUPABASE_SERVICE_ROLE_KEY` for admin lookups used to detect duplicate emails.
 **Do not leak or expose this key** (keep it server-side only and never commit it to the repo).
 
-## BEFORE RUNNING BACKEND (For MacOS)
+## Media tooling (required for video processing)
+The backend requires `ffmpeg`, `ffprobe`, and `yt-dlp`. Startup will fail if they are missing.
+
+Install scripts:
+- macOS / Linux: `scripts/install-media-tools.sh`
+- Windows: `scripts/install-media-tools.ps1`
+
+```bash
+./scripts/install-media-tools.sh
+```
+
+```powershell
+.\scripts\install-media-tools.ps1
+```
+
+## macOS prerequisites (manual)
 ```bash
 brew install maven
 ```
 
-## If your openJDK is NOT running version 17 (For MacOS)
+If your openJDK is not running version 17:
 ```bash
 brew install openjdk@17
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)

@@ -44,19 +44,25 @@ public class ApiExceptionHandler {
     }
 
     private String mapStatusToCode(HttpStatus status, String message) {
-        return switch (status) {
-            case UNAUTHORIZED -> "invalid_credentials";
-            case CONFLICT -> {
-                String normalized = message == null ? "" : message.toLowerCase();
-                if (normalized.contains("username") || normalized.contains("display name") || normalized.contains("display_name")) {
-                    yield "username_in_use";
-                }
-                yield "email_in_use";
+        if (status == HttpStatus.UNAUTHORIZED) {
+            return "invalid_credentials";
+        }
+        if (status == HttpStatus.CONFLICT) {
+            String normalized = message == null ? "" : message.toLowerCase();
+            if (normalized.contains("username") || normalized.contains("display name") || normalized.contains("display_name")) {
+                return "username_in_use";
             }
-            case TOO_MANY_REQUESTS -> "rate_limited";
-            case BAD_REQUEST -> "validation_error";
-            case NOT_FOUND -> "not_found";
-            default -> "error";
-        };
+            return "email_in_use";
+        }
+        if (status == HttpStatus.TOO_MANY_REQUESTS) {
+            return "rate_limited";
+        }
+        if (status == HttpStatus.BAD_REQUEST) {
+            return "validation_error";
+        }
+        if (status == HttpStatus.NOT_FOUND) {
+            return "not_found";
+        }
+        return "error";
     }
 }
