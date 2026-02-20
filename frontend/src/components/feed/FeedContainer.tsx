@@ -4,6 +4,7 @@ import { CommentSheet, type FeedComment } from './CommentSheet';
 import { QuizSheet } from '../quiz/QuizSheet';
 import type { Content, Quiz } from '@/types';
 import { fetchContentQuiz, flagContent, saveContent, trackContentView, voteContent } from '@/lib/api';
+import { toast } from '@/components/ui/sonner';
 
 interface FeedContainerProps {
   contents: Content[];
@@ -35,6 +36,7 @@ export function FeedContainer({
   const [showQuiz, setShowQuiz] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [commentsByContent, setCommentsByContent] = useState<Record<string, FeedComment[]>>({});
+  const [savedByContent, setSavedByContent] = useState<Record<string, boolean>>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Track active content on scroll
@@ -130,10 +132,20 @@ export function FeedContainer({
   };
 
   const handleSave = async (contentId: string) => {
-    try {
-      await saveContent(contentId);
-    } catch (error) {
-      console.warn('Save failed', error);
+    const nextSaved = !savedByContent[contentId];
+    setSavedByContent((prev) => ({
+      ...prev,
+      [contentId]: nextSaved,
+    }));
+
+    toast(nextSaved ? 'Saved' : 'Unsaved', {
+      position: 'bottom-center',
+    });
+
+    if (nextSaved) {
+      saveContent(contentId).catch((error) => {
+        console.warn('Save failed', error);
+      });
     }
   };
 
@@ -188,6 +200,7 @@ export function FeedContainer({
             <FeedCard
               content={content}
               isActive={index === activeIndex}
+              isSaved={Boolean(savedByContent[content.id])}
               commentCount={(commentsByContent[content.id] ?? []).length}
               onCommentClick={() => handleCommentClick(content)}
               onVote={(type) => handleVote(content.id, type)}

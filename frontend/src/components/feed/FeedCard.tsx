@@ -8,6 +8,7 @@ import type { Content } from '@/types';
 interface FeedCardProps {
   content: Content;
   isActive?: boolean;
+  isSaved?: boolean;
   commentCount: number;
   onCommentClick?: () => void;
   onVote?: (type: 'educational') => void;
@@ -35,6 +36,7 @@ type FloatingHeart = {
 export function FeedCard({
   content,
   isActive = false,
+  isSaved = false,
   commentCount,
   onCommentClick,
   onVote,
@@ -273,10 +275,13 @@ export function FeedCard({
           onClick={onSave}
           className="flex flex-col items-center gap-1 text-white touch-target"
         >
-          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
-            <Bookmark className="h-6 w-6" />
+                 <div className={cn(
+            'w-12 h-12 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors',
+            isSaved ? 'bg-yellow-400/90 text-black hover:bg-yellow-300' : 'bg-white/20 hover:bg-white/30'
+          )}>
+            <Bookmark className={cn('h-6 w-6', isSaved && 'fill-current')} />
           </div>
-          <span className="text-xs font-medium">Save</span>
+          <span className="text-xs font-medium">{isSaved ? 'Saved' : 'Save'}</span>
         </button>
 
         {/* Share */}
