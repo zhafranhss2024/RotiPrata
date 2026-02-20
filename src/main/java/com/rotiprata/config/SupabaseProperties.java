@@ -64,9 +64,10 @@ public class SupabaseProperties {
         private String avatars;
         private String lessonMedia;
         private String badges;
+        private Buckets buckets = new Buckets();
 
         public String getContentMedia() {
-            return contentMedia;
+            return contentMedia != null ? contentMedia : buckets.getContentMedia();
         }
 
         public void setContentMedia(String contentMedia) {
@@ -74,7 +75,7 @@ public class SupabaseProperties {
         }
 
         public String getAvatars() {
-            return avatars;
+            return avatars != null ? avatars : buckets.getAvatars();
         }
 
         public void setAvatars(String avatars) {
@@ -82,7 +83,7 @@ public class SupabaseProperties {
         }
 
         public String getLessonMedia() {
-            return lessonMedia;
+            return lessonMedia != null ? lessonMedia : buckets.getLessonMedia();
         }
 
         public void setLessonMedia(String lessonMedia) {
@@ -90,11 +91,58 @@ public class SupabaseProperties {
         }
 
         public String getBadges() {
-            return badges;
+            return badges != null ? badges : buckets.getBadges();
         }
 
         public void setBadges(String badges) {
             this.badges = badges;
+        }
+
+        public Buckets getBuckets() {
+            return buckets;
+        }
+
+        public void setBuckets(Buckets buckets) {
+            this.buckets = buckets;
+        }
+
+        public static class Buckets {
+            private String contentMedia;
+            private String avatars;
+            private String lessonMedia;
+            private String badges;
+
+            public String getContentMedia() {
+                return contentMedia;
+            }
+
+            public void setContentMedia(String contentMedia) {
+                this.contentMedia = contentMedia;
+            }
+
+            public String getAvatars() {
+                return avatars;
+            }
+
+            public void setAvatars(String avatars) {
+                this.avatars = avatars;
+            }
+
+            public String getLessonMedia() {
+                return lessonMedia;
+            }
+
+            public void setLessonMedia(String lessonMedia) {
+                this.lessonMedia = lessonMedia;
+            }
+
+            public String getBadges() {
+                return badges;
+            }
+
+            public void setBadges(String badges) {
+                this.badges = badges;
+            }
         }
     }
 }

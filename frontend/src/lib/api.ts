@@ -14,6 +14,7 @@ import {
   apiDelete,
   apiGet,
   apiPost,
+  apiPatch,
   apiPut,
   apiUpload,
   shouldAutoFallbackToMocks,
@@ -81,6 +82,19 @@ export type AuthSessionResponse = {
 export type DisplayNameAvailabilityResponse = {
   available: boolean;
   normalized: string;
+};
+
+export type ContentMediaStartResponse = {
+  contentId: string;
+  status: string;
+  pollUrl: string;
+};
+
+export type ContentMediaStatusResponse = {
+  status: string;
+  hlsUrl?: string | null;
+  thumbnailUrl?: string | null;
+  errorMessage?: string | null;
 };
 
 const withMockFallback = async <T>(
@@ -180,11 +194,27 @@ export const updateLessonProgress = (lessonId: string, progress: number) =>
 export const fetchCategories = () =>
   withMockFallback("categories", () => mockCategories, () => apiGet<Category[]>(`/categories`));
 
-export const createContent = (payload: Record<string, unknown>) =>
-  apiPost<Content>(`/content`, payload);
+export const fetchTags = (query: string) =>
+  withMockFallback(
+    "tags",
+    () => [],
+    () => apiGet<string[]>(`/tags?query=${encodeURIComponent(query)}`)
+  );
 
-export const uploadContentMedia = (formData: FormData) =>
-  apiUpload<{ url: string }>(`/content/upload`, formData);
+export const startContentMediaUpload = (formData: FormData) =>
+  apiUpload<ContentMediaStartResponse>(`/content/media/start`, formData);
+
+export const startContentMediaLink = (sourceUrl: string) =>
+  apiPost<ContentMediaStartResponse>(`/content/media/start-link`, { sourceUrl });
+
+export const fetchContentMediaStatus = (contentId: string) =>
+  apiGet<ContentMediaStatusResponse>(`/content/${contentId}/media`);
+
+export const updateDraftContent = (contentId: string, payload: Record<string, unknown>) =>
+  apiPatch<Content>(`/content/${contentId}`, payload);
+
+export const submitContent = (contentId: string, payload: Record<string, unknown>) =>
+  apiPost<Content>(`/content/${contentId}/submit`, payload);
 
 export const fetchContentQuiz = (contentId: string) =>
   withMockFallback("content-quiz", () => null, () => apiGet<Quiz>(`/content/${contentId}/quiz`));
