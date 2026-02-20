@@ -68,8 +68,17 @@ const AdminDashboard = () => {
   };
 
   const handleReject = async (contentId: string) => {
+    const reason = window.prompt('Enter rejection reason:');
+    if (reason === null) {
+      return;
+    }
+    const feedback = reason.trim();
+    if (!feedback) {
+      console.warn('Reject reason is required');
+      return;
+    }
     try {
-      await rejectContent(contentId, 'Content rejected');
+      await rejectContent(contentId, feedback);
       setModerationQueue((items) => items.filter((item) => item.content_id !== contentId));
     } catch (error) {
       console.warn('Reject failed', error);
@@ -281,13 +290,28 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const url = item.content.media_url || item.content.thumbnail_url;
+                            if (!url) {
+                              return;
+                            }
+                            window.open(url, '_blank', 'noopener,noreferrer');
+                          }}
+                          disabled={!item.content.media_url && !item.content.thumbnail_url}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Open
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => handleReject(item.content_id)}>
                           <XCircle className="h-4 w-4 mr-1" />
                           Reject
                         </Button>
                         <Button size="sm" onClick={() => handleApprove(item.content_id)}>
                           <CheckCircle className="h-4 w-4 mr-1" />
-                          Approve
+                          Accept
                         </Button>
                       </div>
                     </div>
