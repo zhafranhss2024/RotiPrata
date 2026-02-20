@@ -71,11 +71,11 @@ public class UserController {
         browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
     }
 
-    @GetMapping("/me/history")
-    public List<SaveHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
-        String userId = jwt.getSubject();
-        String accessToken = jwt.getTokenValue();
-        return browsingService.getHistory(userId, accessToken);
-    }
+    // @GetMapping("/me/history")
+    // public List<SaveHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
+    //     String userId = jwt.getSubject();
+    //     String accessToken = jwt.getTokenValue();
+    //     return browsingService.getHistory(userId, accessToken);
+    // }
 
 }
