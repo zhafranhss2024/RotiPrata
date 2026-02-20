@@ -53,7 +53,7 @@ const ExplorePage = () => {
       .catch((error) => console.warn('Failed to load browsing history', error));
   }, []);
 
-  const filters = ['video', 'lesson', 'slang', 'meme', 'dance'];
+  const filters = ['video', 'lesson'];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault(); 
@@ -103,7 +103,7 @@ const ExplorePage = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search slang, memes, lessons..."
+              placeholder="Search videos and lessons..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 pr-4 h-12 rounded-xl"
@@ -142,12 +142,10 @@ const ExplorePage = () => {
                 {searchResults.map((result) => (
                   <Link
                     key={`${result.content_type}-${result.id}`}
-                    to="/lessons"
-                    // to={result.content_type === 'lesson' ? `/lessons/${result.id}` : `/content/${result.id}`}
+                    to={result.content_type === 'lesson' ? `/lessons/${result.id}` : `/content/${result.id}`}
                     onClick={() => {
-                        console.log("Clicked result:", result); 
                         saveBrowsingHistory(
-                          result.content_type === 'video' ? result.id : undefined,
+                          result.content_type === 'lesson' ? undefined : result.id,
                           result.content_type === 'lesson' ? result.id : undefined
                         );
                       }}

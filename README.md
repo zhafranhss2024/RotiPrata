@@ -35,7 +35,7 @@ macOS:
 ```
 
 ## Manual setup (advanced / troubleshooting)
-
+ONLY IF ABOVE ONE STEP DEV START DOES NOT WORK
 ## Environment variables (backend)
 Copy `.env.template` to `.env` and fill in values:
 

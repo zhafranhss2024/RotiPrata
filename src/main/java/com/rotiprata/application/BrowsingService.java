@@ -21,23 +21,35 @@ import com.fasterxml.jackson.core.type.TypeReference;
 public class BrowsingService {
 
     private final ContentService contentService;
+    private final LessonService lessonService;
     private final SupabaseRestClient supabaseRestClient;
 
-    public BrowsingService(ContentService contentService, SupabaseRestClient supabaseRestClient) {
+    public BrowsingService(ContentService contentService, LessonService lessonService, SupabaseRestClient supabaseRestClient) {
         this.contentService = contentService;
+        this.lessonService = lessonService;
         this.supabaseRestClient = supabaseRestClient;
     }
 
     public List<ContentSearchDTO> search(String query, String filter, String accessToken) {
 
         List<ContentSearchDTO> results = new ArrayList<>();
+        String normalizedFilter = filter == null ? "" : filter.trim().toLowerCase();
 
-        List<ContentSearchDTO> contents = contentService.getFilteredContent(query, filter, accessToken);
-        results.addAll(contents);
+        if (normalizedFilter.isBlank()) {
+            results.addAll(contentService.getFilteredContent(query, null, accessToken));
+            results.addAll(lessonService.searchLessons(query, accessToken));
+            return results;
+        }
 
-        // TODO: Get lessons if Lesson extends Content
-        // List<Lesson> lessons = lessonService.getFilteredLessons(query, filter, accessToken);
-        // results.addAll(lessons);
+        if ("video".equals(normalizedFilter)) {
+            results.addAll(contentService.getFilteredContent(query, "video", accessToken));
+            return results;
+        }
+
+        if ("lesson".equals(normalizedFilter)) {
+            results.addAll(lessonService.searchLessons(query, accessToken));
+            return results;
+        }
 
         return results;
     }
