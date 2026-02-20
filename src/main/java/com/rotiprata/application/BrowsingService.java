@@ -2,6 +2,7 @@ package com.rotiprata.application;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +42,7 @@ public class BrowsingService {
         return results;
     }
 
-    public void saveHistory(String contentId, String lessonId, String accessToken, String userId) {
+    public void saveHistory(String contentId, String lessonId, String accessToken) {
         if (contentId == null && lessonId == null) return;
 
         String itemId = contentId != null ? contentId : lessonId;
@@ -55,27 +56,29 @@ public class BrowsingService {
         String path = "/browsing_history";
         String query = "on_conflict=user_id,item_id";
 
-        System.out.println("DTO: " + dto.getItemId());
+        supabaseRestClient.upsertList(
+            path,
+            query,
+            dto,
+            accessToken,
+            new TypeReference<List<Map<String, Object>>>() {}
+        );   
 
-        try {
-            supabaseRestClient.upsertList(
-                path,
-                query,
-                dto,
-                accessToken,
-                new TypeReference<List<Map<String, Object>>>() {}
-            );   
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        System.out.println("OK (UPSERT)");
     }
 
-    // public List<BrowsingHistoryDTO> getHistory(String userId) {
-    //     String path = "/browsing_history";
+    public List<SaveHistoryDTO> getHistory(String userId, String accessToken) {
 
-    // }
+        String path = "/browsing_history?user_id=eq." + userId + "&order=viewed_at.desc&limit=5";
+
+        System.out.println("user: " + userId);
+
+        return supabaseRestClient.getList(
+            path,
+            null,
+            accessToken,
+            new TypeReference<List<SaveHistoryDTO>>() {}
+        );
+    }
 
 
 }

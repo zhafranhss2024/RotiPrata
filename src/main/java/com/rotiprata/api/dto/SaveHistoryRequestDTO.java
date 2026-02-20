@@ -5,7 +5,6 @@ public class SaveHistoryRequestDTO {
     private String content_id; 
     private String lesson_id;  
 
-    // getters & setters
     public String getContentId() { return content_id; }
     public void setContentId(String content_id) { this.content_id = content_id; }
 

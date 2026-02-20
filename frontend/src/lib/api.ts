@@ -50,6 +50,13 @@ export type SearchResult = {
   snippet?: string;
 };
 
+export type SaveHistoryDTO = {
+  itemId: string;
+  lessonId?: string;
+  contentId?: string;
+  viewedAt: string;
+}
+
 export type UserStats = {
   lessonsEnrolled: number;
   lessonsCompleted: number;
@@ -117,7 +124,8 @@ export const fetchRecommendations = () =>
   withMockFallback("recommendations", () => mockAiSuggestions, () => apiGet(`/recommendations`));
 
 export const fetchBrowsingHistory = () =>
-  withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
+  // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
+  apiGet<SaveHistoryDTO[]>(`/users/me/history`);
 
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 
