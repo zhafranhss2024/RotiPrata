@@ -17,6 +17,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.databind.SerializationFeature;
+
 @Component
 public class SupabaseRestClient {
     private final RestClient restClient;
@@ -37,6 +40,8 @@ public class SupabaseRestClient {
             .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
             .build();
         this.objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())                     
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)  
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
             .findAndRegisterModules()
@@ -49,6 +54,10 @@ public class SupabaseRestClient {
 
     public <T> List<T> postList(String path, Object body, String accessToken, TypeReference<List<T>> typeRef) {
         return exchangeList("POST", path, null, body, accessToken, typeRef);
+    }
+
+    public <T> List<T> upsertList(String path, String query, Object body, String accessToken, TypeReference<List<T>> typeRef) {
+        return exchangeList("UPSERT", path, query, body, accessToken, typeRef);
     }
 
     public <T> List<T> patchList(String path, String query, Object body, String accessToken, TypeReference<List<T>> typeRef) {
@@ -79,6 +88,14 @@ public class SupabaseRestClient {
                 }
                 responseBody = request
                     .header("Prefer", "return=representation")
+                    .body(serialize(body))
+                    .retrieve()
+                    .body(String.class);
+            } else if ("UPSERT".equals(method)) {
+                responseBody = restClient.post()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .header("Prefer", "return=representation,resolution=merge-duplicates")
                     .body(serialize(body))
                     .retrieve()
                     .body(String.class);

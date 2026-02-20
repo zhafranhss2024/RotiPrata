@@ -50,6 +50,13 @@ export type SearchResult = {
   snippet?: string;
 };
 
+export type SaveHistoryDTO = {
+  itemId: string;
+  lessonId?: string;
+  contentId?: string;
+  viewedAt: string;
+}
+
 export type UserStats = {
   lessonsEnrolled: number;
   lessonsCompleted: number;
@@ -110,15 +117,22 @@ export const fetchTrendingContent = () =>
 export const searchContent = (query: string, filter?: string | null) =>
   withMockFallback(
     "search",
-    () => mockSearchResults,
-    () => apiGet<SearchResult[]>(`/search?q=${encodeURIComponent(query)}&filter=${filter || ""}`)
+    // () => mockSearchResults,
+    () => [],
+    () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
+
+export const saveBrowsingHistory = (contentId?: string, lessonId?: string) => {
+  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null };
+  apiPost<void>(`/users/me/history`, body);
+};
 
 export const fetchRecommendations = () =>
   withMockFallback("recommendations", () => mockAiSuggestions, () => apiGet(`/recommendations`));
 
 export const fetchBrowsingHistory = () =>
-  withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
+  // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
+  apiGet<SaveHistoryDTO[]>(`/users/me/history`);
 
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 
