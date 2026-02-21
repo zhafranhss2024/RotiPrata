@@ -26,12 +26,12 @@ the backend and frontend in separate shells.
 
 Windows:
 ```powershell
-.\scripts\dev-start.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-start.ps1
 ```
 
 macOS:
 ```bash
-./scripts/dev-start.sh
+xattr -dr com.apple.quarantine ./scripts/dev-start.sh 2>/dev/null; bash ./scripts/dev-start.sh
 ```
 
 ## Manual setup (advanced / troubleshooting)
@@ -57,7 +57,7 @@ Install scripts:
 ```
 
 ```powershell
-.\scripts\install-media-tools.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\install-media-tools.ps1
 ```
 
 ## macOS prerequisites (manual)

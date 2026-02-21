@@ -45,7 +45,8 @@ if [[ -n "$JAVA_HOME" ]]; then
 fi
 
 echo "Installing media tools..."
-"$repo_root/scripts/install-media-tools.sh"
+xattr -dr com.apple.quarantine "$repo_root/scripts/install-media-tools.sh" 2>/dev/null || true
+bash "$repo_root/scripts/install-media-tools.sh"
 
 echo "Starting backend + frontend..."
 if command -v osascript >/dev/null 2>&1; then
