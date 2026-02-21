@@ -66,6 +66,26 @@ Users
   Updates theme preference.  
   Supabase backing: `PATCH /rest/v1/profiles?user_id=eq.<jwt.sub>`
 
+## Implemented Endpoints (continued)
+
+Lessons
+- `GET /lessons`  
+  Query: `q?`, `difficulty?`, `maxMinutes?`, `page?`, `pageSize?`  
+  Returns a filtered list of published lessons.
+- `GET /lessons/feed`  
+  Query: `q?`, `difficulty?`, `maxMinutes?`, `page?`, `pageSize?`  
+  Returns paginated feed contract: `{ items, total, page, pageSize }`.
+- `GET /lessons/search?q=...`  
+  Returns matching published lessons by title/description.
+- `GET /lessons/{id}`  
+  Returns one published lesson.
+- `GET /users/me/lessons/progress`  
+  Returns map of lesson id to progress percentage.
+- `GET /users/me/stats`  
+  Returns learning stats used by lesson hub cards.
+- `PUT /lessons/{id}/progress`  
+  Body: `{ progress }` where progress is 0-100. Upserts lesson progress row.
+
 ## Missing Endpoints (Required by Frontend)
 
 Feed and content
@@ -82,19 +102,13 @@ Feed and content
 - `POST /content/{id}/flag`
 
 Lessons
-- `GET /lessons`
-- `GET /lessons/search?q=...`
-- `GET /lessons/{id}`
 - `GET /lessons/{id}/sections`
 - `POST /lessons/{id}/enroll`
 - `POST /lessons/{id}/save`
-- `PUT /lessons/{id}/progress`
 
 User data
 - `GET /users/me/history`
 - `DELETE /users/me/history`
-- `GET /users/me/lessons/progress`
-- `GET /users/me/stats`
 - `GET /users/me/achievements`
 
 Categories

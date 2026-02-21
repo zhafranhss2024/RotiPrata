@@ -15,6 +15,8 @@ public class UserLessonProgress {
 
     private UUID userId;
 
+    private UUID lessonId;
+
     private Lesson lesson;
 
     private String status = "not_started";

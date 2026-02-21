@@ -122,13 +122,32 @@ export const fetchBrowsingHistory = () =>
 
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 
-export const fetchLessons = () =>
-  withMockFallback("lessons", () => mockLessons, () => apiGet<Lesson[]>(`/lessons`));
+export type LessonFeedFilters = {
+  query?: string;
+  difficulty?: number;
+  maxMinutes?: number;
+  page?: number;
+  pageSize?: number;
+};
+
+const buildLessonQuery = (filters?: LessonFeedFilters) => {
+  const params = new URLSearchParams();
+  if (filters?.query) params.set("q", filters.query);
+  if (typeof filters?.difficulty === "number") params.set("difficulty", String(filters.difficulty));
+  if (typeof filters?.maxMinutes === "number") params.set("maxMinutes", String(filters.maxMinutes));
+  if (typeof filters?.page === "number") params.set("page", String(filters.page));
+  if (typeof filters?.pageSize === "number") params.set("pageSize", String(filters.pageSize));
+  const query = params.toString();
+  return query ? `/lessons?${query}` : `/lessons`;
+};
+
+export const fetchLessons = (filters?: LessonFeedFilters) =>
+  withMockFallback("lessons", () => mockLessons, () => apiGet<Lesson[]>(buildLessonQuery(filters)));
 
 export const searchLessons = (query: string) =>
   withMockFallback(
     "lesson-search",
-    () => mockLessons,
+    () => mockLessons.filter((lesson) => lesson.title.toLowerCase().includes(query.toLowerCase())),
     () => apiGet<Lesson[]>(`/lessons/search?q=${encodeURIComponent(query)}`)
   );
 
