@@ -5,6 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { 
   Search,
   CheckCircle,
@@ -43,6 +50,20 @@ const AdminDashboard = () => {
   });
   const [moderationQueue, setModerationQueue] = useState<(ModerationQueueItem & { content: Content })[]>([]);
   const [flags, setFlags] = useState<ContentFlag[]>([]);
+  const [selectedModerationItem, setSelectedModerationItem] = useState<(ModerationQueueItem & { content: Content }) | null>(null);
+
+  const detailFields: Array<{ label: string; value: string | null | undefined }> = [
+    { label: 'Title', value: selectedModerationItem?.content.title },
+    { label: 'Description', value: selectedModerationItem?.content.description },
+    { label: 'Learning Objective', value: selectedModerationItem?.content.learning_objective },
+    { label: 'Origin Explanation', value: selectedModerationItem?.content.origin_explanation },
+    { label: 'Definition (Literal)', value: selectedModerationItem?.content.definition_literal },
+    { label: 'Definition (Used)', value: selectedModerationItem?.content.definition_used },
+    { label: 'Older Version Reference', value: selectedModerationItem?.content.older_version_reference },
+    { label: 'Status', value: selectedModerationItem?.content.status },
+    { label: 'Content Type', value: selectedModerationItem?.content.content_type },
+    { label: 'Submitted At', value: selectedModerationItem?.submitted_at ? new Date(selectedModerationItem.submitted_at).toLocaleString() : null },
+  ];
 
   useEffect(() => {
     fetchAdminStats()
@@ -293,14 +314,7 @@ const AdminDashboard = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => {
-                            const url = item.content.media_url || item.content.thumbnail_url;
-                            if (!url) {
-                              return;
-                            }
-                            window.open(url, '_blank', 'noopener,noreferrer');
-                          }}
-                          disabled={!item.content.media_url && !item.content.thumbnail_url}
+                          onClick={() => setSelectedModerationItem(item)}
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           Open
@@ -394,6 +408,70 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog
+          open={selectedModerationItem !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedModerationItem(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-6xl w-[95vw] p-0 overflow-hidden">
+            {selectedModerationItem && (
+              <div className="max-h-[85vh] overflow-y-auto">
+                <DialogHeader className="p-6 border-b">
+                  <DialogTitle>Moderation Review</DialogTitle>
+                  <DialogDescription>
+                    Review all content details and media before approving or rejecting.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+                  <div className="p-6 border-b lg:border-b-0 lg:border-r space-y-4">
+                    {detailFields.map((field) => (
+                      <div key={field.label}>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">{field.label}</p>
+                        <p className="text-sm mt-1 break-words">{field.value?.trim() ? field.value : 'Not provided'}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="p-6 space-y-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Media</p>
+                    {selectedModerationItem.content.content_type === 'video' && selectedModerationItem.content.media_url ? (
+                      <video
+                        controls
+                        className="w-full max-h-[420px] rounded-md bg-black"
+                        src={selectedModerationItem.content.media_url}
+                      />
+                    ) : null}
+
+                    {selectedModerationItem.content.content_type !== 'video' && selectedModerationItem.content.media_url ? (
+                      <img
+                        src={selectedModerationItem.content.media_url}
+                        alt={selectedModerationItem.content.title}
+                        className="w-full max-h-[420px] rounded-md object-contain bg-muted"
+                      />
+                    ) : null}
+
+                    {!selectedModerationItem.content.media_url && selectedModerationItem.content.thumbnail_url ? (
+                      <img
+                        src={selectedModerationItem.content.thumbnail_url}
+                        alt={selectedModerationItem.content.title}
+                        className="w-full max-h-[420px] rounded-md object-contain bg-muted"
+                      />
+                    ) : null}
+
+                    {!selectedModerationItem.content.media_url && !selectedModerationItem.content.thumbnail_url ? (
+                      <p className="text-sm text-muted-foreground">No media URL available.</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

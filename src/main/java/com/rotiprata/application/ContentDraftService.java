@@ -29,6 +29,7 @@ public class ContentDraftService {
     private static final TypeReference<List<Content>> CONTENT_LIST = new TypeReference<>() {};
     private static final TypeReference<List<ContentMedia>> MEDIA_LIST = new TypeReference<>() {};
     private static final TypeReference<List<ContentTag>> TAG_LIST = new TypeReference<>() {};
+    private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
     private static final int MAX_TITLE = 80;
     private static final int MAX_DESCRIPTION = 500;
     private static final int MAX_OBJECTIVE = 160;
@@ -165,6 +166,8 @@ public class ContentDraftService {
         );
         Content result = updated.isEmpty() ? existing : updated.get(0);
 
+        ensureModerationQueueEntry(contentId);
+
         replaceTags(contentId, request.tags());
         return result;
     }
@@ -279,6 +282,32 @@ public class ContentDraftService {
             adminRestClient.postList("content_tags", rows, TAG_LIST);
         } catch (ResponseStatusException ex) {
             // Tags are optional; log in server logs if needed, but don't block submission.
+        }
+    }
+
+    private void ensureModerationQueueEntry(UUID contentId) {
+        try {
+            List<Map<String, Object>> existing = adminRestClient.getList(
+                "moderation_queue",
+                buildQuery(Map.of("content_id", "eq." + contentId, "select", "id")),
+                MAP_LIST
+            );
+            if (!existing.isEmpty()) {
+                return;
+            }
+            adminRestClient.postList(
+                "moderation_queue",
+                Map.of(
+                    "content_id", contentId,
+                    "submitted_at", OffsetDateTime.now()
+                ),
+                MAP_LIST
+            );
+        } catch (ResponseStatusException ex) {
+            // If another request inserted first, unique constraint can race.
+            if (ex.getStatusCode().value() != HttpStatus.CONFLICT.value()) {
+                throw ex;
+            }
         }
     }
 

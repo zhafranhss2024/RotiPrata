@@ -29,7 +29,7 @@ public class FeedService {
             "content",
             buildQuery(Map.of(
                 "select", "*",
-                "or", "(status.eq.approved,status.eq.accepted)",
+                "status", "eq.approved",
                 "order", "created_at.desc",
                 "limit", String.valueOf(PAGE_SIZE + 1),
                 "offset", String.valueOf(offset)
