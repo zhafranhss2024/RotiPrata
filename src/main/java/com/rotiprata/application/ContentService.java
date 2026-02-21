@@ -39,7 +39,7 @@ public class ContentService {
         String safeQuery = escapeQuery(trimmedQuery);
         String selectColumns = String.join(",", ID, TITLE, DESCRIPTION, CONTENT_TYPE);
         String filterQuery = String.format(
-            "select=%s&status=eq.approved&content_type=eq.video&or=(title.ilike.*%s*,description.ilike.*%s*)&limit=10",
+            "select=%s&status=eq.approved&is_submitted=eq.true&content_type=eq.video&or=(title.ilike.*%s*,description.ilike.*%s*)&limit=10",
             selectColumns,
             safeQuery,
             safeQuery
@@ -99,7 +99,7 @@ public class ContentService {
         String selectColumns = String.join(",", ID, TITLE, DESCRIPTION, CONTENT_TYPE);
         String idList = String.join(",", ids);
         String filterQuery = String.format(
-            "select=%s&status=eq.approved&content_type=eq.video&id=in.(%s)&limit=10",
+            "select=%s&status=eq.approved&is_submitted=eq.true&content_type=eq.video&id=in.(%s)&limit=10",
             selectColumns,
             idList
         );

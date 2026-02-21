@@ -1,8 +1,10 @@
 package com.rotiprata.api;
 
 import com.rotiprata.api.dto.AdminStatsResponse;
+import com.rotiprata.api.dto.AdminContentUpdateRequest;
 import com.rotiprata.api.dto.RejectContentRequest;
 import com.rotiprata.application.AdminService;
+import com.rotiprata.domain.Content;
 import com.rotiprata.security.SecurityUtils;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -47,6 +49,16 @@ public class AdminController {
         UUID adminUserId = SecurityUtils.getUserId(jwt);
         adminService.approveContent(adminUserId, contentId, SecurityUtils.getAccessToken());
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/content/{contentId}")
+    public Content updateContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @Valid @RequestBody AdminContentUpdateRequest request
+    ) {
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        return adminService.updateContentMetadata(adminUserId, contentId, request, SecurityUtils.getAccessToken());
     }
 
     @PutMapping("/content/{contentId}/reject")

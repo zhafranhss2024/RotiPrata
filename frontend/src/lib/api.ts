@@ -335,6 +335,9 @@ export const fetchContentFlags = () =>
 
 export const approveContent = (contentId: string) => apiPut<void>(`/admin/content/${contentId}/approve`);
 
+export const updateAdminContent = (contentId: string, payload: Record<string, unknown>) =>
+  apiPut<Content>(`/admin/content/${contentId}`, payload);
+
 export const rejectContent = (contentId: string, feedback?: string) =>
   apiPut<void>(`/admin/content/${contentId}/reject`, { feedback });
 

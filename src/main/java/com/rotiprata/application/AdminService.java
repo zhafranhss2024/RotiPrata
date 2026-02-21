@@ -1,15 +1,18 @@
 package com.rotiprata.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.dto.AdminContentUpdateRequest;
 import com.rotiprata.api.dto.AdminStatsResponse;
 import com.rotiprata.domain.AppRole;
+import com.rotiprata.domain.Content;
+import com.rotiprata.domain.ContentTag;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,14 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Service
 public class AdminService {
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
+    private static final TypeReference<List<Content>> CONTENT_LIST = new TypeReference<>() {};
+    private static final TypeReference<List<ContentTag>> TAG_LIST = new TypeReference<>() {};
+    private static final int MAX_TITLE = 80;
+    private static final int MAX_DESCRIPTION = 500;
+    private static final int MAX_OBJECTIVE = 160;
+    private static final int MAX_LONG_TEXT = 500;
+    private static final int MAX_OLDER_REFERENCE = 160;
+    private static final int MAX_TAG = 30;
 
     private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final UserService userService;
@@ -30,49 +41,16 @@ public class AdminService {
 
     public List<Map<String, Object>> getModerationQueue(UUID adminUserId, String accessToken) {
         requireAdmin(adminUserId, accessToken);
-        List<Map<String, Object>> pendingContent = supabaseAdminRestClient.getList(
-            "content",
+        return supabaseAdminRestClient.getList(
+            "moderation_queue",
             buildQuery(Map.of(
-                "select", "*",
-                "status", "eq.pending",
-                "order", "created_at.asc"
+                "select", "*,content:content_id!inner(*)",
+                "content.status", "eq.pending",
+                "content.is_submitted", "eq.true",
+                "order", "submitted_at.asc"
             )),
             MAP_LIST
         );
-        if (pendingContent.isEmpty()) {
-            return List.of();
-        }
-
-        Map<String, Map<String, Object>> queueByContentId = new HashMap<>();
-        List<Map<String, Object>> queueRows = supabaseAdminRestClient.getList(
-            "moderation_queue",
-            buildQuery(Map.of("select", "id,content_id,submitted_at,priority,assigned_to,notes")),
-            MAP_LIST
-        );
-        for (Map<String, Object> row : queueRows) {
-            Object contentId = row.get("content_id");
-            if (contentId != null) {
-                queueByContentId.put(String.valueOf(contentId), row);
-            }
-        }
-
-        java.util.ArrayList<Map<String, Object>> merged = new java.util.ArrayList<>(pendingContent.size());
-        for (Map<String, Object> content : pendingContent) {
-            String contentId = String.valueOf(content.get("id"));
-            Map<String, Object> queue = queueByContentId.get(contentId);
-
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("id", queue != null ? queue.get("id") : contentId);
-            item.put("content_id", contentId);
-            item.put("submitted_at", queue != null ? queue.get("submitted_at") : content.get("created_at"));
-            item.put("priority", queue != null ? queue.getOrDefault("priority", 0) : 0);
-            item.put("assigned_to", queue != null ? queue.get("assigned_to") : null);
-            item.put("notes", queue != null ? queue.get("notes") : null);
-            item.put("content", content);
-            merged.add(item);
-        }
-
-        return merged;
     }
 
     public void approveContent(UUID adminUserId, UUID contentId, String accessToken) {
@@ -89,19 +67,52 @@ public class AdminService {
     }
 
     public void rejectContent(UUID adminUserId, UUID contentId, String feedback, String accessToken) {
-        if (feedback == null || feedback.isBlank()) {
+        String sanitized = sanitizeText(feedback, MAX_LONG_TEXT);
+        if (sanitized == null || sanitized.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rejection reason is required");
         }
         requireAdmin(adminUserId, accessToken);
         List<Map<String, Object>> updated = patchContentReview(
             contentId,
             List.of("rejected"),
-            feedback.trim(),
+            sanitized,
             adminUserId
         );
         if (updated.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
         }
+    }
+
+    public Content updateContentMetadata(
+        UUID adminUserId,
+        UUID contentId,
+        AdminContentUpdateRequest request,
+        String accessToken
+    ) {
+        requireAdmin(adminUserId, accessToken);
+        Map<String, Object> patch = new java.util.HashMap<>();
+        patch.put("title", sanitizeRequired(request.title(), MAX_TITLE, "title"));
+        patch.put("description", sanitizeRequired(request.description(), MAX_DESCRIPTION, "description"));
+        patch.put("learning_objective", sanitizeRequired(request.learningObjective(), MAX_OBJECTIVE, "learning objective"));
+        patch.put("origin_explanation", sanitizeRequired(request.originExplanation(), MAX_LONG_TEXT, "origin explanation"));
+        patch.put("definition_literal", sanitizeRequired(request.definitionLiteral(), MAX_LONG_TEXT, "definition literal"));
+        patch.put("definition_used", sanitizeRequired(request.definitionUsed(), MAX_LONG_TEXT, "definition used"));
+        patch.put("older_version_reference", sanitizeRequired(request.olderVersionReference(), MAX_OLDER_REFERENCE, "older version reference"));
+        patch.put("category_id", request.categoryId());
+        patch.put("updated_at", OffsetDateTime.now());
+
+        List<Content> updated = supabaseAdminRestClient.patchList(
+            "content",
+            buildQuery(Map.of("id", "eq." + contentId)),
+            patch,
+            CONTENT_LIST
+        );
+        if (updated.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
+        }
+
+        replaceTags(contentId, request.tags());
+        return updated.get(0);
     }
 
     public List<Map<String, Object>> getOpenFlags(UUID adminUserId, String accessToken) {
@@ -233,5 +244,70 @@ public class AdminService {
         params.forEach(builder::queryParam);
         String uri = builder.build().encode().toUriString();
         return uri.startsWith("?") ? uri.substring(1) : uri;
+    }
+
+    private void replaceTags(UUID contentId, List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tags are required");
+        }
+        adminRestClientDeleteTags(contentId);
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String tag : tags) {
+            String sanitized = sanitizeTag(tag);
+            if (sanitized != null && !sanitized.isBlank()) {
+                normalized.add(sanitized);
+            }
+        }
+        if (normalized.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tags are required");
+        }
+        List<Map<String, Object>> rows = normalized.stream()
+            .map(tag -> {
+                Map<String, Object> row = new java.util.HashMap<>();
+                row.put("content_id", contentId);
+                row.put("tag", tag);
+                return row;
+            })
+            .toList();
+        supabaseAdminRestClient.postList("content_tags", rows, TAG_LIST);
+    }
+
+    private void adminRestClientDeleteTags(UUID contentId) {
+        supabaseAdminRestClient.deleteList(
+            "content_tags",
+            buildQuery(Map.of("content_id", "eq." + contentId)),
+            TAG_LIST
+        );
+    }
+
+    private String sanitizeRequired(String value, int maxLength, String fieldName) {
+        String sanitized = sanitizeText(value, maxLength);
+        if (sanitized == null || sanitized.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fieldName + " is required");
+        }
+        return sanitized;
+    }
+
+    private String sanitizeTag(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.startsWith("#")) {
+            trimmed = trimmed.substring(1);
+        }
+        return sanitizeText(trimmed, MAX_TAG);
+    }
+
+    private String sanitizeText(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        String cleaned = value.replaceAll("[\\x00-\\x1F\\x7F]", "");
+        String collapsed = cleaned.replaceAll("\\s+", " ").trim();
+        if (maxLength > 0 && collapsed.length() > maxLength) {
+            return collapsed.substring(0, maxLength);
+        }
+        return collapsed;
     }
 }
