@@ -26,7 +26,7 @@ the backend and frontend in separate shells.
 
 Windows:
 ```powershell
-.\scripts\dev-start.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-start.ps1
 ```
 
 macOS:
@@ -57,7 +57,7 @@ Install scripts:
 ```
 
 ```powershell
-.\scripts\install-media-tools.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\install-media-tools.ps1
 ```
 
 ## macOS prerequisites (manual)
