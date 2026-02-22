@@ -53,10 +53,11 @@ export type SearchResult = {
 
 export type GetHistoryDTO = {
   id: string;
-  itemId: string;
-  contentId?: string | null;
-  lessonId?: string | null;
-  viewedAt: string;
+  item_id: string;
+  title?: string | null;
+  content_id?: string | null;
+  lesson_id?: string | null;
+  viewed_at: string;
 }
 
 export type UserStats = {
@@ -137,8 +138,8 @@ export const searchContent = (query: string, filter?: string | null) =>
     () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
 
-export const saveBrowsingHistory = (contentId?: string, lessonId?: string) => {
-  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null };
+export const saveBrowsingHistory = (contentId?: string, lessonId?: string, title?: string) => {
+  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null, title: title ?? null };
   apiPost<void>(`/users/me/history`, body);
 };
 

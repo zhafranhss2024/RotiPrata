@@ -64,6 +64,11 @@ public class SupabaseRestClient {
         return exchangeList("PATCH", path, query, body, accessToken, typeRef);
     }
 
+    public <T> List<T> deleteList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {
+        return exchangeList("DELETE", path, query, null, accessToken, typeRef);
+    }
+
+
     private <T> List<T> exchangeList(
         String method,
         String path,
@@ -81,7 +86,6 @@ public class SupabaseRestClient {
                     request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
                 }
                 responseBody = request.retrieve().body(String.class);
-                System.out.println("Supabase GET response for " + uri + ": " + responseBody);
             } else if ("POST".equals(method)) {
                 var request = restClient.post().uri(uri);
                 if (accessToken != null && !accessToken.isBlank()) {
