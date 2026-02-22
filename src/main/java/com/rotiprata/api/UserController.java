@@ -1,6 +1,7 @@
 package com.rotiprata.api;
 
 import com.rotiprata.api.dto.SaveHistoryDTO;
+import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.LessonService;
@@ -8,11 +9,6 @@ import com.rotiprata.application.UserService;
 import com.rotiprata.domain.Profile;
 import com.rotiprata.domain.ThemePreference;
 import com.rotiprata.security.SecurityUtils;
-import com.rotiprata.application.BrowsingService;
-import com.rotiprata.application.UserService;
-import com.rotiprata.api.dto.SaveHistoryDTO;
-import com.rotiprata.api.dto.SaveHistoryRequestDTO;
-import com.rotiprata.api.dto.ThemePreferenceRequest;
 import jakarta.validation.Valid;
 
 import java.util.List;
@@ -21,12 +17,7 @@ import java.util.UUID;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/users")
@@ -36,8 +27,11 @@ public class UserController {
     private final LessonService lessonService;
     private final BrowsingService browsingService;
 
-    // ✅ Only ONE constructor
-    public UserController(UserService userService, LessonService lessonService, BrowsingService browsingService) {
+    public UserController(
+            UserService userService,
+            LessonService lessonService,
+            BrowsingService browsingService
+    ) {
         this.userService = userService;
         this.lessonService = lessonService;
         this.browsingService = browsingService;
@@ -59,15 +53,11 @@ public class UserController {
 
     @GetMapping("/me/preferences")
     public String themePreference(@AuthenticationPrincipal Jwt jwt) {
-        Profile profile = userService.getOrCreateProfileFromJwt(jwt, SecurityUtils.getAccessToken());
-        try {
-            var field = profile.getClass().getDeclaredField("themePreference");
-            field.setAccessible(true);
-            Object value = field.get(profile);
-            return value == null ? "system" : value.toString().toLowerCase();
-        } catch (NoSuchFieldException | IllegalAccessException ex) {
-            return "system";
-        }
+        Profile profile =
+                userService.getOrCreateProfileFromJwt(jwt, SecurityUtils.getAccessToken());
+
+        ThemePreference pref = profile.getThemePreference();
+        return pref == null ? "system" : pref.name().toLowerCase();
     }
 
     @PutMapping("/me/preferences")
@@ -76,6 +66,7 @@ public class UserController {
             @Valid @RequestBody ThemePreferenceRequest request
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
+
         ThemePreference preference =
                 ThemePreference.valueOf(request.themePreference().toUpperCase());
 
@@ -86,45 +77,53 @@ public class UserController {
         );
     }
 
+    // 🔥 SINGLE clean history endpoint
+
     @PostMapping("/me/history")
-    public void saveHistory(
-        @RequestBody SaveHistoryRequestDTO request,
-        @AuthenticationPrincipal Jwt jwt
+    public void saveBrowsingHistory(
+            @RequestBody SaveHistoryDTO request,
+            @AuthenticationPrincipal Jwt jwt
     ) {
-        String accessToken = jwt.getTokenValue();
-        browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
-    }
-
-    @GetMapping("/me/stats")
-    public Map<String, Integer> userStats(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = SecurityUtils.getUserId(jwt);
-        return lessonService.getUserStats(userId, SecurityUtils.getAccessToken());
-    }
 
-    @PostMapping("/me/history")
-    public void saveBrowsingHistory(@RequestBody SaveHistoryDTO request, @AuthenticationPrincipal Jwt jwt) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        browsingService.saveHistory(userId.toString(), request.getContentId(), request.getLessonId(), SecurityUtils.getAccessToken());
+        browsingService.saveHistory(
+                userId.toString(),
+                request.getContentId(),
+                request.getLessonId(),
+                SecurityUtils.getAccessToken()
+        );
     }
 
     @GetMapping("/me/history")
-    public List<SaveHistoryDTO> browsingHistory(@AuthenticationPrincipal Jwt jwt) {
+    public List<SaveHistoryDTO> browsingHistory(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
         UUID userId = SecurityUtils.getUserId(jwt);
-        return browsingService.fetchHistory(userId.toString(), SecurityUtils.getAccessToken());
+        return browsingService.fetchHistory(
+                userId.toString(),
+                SecurityUtils.getAccessToken()
+        );
     }
 
     @DeleteMapping("/me/history")
-    public void clearBrowsingHistory(@AuthenticationPrincipal Jwt jwt) {
+    public void clearBrowsingHistory(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
         UUID userId = SecurityUtils.getUserId(jwt);
-        browsingService.purgeHistory(userId.toString(), SecurityUtils.getAccessToken());
+        browsingService.purgeHistory(
+                userId.toString(),
+                SecurityUtils.getAccessToken()
+        );
     }
 
-}
-    // @GetMapping("/me/history")
-    // public List<SaveHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
-    //     String userId = jwt.getSubject();
-    //     String accessToken = jwt.getTokenValue();
-    //     return browsingService.getHistory(userId, accessToken);
-    // }
-
+    @GetMapping("/me/stats")
+    public Map<String, Integer> userStats(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.getUserStats(
+                userId,
+                SecurityUtils.getAccessToken()
+        );
+    }
 }
