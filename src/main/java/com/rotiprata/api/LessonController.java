@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -68,12 +69,35 @@ public class LessonController {
         lessonService.updateLessonProgress(userId, lessonId, progress, SecurityUtils.getAccessToken());
     }
 
+
+    @GetMapping("/admin/lessons")
+    public List<Map<String, Object>> adminLessons(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.getAdminLessons(userId, SecurityUtils.getAccessToken());
+    }
+
     @PostMapping("/admin/lessons")
     public Map<String, Object> createLesson(@AuthenticationPrincipal Jwt jwt, @RequestBody Map<String, Object> payload) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.createLesson(userId, payload, SecurityUtils.getAccessToken());
     }
 
+
+    @PutMapping("/admin/lessons/{lessonId}")
+    public Map<String, Object> updateLesson(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @RequestBody Map<String, Object> payload
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.updateLesson(userId, lessonId, payload, SecurityUtils.getAccessToken());
+    }
+
+    @DeleteMapping("/admin/lessons/{lessonId}")
+    public void deleteLesson(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        lessonService.deleteLesson(userId, lessonId, SecurityUtils.getAccessToken());
+    }
     @PostMapping("/admin/lessons/{lessonId}/quiz")
     public Map<String, Object> createLessonQuiz(
         @AuthenticationPrincipal Jwt jwt,
