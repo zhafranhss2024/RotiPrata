@@ -372,7 +372,13 @@ public class LessonService {
     private void ensureAdmin(UUID userId, String accessToken) {
         List<Map<String, Object>> roles = supabaseRestClient.getList(
             "user_roles",
-            buildQuery(Map.of("select", "id", "user_id", "eq." + userId, "role", "eq.admin")),
+            buildQuery(
+                Map.of(
+                    "select", "id",
+                    "user_id", "eq." + userId,
+                    "or", "(role.eq.admin,role.eq.super_admin)"
+                )
+            ),
             accessToken,
             MAP_LIST
         );
