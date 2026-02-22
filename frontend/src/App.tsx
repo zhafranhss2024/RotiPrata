@@ -22,6 +22,7 @@ import AuthCallbackPage from "./pages/AuthCallbackPage";
 import CreateContentPage from "./pages/CreateContentPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateLessonPage from "./pages/admin/CreateLessonPage";
+import AdminLessonsPage from "./pages/admin/AdminLessonsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -98,6 +99,14 @@ const App = () => (
                 element={
                   <RequireAdmin>
                     <AdminDashboard />
+                  </RequireAdmin>
+                }
+              />
+              <Route
+                path="/admin/lessons"
+                element={
+                  <RequireAdmin>
+                    <AdminLessonsPage />
                   </RequireAdmin>
                 }
               />

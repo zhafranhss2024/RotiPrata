@@ -1,6 +1,8 @@
 package com.rotiprata.api;
 
+import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
+import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.LessonService;
 import com.rotiprata.application.UserService;
 import com.rotiprata.domain.Profile;
@@ -20,11 +22,13 @@ public class UserController {
 
     private final UserService userService;
     private final LessonService lessonService;
+    private final BrowsingService browsingService;
 
     // ✅ Only ONE constructor
-    public UserController(UserService userService, LessonService lessonService) {
+    public UserController(UserService userService, LessonService lessonService, BrowsingService browsingService) {
         this.userService = userService;
         this.lessonService = lessonService;
+        this.browsingService = browsingService;
     }
 
     @GetMapping("/me")
@@ -74,4 +78,23 @@ public class UserController {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.getUserStats(userId, SecurityUtils.getAccessToken());
     }
+
+    @PostMapping("/me/history")
+    public void saveBrowsingHistory(@RequestBody SaveHistoryDTO request, @AuthenticationPrincipal Jwt jwt) {
+        SecurityUtils.getUserId(jwt);
+        browsingService.saveHistory(request.getContentId(), request.getLessonId(), SecurityUtils.getAccessToken());
+    }
+
+    @GetMapping("/me/history")
+    public List<SaveHistoryDTO> browsingHistory(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return browsingService.getHistory(userId.toString(), SecurityUtils.getAccessToken());
+    }
+
+    @DeleteMapping("/me/history")
+    public void clearBrowsingHistory(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        browsingService.clearHistory(userId.toString(), SecurityUtils.getAccessToken());
+    }
+
 }
