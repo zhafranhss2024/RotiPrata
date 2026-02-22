@@ -5,20 +5,25 @@ import com.rotiprata.domain.ThemePreference;
 import com.rotiprata.security.SecurityUtils;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.UserService;
-import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
+
 import jakarta.validation.Valid;
+
 import java.util.List;
 import java.util.UUID;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.rotiprata.api.dto.GetHistoryDTO;
 
 @RestController
 @RequestMapping("/api/users")
@@ -68,14 +73,21 @@ public class UserController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         String accessToken = jwt.getTokenValue();
-        browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
+        browsingService.saveHistory(request.getContentId(), request.getLessonId(), request.getTitle(), accessToken);
     }
 
-    // @GetMapping("/me/history")
-    // public List<SaveHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
-    //     String userId = jwt.getSubject();
-    //     String accessToken = jwt.getTokenValue();
-    //     return browsingService.getHistory(userId, accessToken);
-    // }
+    @GetMapping("/me/history")
+    public List<GetHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
+        String userId = jwt.getSubject();
+        String accessToken = jwt.getTokenValue();
+        return browsingService.getHistory(userId, accessToken);
+    }
+
+    @DeleteMapping("/me/history")
+    public void clearHistory(@AuthenticationPrincipal Jwt jwt) {
+        String userId = jwt.getSubject();
+        String accessToken = jwt.getTokenValue();
+        browsingService.clearHistory(userId, accessToken);
+    }
 
 }
