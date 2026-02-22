@@ -2,6 +2,7 @@ package com.rotiprata.infrastructure.supabase;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -40,11 +41,11 @@ public class SupabaseRestClient {
             .build();
         this.objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())                     
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)  
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
-            .findAndRegisterModules()
-            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+            .configure(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false); // optional
     }
 
     public <T> List<T> getList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {

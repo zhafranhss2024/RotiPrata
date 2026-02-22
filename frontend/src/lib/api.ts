@@ -51,11 +51,13 @@ export type SearchResult = {
   snippet?: string;
 };
 
-export type SaveHistoryDTO = {
-  itemId: string;
-  lessonId?: string;
-  contentId?: string;
-  viewedAt: string;
+export type GetHistoryDTO = {
+  id: string;
+  item_id: string;
+  title?: string | null;
+  content_id?: string | null;
+  lesson_id?: string | null;
+  viewed_at: string;
 }
 
 export type UserStats = {
@@ -136,8 +138,8 @@ export const searchContent = (query: string, filter?: string | null) =>
     () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
 
-export const saveBrowsingHistory = (contentId?: string, lessonId?: string) => {
-  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null };
+export const saveBrowsingHistory = (contentId?: string, lessonId?: string, title?: string) => {
+  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null, title: title ?? null };
   apiPost<void>(`/users/me/history`, body);
 };
 
@@ -146,7 +148,7 @@ export const fetchRecommendations = () =>
 
 export const fetchBrowsingHistory = () =>
   // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
-  apiGet<SaveHistoryDTO[]>(`/users/me/history`);
+  apiGet<GetHistoryDTO[]>(`/users/me/history`);
 
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 
