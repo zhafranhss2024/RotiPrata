@@ -24,6 +24,7 @@ import { createLesson, createLessonQuiz } from '@/lib/api';
 const CreateLessonPage = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -122,6 +123,7 @@ const CreateLessonPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
       const lesson = await createLesson({
@@ -131,12 +133,17 @@ const CreateLessonPage = () => {
       });
 
       if (quizQuestions.length > 0) {
-        await createLessonQuiz(lesson.id, quizQuestions);
+        try {
+          await createLessonQuiz(lesson.id, quizQuestions);
+        } catch (quizError) {
+          console.warn('Create lesson quiz failed', quizError);
+        }
       }
 
       navigate('/admin/lessons');
     } catch (error) {
       console.warn('Create lesson failed', error);
+      setSubmitError(error instanceof Error ? error.message : 'Failed to create lesson');
     } finally {
       setIsSubmitting(false);
     }
@@ -154,6 +161,7 @@ const CreateLessonPage = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {submitError && <p className="text-sm text-destructive">{submitError}</p>}
           {/* Basic Info */}
           <Card>
             <CardHeader>

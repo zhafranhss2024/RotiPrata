@@ -113,6 +113,9 @@ public class LessonService {
         copyIfPresent(payload, insert, "evolution_content");
         copyIfPresent(payload, insert, "comparison_content");
         insert.put("is_published", true);
+        insert.put("completion_count", 0);
+        insert.put("created_at", OffsetDateTime.now());
+        insert.put("updated_at", OffsetDateTime.now());
 
         List<Map<String, Object>> created = supabaseAdminRestClient.postList("lessons", insert, MAP_LIST);
         if (created.isEmpty()) {
@@ -148,6 +151,7 @@ public class LessonService {
         if (patch.isEmpty()) {
             return lesson;
         }
+        patch.put("updated_at", OffsetDateTime.now());
 
         List<Map<String, Object>> updated = supabaseAdminRestClient.patchList(
             "lessons",

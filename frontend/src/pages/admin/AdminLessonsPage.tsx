@@ -25,6 +25,7 @@ const AdminLessonsPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
     summary: '',
@@ -36,7 +37,10 @@ const AdminLessonsPage = () => {
   useEffect(() => {
     fetchAdminLessons()
       .then(setLessons)
-      .catch((error) => console.warn('Failed to load admin lessons', error))
+      .catch((error) => {
+        console.warn('Failed to load admin lessons', error);
+        setLoadError(error instanceof Error ? error.message : 'Failed to load lessons');
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -102,6 +106,8 @@ const AdminLessonsPage = () => {
             <Button>Create Lesson</Button>
           </Link>
         </div>
+
+        {loadError && <p className="text-sm text-destructive">{loadError}</p>}
 
         <Card>
           <CardHeader>
