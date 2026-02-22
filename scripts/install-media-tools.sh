@@ -58,6 +58,12 @@ set_env_paths() {
   echo "If the server still cannot find tools, open a new terminal and re-run mvn."
 }
 
+if command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1 && command -v yt-dlp >/dev/null 2>&1; then
+  echo "Media tools already installed. Skipping installation."
+  set_env_paths
+  exit 0
+fi
+
 OS_NAME="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 if [[ "$OS_NAME" == "darwin" ]]; then

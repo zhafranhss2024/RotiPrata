@@ -89,6 +89,7 @@ npm run dev
 ```
 
 Frontend runs on `http://localhost:5173` and proxies `/api` to `http://localhost:8080`.
+Requires Node 20.19+ or 22.12+ (Vite 7 + React SWC).
 
 ### Frontend environment flags
 - `VITE_API_BASE_URL`: Java backend base URL (default `http://localhost:8080/api`)
