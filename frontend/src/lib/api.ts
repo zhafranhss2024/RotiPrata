@@ -343,6 +343,15 @@ export const rejectContent = (contentId: string, feedback?: string) =>
 
 export const resolveFlag = (flagId: string) => apiPut<void>(`/admin/flags/${flagId}/resolve`);
 
+
+export const fetchAdminLessons = () =>
+  withMockFallback("admin-lessons", () => mockLessons, () => apiGet<Lesson[]>(`/admin/lessons`));
+
+export const updateLesson = (lessonId: string, payload: Record<string, unknown>) =>
+  apiPut<Lesson>(`/admin/lessons/${lessonId}`, payload);
+
+export const deleteLesson = (lessonId: string) => apiDelete<void>(`/admin/lessons/${lessonId}`);
+
 export const createLesson = (payload: Record<string, unknown>) => apiPost<Lesson>(`/admin/lessons`, payload);
 
 export const createLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
