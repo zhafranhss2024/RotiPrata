@@ -1,6 +1,7 @@
 package com.rotiprata.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -19,9 +20,11 @@ public class LessonService {
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
 
     private final SupabaseRestClient supabaseRestClient;
+    private final SupabaseAdminRestClient supabaseAdminRestClient;
 
-    public LessonService(SupabaseRestClient supabaseRestClient) {
+    public LessonService(SupabaseRestClient supabaseRestClient, SupabaseAdminRestClient supabaseAdminRestClient) {
         this.supabaseRestClient = supabaseRestClient;
+        this.supabaseAdminRestClient = supabaseAdminRestClient;
     }
 
     public List<Map<String, Object>> getLessons(String accessToken) {
@@ -38,7 +41,11 @@ public class LessonService {
     public List<Map<String, Object>> getAdminLessons(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
         ensureAdmin(userId, token);
-        return getLessons(token);
+        return supabaseAdminRestClient.getList(
+            "lessons",
+            buildQuery(Map.of("select", "*", "order", "created_at.desc")),
+            MAP_LIST
+        );
     }
 
     public List<Map<String, Object>> searchLessons(String query, String accessToken) {
@@ -106,8 +113,11 @@ public class LessonService {
         copyIfPresent(payload, insert, "evolution_content");
         copyIfPresent(payload, insert, "comparison_content");
         insert.put("is_published", true);
+        insert.put("completion_count", 0);
+        insert.put("created_at", OffsetDateTime.now());
+        insert.put("updated_at", OffsetDateTime.now());
 
-        List<Map<String, Object>> created = supabaseRestClient.postList("lessons", insert, token, MAP_LIST);
+        List<Map<String, Object>> created = supabaseAdminRestClient.postList("lessons", insert, MAP_LIST);
         if (created.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create lesson");
         }
@@ -120,7 +130,6 @@ public class LessonService {
         ensureAdmin(userId, token);
 
         Map<String, Object> lesson = getLessonById(lessonId, token);
-        ensureLessonOwnerOrAdmin(userId, lesson, token);
 
         Map<String, Object> patch = new LinkedHashMap<>();
         copyIfPresent(payload, patch, "title");
@@ -142,12 +151,12 @@ public class LessonService {
         if (patch.isEmpty()) {
             return lesson;
         }
+        patch.put("updated_at", OffsetDateTime.now());
 
-        List<Map<String, Object>> updated = supabaseRestClient.patchList(
+        List<Map<String, Object>> updated = supabaseAdminRestClient.patchList(
             "lessons",
             buildQuery(Map.of("id", "eq." + lessonId)),
             patch,
-            token,
             MAP_LIST
         );
         if (updated.isEmpty()) {
@@ -160,13 +169,11 @@ public class LessonService {
         String token = requireAccessToken(accessToken);
         ensureAdmin(userId, token);
 
-        Map<String, Object> lesson = getLessonById(lessonId, token);
-        ensureLessonOwnerOrAdmin(userId, lesson, token);
+        getLessonById(lessonId, token);
 
-        supabaseRestClient.deleteList(
+        supabaseAdminRestClient.deleteList(
             "lessons",
             buildQuery(Map.of("id", "eq." + lessonId)),
-            token,
             MAP_LIST
         );
     }
@@ -184,7 +191,7 @@ public class LessonService {
         quizInsert.put("quiz_type", "multiple_choice");
         quizInsert.put("created_by", userId);
 
-        List<Map<String, Object>> quizzes = supabaseRestClient.postList("quizzes", quizInsert, token, MAP_LIST);
+        List<Map<String, Object>> quizzes = supabaseAdminRestClient.postList("quizzes", quizInsert, MAP_LIST);
         if (quizzes.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create quiz");
         }
@@ -217,7 +224,7 @@ public class LessonService {
                 questionMap.put("order_index",
                         rawMap.getOrDefault("order_index", i));
         
-                supabaseRestClient.postList("quiz_questions", questionMap, token, MAP_LIST);
+                supabaseAdminRestClient.postList("quiz_questions", questionMap, MAP_LIST);
             }
         }
         
@@ -370,16 +377,15 @@ public class LessonService {
     }
 
     private void ensureAdmin(UUID userId, String accessToken) {
-        List<Map<String, Object>> roles = supabaseRestClient.getList(
+        List<Map<String, Object>> roles = supabaseAdminRestClient.getList(
             "user_roles",
             buildQuery(
                 Map.of(
                     "select", "id",
                     "user_id", "eq." + userId,
-                    "or", "(role.eq.admin,role.eq.super_admin)"
+                    "role", "eq.admin"
                 )
             ),
-            accessToken,
             MAP_LIST
         );
         if (roles.isEmpty()) {
@@ -387,23 +393,6 @@ public class LessonService {
         }
     }
 
-
-    private void ensureLessonOwnerOrAdmin(UUID userId, Map<String, Object> lesson, String accessToken) {
-        Object createdBy = lesson.get("created_by");
-        if (createdBy != null && userId.toString().equals(createdBy.toString())) {
-            return;
-        }
-
-        List<Map<String, Object>> roles = supabaseRestClient.getList(
-            "user_roles",
-            buildQuery(Map.of("select", "id", "user_id", "eq." + userId, "role", "eq.super_admin")),
-            accessToken,
-            MAP_LIST
-        );
-        if (roles.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only edit lessons you created");
-        }
-    }
 
     private void addSection(List<Map<String, Object>> sections, String id, String title, Object rawContent, int order) {
         String content = stringify(rawContent);
