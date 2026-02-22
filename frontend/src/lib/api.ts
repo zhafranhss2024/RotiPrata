@@ -69,6 +69,7 @@ export type SearchResult = {
   type: "content" | "lesson" | "profile";
   title: string;
   snippet?: string;
+<<<<<<< HEAD
 };
 
 export type SaveHistoryDTO = {
@@ -117,6 +118,57 @@ export type ContentMediaStatusResponse = {
   errorMessage?: string | null;
 };
 
+=======
+};
+
+export type GetHistoryDTO = {
+  id: string;
+  itemId: string;
+  contentId?: string | null;
+  lessonId?: string | null;
+  viewedAt: string;
+}
+
+export type UserStats = {
+  lessonsEnrolled: number;
+  lessonsCompleted: number;
+  currentStreak?: number;
+  conceptsMastered: number;
+  hoursLearned?: number;
+  quizzesTaken?: number;
+  averageScore?: number;
+};
+
+export type AuthSessionResponse = {
+  accessToken?: string;
+  refreshToken?: string;
+  tokenType?: string;
+  expiresIn?: number;
+  userId?: string;
+  email?: string;
+  requiresEmailConfirmation?: boolean;
+  message?: string;
+};
+
+export type DisplayNameAvailabilityResponse = {
+  available: boolean;
+  normalized: string;
+};
+
+export type ContentMediaStartResponse = {
+  contentId: string;
+  status: string;
+  pollUrl: string;
+};
+
+export type ContentMediaStatusResponse = {
+  status: string;
+  hlsUrl?: string | null;
+  thumbnailUrl?: string | null;
+  errorMessage?: string | null;
+};
+
+>>>>>>> 849514f (test)
 const withMockFallback = async <T>(
   label: string,
   fallback: () => T,
@@ -230,6 +282,7 @@ const buildLessonFeedPath = (params: LessonFeedParams = {}) => {
 export const fetchFeed = (page = 1) =>
   withMockFallback(
     "feed",
+<<<<<<< HEAD
     () => ({ items: mockContents, hasMore: false }),
     () => apiGet<FeedResponse>(`/feed?page=${page}`)
   );
@@ -257,6 +310,35 @@ export const fetchBrowsingHistory = () =>
   // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
   apiGet<SaveHistoryDTO[]>(`/users/me/history`);
 
+=======
+    () => ({ items: mockContents, hasMore: false }),
+    () => apiGet<FeedResponse>(`/feed?page=${page}`)
+  );
+
+export const fetchTrendingContent = () =>
+  withMockFallback("trending", () => mockTrendingContent, () => apiGet(`/trending`));
+
+export const searchContent = (query: string, filter?: string | null) =>
+  withMockFallback(
+    "search",
+    // () => mockSearchResults,
+    () => [],
+    () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
+  );
+
+export const saveBrowsingHistory = (contentId?: string, lessonId?: string) => {
+  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null };
+  apiPost<void>(`/users/me/history`, body);
+};
+
+export const fetchRecommendations = () =>
+  withMockFallback("recommendations", () => mockAiSuggestions, () => apiGet(`/recommendations`));
+
+export const fetchBrowsingHistory = () =>
+  // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
+  apiGet<GetHistoryDTO[]>(`/users/me/history`);
+
+>>>>>>> 849514f (test)
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 
 export const fetchLessonFeed = (params: LessonFeedParams = {}) =>
