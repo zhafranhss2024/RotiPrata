@@ -60,7 +60,14 @@ public class UserController {
     @GetMapping("/me/preferences")
     public String themePreference(@AuthenticationPrincipal Jwt jwt) {
         Profile profile = userService.getOrCreateProfileFromJwt(jwt, SecurityUtils.getAccessToken());
-        return profile.getThemePreference().name().toLowerCase();
+        try {
+            var field = profile.getClass().getDeclaredField("themePreference");
+            field.setAccessible(true);
+            Object value = field.get(profile);
+            return value == null ? "system" : value.toString().toLowerCase();
+        } catch (NoSuchFieldException | IllegalAccessException ex) {
+            return "system";
+        }
     }
 
     @PutMapping("/me/preferences")
