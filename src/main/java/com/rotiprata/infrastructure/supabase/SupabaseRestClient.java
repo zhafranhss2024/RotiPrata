@@ -2,6 +2,7 @@ package com.rotiprata.infrastructure.supabase;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -18,7 +19,6 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.databind.SerializationFeature;
 
 @Component
 public class SupabaseRestClient {
@@ -41,11 +41,11 @@ public class SupabaseRestClient {
             .build();
         this.objectMapper = new ObjectMapper()
             .registerModule(new JavaTimeModule())                     
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)  
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
-            .findAndRegisterModules()
-            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+            .configure(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false); // optional
     }
 
     public <T> List<T> getList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {
@@ -81,6 +81,7 @@ public class SupabaseRestClient {
                     request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
                 }
                 responseBody = request.retrieve().body(String.class);
+                System.out.println("Supabase GET response for " + uri + ": " + responseBody);
             } else if ("POST".equals(method)) {
                 var request = restClient.post().uri(uri);
                 if (accessToken != null && !accessToken.isBlank()) {
@@ -107,6 +108,15 @@ public class SupabaseRestClient {
                 responseBody = request
                     .header("Prefer", "return=representation")
                     .body(serialize(body))
+                    .retrieve()
+                    .body(String.class);
+            } else if ("DELETE".equals(method)) {
+                var request = restClient.delete().uri(uri);
+                if (accessToken != null && !accessToken.isBlank()) {
+                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+                }
+                responseBody = request
+                    .header("Prefer", "return=representation")
                     .retrieve()
                     .body(String.class);
             } else {

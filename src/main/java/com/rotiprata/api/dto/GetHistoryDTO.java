@@ -2,10 +2,11 @@ package com.rotiprata.api.dto;
 
 import java.time.Instant;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class SaveHistoryDTO {
+public class GetHistoryDTO {
+
+    private String id;
 
     @JsonProperty("item_id")
     private String itemId; 
@@ -18,6 +19,9 @@ public class SaveHistoryDTO {
 
     @JsonProperty("viewed_at")
     private Instant viewedAt;
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
     public String getItemId() { return itemId; }
     public void setItemId(String itemId) { this.itemId = itemId; }

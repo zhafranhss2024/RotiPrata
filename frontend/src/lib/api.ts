@@ -51,10 +51,11 @@ export type SearchResult = {
   snippet?: string;
 };
 
-export type SaveHistoryDTO = {
+export type GetHistoryDTO = {
+  id: string;
   itemId: string;
-  lessonId?: string;
-  contentId?: string;
+  contentId?: string | null;
+  lessonId?: string | null;
   viewedAt: string;
 }
 
@@ -146,7 +147,7 @@ export const fetchRecommendations = () =>
 
 export const fetchBrowsingHistory = () =>
   // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
-  apiGet<SaveHistoryDTO[]>(`/users/me/history`);
+  apiGet<GetHistoryDTO[]>(`/users/me/history`);
 
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.rotiprata.api.dto.ContentSearchDTO;
+import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
@@ -78,19 +79,32 @@ public class BrowsingService {
 
     }
 
-    // public List<SaveHistoryDTO> getHistory(String userId, String accessToken) {
+    public List<GetHistoryDTO> getHistory(String userId, String accessToken) {
 
-    //     String path = "/browsing_history?user_id=eq." + userId + "&order=viewed_at.desc&limit=5";
+        String path = "/browsing_history";
+        String query = "user_id=eq." + userId + "&order=viewed_at.desc&limit=5";
 
-    //     System.out.println("user: " + userId);
+        System.out.println("user: " + userId);
 
-    //     return supabaseRestClient.getList(
-    //         path,
-    //         null,
-    //         accessToken,
-    //         new TypeReference<List<SaveHistoryDTO>>() {}
-    //     );
-    // }
+        return supabaseRestClient.getList(
+            path,
+            query,
+            accessToken,
+            new TypeReference<List<GetHistoryDTO>>() {}
+        );
+    }
+
+    public void clearHistory(String userId, String accessToken) {
+        String path = "/browsing_history";
+        String query = "user_id=eq." + userId;
+
+        supabaseRestClient.deleteList(
+            path,
+            query,
+            accessToken,
+            new TypeReference<List<Map<String, Object>>>() {}
+        );
+    }
 
 
 }
