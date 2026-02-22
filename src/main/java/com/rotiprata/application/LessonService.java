@@ -1,7 +1,6 @@
 package com.rotiprata.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -33,6 +32,13 @@ public class LessonService {
             token,
             MAP_LIST
         );
+    }
+
+
+    public List<Map<String, Object>> getAdminLessons(UUID userId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+        return getLessons(token);
     }
 
     public List<Map<String, Object>> searchLessons(String query, String accessToken) {
@@ -106,6 +112,63 @@ public class LessonService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create lesson");
         }
         return created.get(0);
+    }
+
+
+    public Map<String, Object> updateLesson(UUID userId, UUID lessonId, Map<String, Object> payload, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+
+        Map<String, Object> lesson = getLessonById(lessonId, token);
+        ensureLessonOwnerOrAdmin(userId, lesson, token);
+
+        Map<String, Object> patch = new LinkedHashMap<>();
+        copyIfPresent(payload, patch, "title");
+        copyIfPresent(payload, patch, "description");
+        copyIfPresent(payload, patch, "summary");
+        copyIfPresent(payload, patch, "learning_objectives");
+        copyIfPresent(payload, patch, "estimated_minutes");
+        copyIfPresent(payload, patch, "xp_reward");
+        copyIfPresent(payload, patch, "badge_name");
+        copyIfPresent(payload, patch, "difficulty_level");
+        copyIfPresent(payload, patch, "origin_content");
+        copyIfPresent(payload, patch, "definition_content");
+        copyIfPresent(payload, patch, "usage_examples");
+        copyIfPresent(payload, patch, "lore_content");
+        copyIfPresent(payload, patch, "evolution_content");
+        copyIfPresent(payload, patch, "comparison_content");
+        copyIfPresent(payload, patch, "is_published");
+
+        if (patch.isEmpty()) {
+            return lesson;
+        }
+
+        List<Map<String, Object>> updated = supabaseRestClient.patchList(
+            "lessons",
+            buildQuery(Map.of("id", "eq." + lessonId)),
+            patch,
+            token,
+            MAP_LIST
+        );
+        if (updated.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to update lesson");
+        }
+        return updated.get(0);
+    }
+
+    public void deleteLesson(UUID userId, UUID lessonId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+
+        Map<String, Object> lesson = getLessonById(lessonId, token);
+        ensureLessonOwnerOrAdmin(userId, lesson, token);
+
+        supabaseRestClient.deleteList(
+            "lessons",
+            buildQuery(Map.of("id", "eq." + lessonId)),
+            token,
+            MAP_LIST
+        );
     }
 
     public Map<String, Object> createLessonQuiz(UUID userId, UUID lessonId, Map<String, Object> payload, String accessToken) {
@@ -315,6 +378,24 @@ public class LessonService {
         );
         if (roles.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Admin access required");
+        }
+    }
+
+
+    private void ensureLessonOwnerOrAdmin(UUID userId, Map<String, Object> lesson, String accessToken) {
+        Object createdBy = lesson.get("created_by");
+        if (createdBy != null && userId.toString().equals(createdBy.toString())) {
+            return;
+        }
+
+        List<Map<String, Object>> roles = supabaseRestClient.getList(
+            "user_roles",
+            buildQuery(Map.of("select", "id", "user_id", "eq." + userId, "role", "eq.super_admin")),
+            accessToken,
+            MAP_LIST
+        );
+        if (roles.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only edit lessons you created");
         }
     }
 
