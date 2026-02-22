@@ -347,7 +347,7 @@ export const resolveFlag = (flagId: string) => apiPut<void>(`/admin/flags/${flag
 
 
 export const fetchAdminLessons = () =>
-  withMockFallback("admin-lessons", () => mockLessons, () => apiGet<Lesson[]>(`/admin/lessons`));
+  withMockFallback("admin-lessons", () => mockLessons, () => apiGet<Lesson[]>(`/admin/lessons`), { allowAutoFallback: false });
 
 export const updateLesson = (lessonId: string, payload: Record<string, unknown>) =>
   apiPut<Lesson>(`/admin/lessons/${lessonId}`, payload);

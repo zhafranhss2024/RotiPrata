@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -16,17 +16,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { deleteLesson, fetchAdminLessons, updateLesson } from '@/lib/api';
-import { useAuth } from '@/hooks/useAuth';
 import type { Lesson } from '@/types';
 
 const AdminLessonsPage = () => {
-  const { user } = useAuth();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [form, setForm] = useState({
     title: '',
     summary: '',
@@ -38,17 +37,12 @@ const AdminLessonsPage = () => {
   useEffect(() => {
     fetchAdminLessons()
       .then(setLessons)
-      .catch((error) => console.warn('Failed to load admin lessons', error))
+      .catch((error) => {
+        console.warn('Failed to load admin lessons', error);
+        setLoadError(error instanceof Error ? error.message : 'Failed to load lessons');
+      })
       .finally(() => setIsLoading(false));
   }, []);
-
-  const myLessons = useMemo(() => {
-    const userId = user?.user_id ?? user?.id;
-    if (!userId) {
-      return [];
-    }
-    return lessons.filter((lesson) => lesson.created_by === userId || lesson.created_by === user?.id);
-  }, [lessons, user]);
 
   const openEdit = (lesson: Lesson) => {
     setSelectedLesson(lesson);
@@ -105,7 +99,7 @@ const AdminLessonsPage = () => {
             </Link>
             <div>
               <h1 className="text-2xl font-bold">Manage Lessons</h1>
-              <p className="text-muted-foreground">Edit or delete lessons you created.</p>
+              <p className="text-muted-foreground">Admins can edit or delete any lesson, including pre-existing ones.</p>
             </div>
           </div>
           <Link to="/admin/lessons/create">
@@ -113,19 +107,21 @@ const AdminLessonsPage = () => {
           </Link>
         </div>
 
+        {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+
         <Card>
           <CardHeader>
-            <CardTitle>Your Lessons ({myLessons.length})</CardTitle>
+            <CardTitle>All Lessons ({lessons.length})</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {isLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading lessons...
               </div>
-            ) : myLessons.length === 0 ? (
-              <p className="text-muted-foreground">No lessons created by you yet.</p>
+            ) : lessons.length === 0 ? (
+              <p className="text-muted-foreground">No lessons available yet.</p>
             ) : (
-              myLessons.map((lesson) => (
+              lessons.map((lesson) => (
                 <div key={lesson.id} className="border rounded-lg p-4 flex items-start justify-between gap-4">
                   <div>
                     <p className="font-semibold">{lesson.title}</p>
