@@ -105,6 +105,26 @@ Categories
 - `GET /categories`  
   Returns category list.
 
+Lesson Feed
+- `GET /lessons`  
+  Header: `Authorization: Bearer <token>`  
+  Query (all optional unless noted):
+  - `page` (default `1`)
+  - `pageSize` (default `12`, max `50`)
+  - `q` (searches `title` and `description`)
+  - `difficulty` (`1` beginner, `2` intermediate, `3` advanced)
+  - `maxMinutes` (integer, filters `estimated_minutes <= maxMinutes`)
+  - `sort` (`newest` | `popular` | `duration_asc` | `duration_desc`, default `newest`)
+  Returns:
+  ```json
+  {
+    "items": [/* lessons */],
+    "hasMore": true,
+    "page": 1,
+    "pageSize": 12
+  }
+  ```
+
 ## Missing Endpoints (Required by Frontend)
 
 Feed and content
@@ -118,7 +138,6 @@ Feed and content
 - `POST /content/{id}/flag`
 
 Lessons
-- `GET /lessons`
 - `GET /lessons/search?q=...`
 - `GET /lessons/{id}`
 - `GET /lessons/{id}/sections`
@@ -146,4 +165,3 @@ Admin
 ## Notes for Developers
 - All authenticated endpoints require `Authorization: Bearer <accessToken>`.
 - Frontend mocks can mask missing endpoints. To force real backend calls: set `VITE_USE_MOCKS=false`.
-

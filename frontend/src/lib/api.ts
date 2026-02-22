@@ -44,6 +44,24 @@ export type FeedResponse = {
   hasMore: boolean;
 };
 
+export type LessonFeedSort = "newest" | "popular" | "duration_asc" | "duration_desc";
+
+export type LessonFeedFilters = {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  difficulty?: 1 | 2 | 3;
+  maxMinutes?: number;
+  sort?: LessonFeedSort;
+};
+
+export type LessonFeedResponse = {
+  items: Lesson[];
+  hasMore: boolean;
+  page: number;
+  pageSize: number;
+};
+
 export type SearchResult = {
   id: string;
   type: "content" | "lesson" | "profile";
@@ -120,6 +138,107 @@ const withMockFallback = async <T>(
   }
 };
 
+const normalizePage = (value?: number) => {
+  if (!value || value < 1) {
+    return 1;
+  }
+  return Math.floor(value);
+};
+
+const normalizePageSize = (value?: number) => {
+  if (!value || value < 1) {
+    return 12;
+  }
+  return Math.min(Math.floor(value), 50);
+};
+
+const normalizeSort = (value?: LessonFeedSort): LessonFeedSort => {
+  if (!value) {
+    return "newest";
+  }
+  return value;
+};
+
+const sortLessons = (lessons: Lesson[], sort: LessonFeedSort) => {
+  const sorted = [...lessons];
+  switch (sort) {
+    case "popular":
+      sorted.sort((a, b) => b.completion_count - a.completion_count);
+      break;
+    case "duration_asc":
+      sorted.sort((a, b) => a.estimated_minutes - b.estimated_minutes);
+      break;
+    case "duration_desc":
+      sorted.sort((a, b) => b.estimated_minutes - a.estimated_minutes);
+      break;
+    default:
+      sorted.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+      break;
+  }
+  return sorted;
+};
+
+const buildMockLessonFeed = (filters: LessonFeedFilters = {}): LessonFeedResponse => {
+  const page = normalizePage(filters.page);
+  const pageSize = normalizePageSize(filters.pageSize);
+  const sort = normalizeSort(filters.sort);
+  const q = filters.q?.trim().toLowerCase();
+
+  let filtered = [...mockLessons];
+  if (q) {
+    filtered = filtered.filter((lesson) => {
+      const searchable = `${lesson.title} ${lesson.description ?? ""}`.toLowerCase();
+      return searchable.includes(q);
+    });
+  }
+  if (filters.difficulty) {
+    filtered = filtered.filter((lesson) => lesson.difficulty_level === filters.difficulty);
+  }
+  const maxMinutes = filters.maxMinutes;
+  if (maxMinutes) {
+    filtered = filtered.filter((lesson) => lesson.estimated_minutes <= maxMinutes);
+  }
+
+  filtered = sortLessons(filtered, sort);
+
+  const start = (page - 1) * pageSize;
+  const window = filtered.slice(start, start + pageSize + 1);
+  const hasMore = window.length > pageSize;
+  const items = hasMore ? window.slice(0, pageSize) : window;
+  return {
+    items,
+    hasMore,
+    page,
+    pageSize,
+  };
+};
+
+export const buildLessonFeedQuery = (filters: LessonFeedFilters = {}) => {
+  const params = new URLSearchParams();
+  params.set("page", String(normalizePage(filters.page)));
+  params.set("pageSize", String(normalizePageSize(filters.pageSize)));
+  params.set("sort", normalizeSort(filters.sort));
+
+  const q = filters.q?.trim();
+  if (q) {
+    params.set("q", q);
+  }
+  if (filters.difficulty) {
+    params.set("difficulty", String(filters.difficulty));
+  }
+  if (filters.maxMinutes) {
+    params.set("maxMinutes", String(filters.maxMinutes));
+  }
+  return params.toString();
+};
+
+export const fetchLessonFeed = (filters: LessonFeedFilters = {}) =>
+  withMockFallback(
+    "lesson-feed",
+    () => buildMockLessonFeed(filters),
+    () => apiGet<LessonFeedResponse>(`/lessons?${buildLessonFeedQuery(filters)}`)
+  );
+
 export const fetchFeed = (page = 1) =>
   withMockFallback(
     "feed",
@@ -152,15 +271,10 @@ export const fetchBrowsingHistory = () =>
 
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 
-export const fetchLessons = () =>
-  withMockFallback("lessons", () => mockLessons, () => apiGet<Lesson[]>(`/lessons`));
+export const fetchLessons = () => fetchLessonFeed({ page: 1, pageSize: 50 }).then((response) => response.items);
 
 export const searchLessons = (query: string) =>
-  withMockFallback(
-    "lesson-search",
-    () => mockLessons,
-    () => apiGet<Lesson[]>(`/lessons/search?q=${encodeURIComponent(query)}`)
-  );
+  fetchLessonFeed({ page: 1, pageSize: 50, q: query }).then((response) => response.items);
 
 export const fetchLessonById = (lessonId: string) =>
   withMockFallback(
