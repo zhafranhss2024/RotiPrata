@@ -28,21 +28,32 @@ install_if_missing() {
   fi
 }
 
+resolve_java_home() {
+  /usr/libexec/java_home -v 17 2>/dev/null || \
+  /usr/libexec/java_home -v 21 2>/dev/null || \
+  true
+}
+
 echo "Ensuring prerequisites (Java, Maven, Node.js)..."
 install_if_missing "java" "openjdk@17"
 install_if_missing "mvn" "maven"
 install_if_missing "node" "node"
 install_if_missing "npm" "node"
 
-if ! /usr/libexec/java_home -v 17 >/dev/null 2>&1; then
+if ! /usr/libexec/java_home -v 17 >/dev/null 2>&1 && ! /usr/libexec/java_home -v 21 >/dev/null 2>&1; then
   ensure_brew
   echo "Installing OpenJDK 17..."
   brew install openjdk@17
 fi
-export JAVA_HOME="$("/usr/libexec/java_home" -v 17 2>/dev/null || true)"
-if [[ -n "$JAVA_HOME" ]]; then
-  export PATH="$JAVA_HOME/bin:$PATH"
+
+JAVA_HOME="$(resolve_java_home)"
+if [[ -z "$JAVA_HOME" ]]; then
+  echo "Unable to locate a compatible JDK (17 or 21)."
+  echo "Install one and re-run: brew install openjdk@17"
+  exit 1
 fi
+export JAVA_HOME
+export PATH="$JAVA_HOME/bin:$PATH"
 
 echo "Installing media tools..."
 xattr -dr com.apple.quarantine "$repo_root/scripts/install-media-tools.sh" 2>/dev/null || true
@@ -52,7 +63,7 @@ echo "Starting backend + frontend..."
 if command -v osascript >/dev/null 2>&1; then
   osascript <<EOF
 tell application "Terminal"
-  do script "cd \"$repo_root\"; mvn spring-boot:run"
+  do script "cd \"$repo_root\"; export JAVA_HOME=\"$JAVA_HOME\"; export PATH=\"$JAVA_HOME/bin:\$PATH\"; mvn spring-boot:run"
   do script "cd \"$repo_root/frontend\"; npm install; npm run dev"
 end tell
 EOF
