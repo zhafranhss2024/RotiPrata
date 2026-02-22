@@ -98,6 +98,7 @@ public class LessonController {
         UUID userId = SecurityUtils.getUserId(jwt);
         lessonService.deleteLesson(userId, lessonId, SecurityUtils.getAccessToken());
     }
+
     @PostMapping("/admin/lessons/{lessonId}/quiz")
     public Map<String, Object> createLessonQuiz(
         @AuthenticationPrincipal Jwt jwt,
