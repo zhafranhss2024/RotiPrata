@@ -8,13 +8,25 @@ import com.rotiprata.application.UserService;
 import com.rotiprata.domain.Profile;
 import com.rotiprata.domain.ThemePreference;
 import com.rotiprata.security.SecurityUtils;
+import com.rotiprata.application.BrowsingService;
+import com.rotiprata.application.UserService;
+import com.rotiprata.api.dto.SaveHistoryDTO;
+import com.rotiprata.api.dto.SaveHistoryRequestDTO;
+import com.rotiprata.api.dto.ThemePreferenceRequest;
 import jakarta.validation.Valid;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/users")
@@ -67,34 +79,20 @@ public class UserController {
         );
     }
 
-    @GetMapping("/me/lessons/progress")
-    public Map<String, Integer> lessonProgress(@AuthenticationPrincipal Jwt jwt) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        return lessonService.getUserLessonProgress(userId, SecurityUtils.getAccessToken());
-    }
-
-    @GetMapping("/me/stats")
-    public Map<String, Integer> userStats(@AuthenticationPrincipal Jwt jwt) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        return lessonService.getUserStats(userId, SecurityUtils.getAccessToken());
-    }
-
     @PostMapping("/me/history")
-    public void saveBrowsingHistory(@RequestBody SaveHistoryDTO request, @AuthenticationPrincipal Jwt jwt) {
-        SecurityUtils.getUserId(jwt);
-        browsingService.saveHistory(request.getContentId(), request.getLessonId(), SecurityUtils.getAccessToken());
+    public void saveHistory(
+        @RequestBody SaveHistoryRequestDTO request,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        String accessToken = jwt.getTokenValue();
+        browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
     }
 
-    @GetMapping("/me/history")
-    public List<SaveHistoryDTO> browsingHistory(@AuthenticationPrincipal Jwt jwt) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        return browsingService.getHistory(userId.toString(), SecurityUtils.getAccessToken());
-    }
-
-    @DeleteMapping("/me/history")
-    public void clearBrowsingHistory(@AuthenticationPrincipal Jwt jwt) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        browsingService.clearHistory(userId.toString(), SecurityUtils.getAccessToken());
-    }
+    // @GetMapping("/me/history")
+    // public List<SaveHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
+    //     String userId = jwt.getSubject();
+    //     String accessToken = jwt.getTokenValue();
+    //     return browsingService.getHistory(userId, accessToken);
+    // }
 
 }
