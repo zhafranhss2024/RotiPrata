@@ -9,7 +9,7 @@ This document lists:
 ## Why PostgREST
 - The backend proxies Supabase PostgREST so RLS is enforced.
 - Every data call forwards the user JWT + anon key.
-- No service role key is used anywhere.
+- For media processing and moderation, the backend also uses a Supabase service role key.
 
 ## Implemented Endpoints
 
@@ -65,6 +65,45 @@ Users
   Body: `{ themePreference }`  
   Updates theme preference.  
   Supabase backing: `PATCH /rest/v1/profiles?user_id=eq.<jwt.sub>`
+- `POST /users/me/history`  
+  Header: `Authorization: Bearer <token>`  
+  Body: `{ contentId?, lessonId? }`  
+  Saves a browsing history entry.
+
+Content (draft + async media)
+- `POST /content/media/start`  
+  Header: `Authorization: Bearer <token>`  
+  Multipart: `file`  
+  Starts async upload + conversion. Returns `{ contentId, status, pollUrl }`.  
+- `POST /content/media/start-link`  
+  Header: `Authorization: Bearer <token>`  
+  Body: `{ sourceUrl }`  
+  Starts async link ingest + conversion (TikTok/Instagram Reels only).  
+- `GET /content/{id}/media`  
+  Header: `Authorization: Bearer <token>`  
+  Returns `{ status, hlsUrl, thumbnailUrl, errorMessage }`.  
+- `PATCH /content/{id}`  
+  Header: `Authorization: Bearer <token>`  
+  Body: Draft fields to update while media is processing (supports tags).  
+- `POST /content/{id}/submit`  
+  Header: `Authorization: Bearer <token>`  
+  Body: `{ title, description, contentType, categoryId?, learningObjective?, originExplanation?, definitionLiteral?, definitionUsed?, olderVersionReference?, tags? }`  
+  Finalizes draft if media is ready. Inserts into moderation queue.  
+
+Search
+- `GET /search`  
+  Query: `query`, `filter` (optional)  
+  Filters: `video`, `lesson`  
+  Returns approved video content and published lessons.
+
+Tags
+- `GET /tags`  
+  Query: `query`  
+  Returns matching tag strings.
+
+Categories
+- `GET /categories`  
+  Returns category list.
 
 ## Missing Endpoints (Required by Frontend)
 
@@ -72,9 +111,6 @@ Feed and content
 - `GET /feed?page=...`
 - `GET /trending`
 - `GET /recommendations`
-- `GET /search?q=...&filter=...`
-- `POST /content`
-- `POST /content/upload` (multipart)
 - `GET /content/{id}/quiz`
 - `POST /content/{id}/view`
 - `POST /content/{id}/vote`
@@ -96,9 +132,6 @@ User data
 - `GET /users/me/lessons/progress`
 - `GET /users/me/stats`
 - `GET /users/me/achievements`
-
-Categories
-- `GET /categories`
 
 Admin
 - `GET /admin/stats`

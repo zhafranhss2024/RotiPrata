@@ -10,22 +10,19 @@ import com.rotiprata.config.SupabaseProperties;
 import java.util.Collections;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.databind.SerializationFeature;
-
 @Component
-public class SupabaseRestClient {
+public class SupabaseAdminRestClient {
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
-    public SupabaseRestClient(SupabaseProperties supabaseProperties, RestClient.Builder restClientBuilder) {
+    public SupabaseAdminRestClient(SupabaseProperties supabaseProperties, RestClient.Builder restClientBuilder) {
         String baseUrl = supabaseProperties.getRestUrl();
         if (baseUrl == null || baseUrl.isBlank()) {
             throw new IllegalStateException("Supabase REST URL is not configured");
@@ -33,35 +30,38 @@ public class SupabaseRestClient {
         if (!baseUrl.endsWith("/")) {
             baseUrl = baseUrl + "/";
         }
+        String serviceRoleKey = supabaseProperties.getServiceRoleKey();
+        if (serviceRoleKey == null || serviceRoleKey.isBlank()) {
+            throw new IllegalStateException("Supabase service role key is not configured");
+        }
         this.restClient = restClientBuilder
             .baseUrl(baseUrl)
-            .defaultHeader("apikey", supabaseProperties.getAnonKey())
+            .defaultHeader("apikey", serviceRoleKey)
+            .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + serviceRoleKey)
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
             .build();
         this.objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule())                     
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)  
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
             .findAndRegisterModules()
             .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
     }
 
-    public <T> List<T> getList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {
-        return exchangeList("GET", path, query, null, accessToken, typeRef);
+    public <T> List<T> getList(String path, String query, TypeReference<List<T>> typeRef) {
+        return exchangeList("GET", path, query, null, typeRef);
     }
 
-    public <T> List<T> postList(String path, Object body, String accessToken, TypeReference<List<T>> typeRef) {
-        return exchangeList("POST", path, null, body, accessToken, typeRef);
+    public <T> List<T> postList(String path, Object body, TypeReference<List<T>> typeRef) {
+        return exchangeList("POST", path, null, body, typeRef);
     }
 
-    public <T> List<T> upsertList(String path, String query, Object body, String accessToken, TypeReference<List<T>> typeRef) {
-        return exchangeList("UPSERT", path, query, body, accessToken, typeRef);
+    public <T> List<T> patchList(String path, String query, Object body, TypeReference<List<T>> typeRef) {
+        return exchangeList("PATCH", path, query, body, typeRef);
     }
 
-    public <T> List<T> patchList(String path, String query, Object body, String accessToken, TypeReference<List<T>> typeRef) {
-        return exchangeList("PATCH", path, query, body, accessToken, typeRef);
+    public <T> List<T> deleteList(String path, String query, TypeReference<List<T>> typeRef) {
+        return exchangeList("DELETE", path, query, null, typeRef);
     }
 
     private <T> List<T> exchangeList(
@@ -69,44 +69,31 @@ public class SupabaseRestClient {
         String path,
         String query,
         Object body,
-        String accessToken,
         TypeReference<List<T>> typeRef
     ) {
         String uri = buildUri(path, query);
         try {
             String responseBody;
             if ("GET".equals(method)) {
-                var request = restClient.get().uri(uri);
-                if (accessToken != null && !accessToken.isBlank()) {
-                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
-                }
-                responseBody = request.retrieve().body(String.class);
+                responseBody = restClient.get().uri(uri).retrieve().body(String.class);
             } else if ("POST".equals(method)) {
-                var request = restClient.post().uri(uri);
-                if (accessToken != null && !accessToken.isBlank()) {
-                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
-                }
-                responseBody = request
-                    .header("Prefer", "return=representation")
-                    .body(serialize(body))
-                    .retrieve()
-                    .body(String.class);
-            } else if ("UPSERT".equals(method)) {
                 responseBody = restClient.post()
                     .uri(uri)
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                    .header("Prefer", "return=representation,resolution=merge-duplicates")
+                    .header("Prefer", "return=representation")
                     .body(serialize(body))
                     .retrieve()
                     .body(String.class);
             } else if ("PATCH".equals(method)) {
-                var request = restClient.patch().uri(uri);
-                if (accessToken != null && !accessToken.isBlank()) {
-                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
-                }
-                responseBody = request
+                responseBody = restClient.patch()
+                    .uri(uri)
                     .header("Prefer", "return=representation")
                     .body(serialize(body))
+                    .retrieve()
+                    .body(String.class);
+            } else if ("DELETE".equals(method)) {
+                responseBody = restClient.delete()
+                    .uri(uri)
+                    .header("Prefer", "return=representation")
                     .retrieve()
                     .body(String.class);
             } else {

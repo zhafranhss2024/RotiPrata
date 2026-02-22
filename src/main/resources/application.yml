@@ -3,6 +3,10 @@ spring:
     import: optional:file:.env[.properties]
   application:
     name: rotiprata
+  servlet:
+    multipart:
+      max-file-size: ${MEDIA_MAX_FILE_SIZE:200MB}
+      max-request-size: ${MEDIA_MAX_FILE_SIZE:200MB}
 server:
   port: ${PORT:8080}
 
@@ -20,3 +24,14 @@ supabase:
 
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+
+media:
+  max-upload-mb: ${MEDIA_MAX_UPLOAD_MB:200}
+  max-duration-seconds: ${MEDIA_MAX_DURATION_SECONDS:180}
+  temp-dir: ${MEDIA_TEMP_DIR:}
+  ffmpeg-path: ${FFMPEG_PATH:ffmpeg}
+  ffprobe-path: ${FFPROBE_PATH:ffprobe}
+  ytdlp-path: ${YTDLP_PATH:yt-dlp}
+  auto-update-ytdlp: ${YTDLP_AUTO_UPDATE:true}
+  check-tooling-on-startup: ${MEDIA_CHECK_TOOLING_ON_STARTUP:true}
+  ytdlp-verbose: ${YTDLP_VERBOSE:false}

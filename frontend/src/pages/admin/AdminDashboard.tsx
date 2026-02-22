@@ -5,6 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { 
   Search,
   CheckCircle,
@@ -15,20 +25,51 @@ import {
   Flag,
   TrendingUp,
   Eye,
+  Loader2,
+  Plus,
+  X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { Content, ModerationQueueItem, ContentFlag } from '@/types';
+import type { Content, ModerationQueueItem, ContentFlag, Category } from '@/types';
 import {
   approveContent,
   fetchAdminStats,
+  fetchCategories,
   fetchContentFlags,
   fetchModerationQueue,
+  fetchTags,
+  updateAdminContent,
   rejectContent,
   resolveFlag,
 } from '@/lib/api';
 
 // Backend: /api/admin/*
 // Dummy data is returned when mocks are enabled.
+
+const MAX_TITLE = 80;
+const MAX_DESCRIPTION = 500;
+const MAX_OBJECTIVE = 160;
+const MAX_LONG_TEXT = 500;
+const MAX_OLDER_REFERENCE = 160;
+const MAX_TAG = 30;
+
+const sanitizeInputValue = (value: string, maxLength: number) => {
+  const cleaned = value.replace(/[\u0000-\u001F\u007F]/g, '');
+  if (maxLength > 0 && cleaned.length > maxLength) {
+    return cleaned.slice(0, maxLength);
+  }
+  return cleaned;
+};
+
+const normalizeText = (value: string, maxLength: number) => {
+  const cleaned = sanitizeInputValue(value, maxLength);
+  return cleaned.replace(/\s+/g, ' ').trim();
+};
+
+const sanitizeTag = (value: string) => {
+  const trimmed = value.trim().replace(/^#/, '');
+  return normalizeText(trimmed, MAX_TAG);
+};
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -43,6 +84,42 @@ const AdminDashboard = () => {
   });
   const [moderationQueue, setModerationQueue] = useState<(ModerationQueueItem & { content: Content })[]>([]);
   const [flags, setFlags] = useState<ContentFlag[]>([]);
+  const [selectedModerationItem, setSelectedModerationItem] = useState<(ModerationQueueItem & { content: Content }) | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    learningObjective: '',
+    originExplanation: '',
+    definitionLiteral: '',
+    definitionUsed: '',
+    olderVersionReference: '',
+    categoryId: '',
+    tags: [] as string[],
+  });
+  const [hasAttemptedSave, setHasAttemptedSave] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  const [tagQuery, setTagQuery] = useState('');
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [isTagLoading, setIsTagLoading] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectAttempted, setRejectAttempted] = useState(false);
+
+  const fieldErrors = {
+    title: normalizeText(editForm.title, MAX_TITLE) ? '' : 'Title is required.',
+    description: normalizeText(editForm.description, MAX_DESCRIPTION) ? '' : 'Description is required.',
+    learningObjective: normalizeText(editForm.learningObjective, MAX_OBJECTIVE) ? '' : 'Learning objective is required.',
+    originExplanation: normalizeText(editForm.originExplanation, MAX_LONG_TEXT) ? '' : 'Origin explanation is required.',
+    definitionLiteral: normalizeText(editForm.definitionLiteral, MAX_LONG_TEXT) ? '' : 'Definition (literal) is required.',
+    definitionUsed: normalizeText(editForm.definitionUsed, MAX_LONG_TEXT) ? '' : 'Definition (used) is required.',
+    olderVersionReference: normalizeText(editForm.olderVersionReference, MAX_OLDER_REFERENCE) ? '' : 'Older version reference is required.',
+    categoryId: editForm.categoryId ? '' : 'Category is required.',
+    tags: editForm.tags.length > 0 ? '' : 'At least one tag is required.',
+  };
+  const isFormValid = Object.values(fieldErrors).every((value) => !value);
 
   useEffect(() => {
     fetchAdminStats()
@@ -56,21 +133,97 @@ const AdminDashboard = () => {
     fetchContentFlags()
       .then(setFlags)
       .catch((error) => console.warn('Failed to load flags', error));
+
+    fetchCategories()
+      .then(setCategories)
+      .catch((error) => console.warn('Failed to load categories', error));
   }, []);
 
+  useEffect(() => {
+    if (!selectedModerationItem) {
+      return;
+    }
+    const content = selectedModerationItem.content;
+    setEditForm({
+      title: content.title ?? '',
+      description: content.description ?? '',
+      learningObjective: content.learning_objective ?? '',
+      originExplanation: content.origin_explanation ?? '',
+      definitionLiteral: content.definition_literal ?? '',
+      definitionUsed: content.definition_used ?? '',
+      olderVersionReference: content.older_version_reference ?? '',
+      categoryId: content.category_id ?? '',
+      tags: content.tags ?? [],
+    });
+    setHasAttemptedSave(false);
+    setIsSaved(false);
+    setTagQuery('');
+    setTagSuggestions([]);
+  }, [selectedModerationItem?.content?.id]);
+
+  useEffect(() => {
+    if (!selectedModerationItem) {
+      return;
+    }
+    setIsSaved(false);
+  }, [editForm]);
+
+  useEffect(() => {
+    const query = tagQuery.trim();
+    if (!query) {
+      setTagSuggestions([]);
+      return;
+    }
+    let active = true;
+    setIsTagLoading(true);
+    fetchTags(query)
+      .then((tags) => {
+        if (!active) {
+          return;
+        }
+        const filtered = tags.filter((tag) => !editForm.tags.includes(tag));
+        setTagSuggestions(filtered);
+      })
+      .catch((error) => console.warn('Failed to fetch tags', error))
+      .finally(() => {
+        if (active) {
+          setIsTagLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [tagQuery, editForm.tags]);
+
   const handleApprove = async (contentId: string) => {
+    if (!isSaved) {
+      return;
+    }
     try {
+      setIsApproving(true);
       await approveContent(contentId);
       setModerationQueue((items) => items.filter((item) => item.content_id !== contentId));
+      setSelectedModerationItem(null);
     } catch (error) {
       console.warn('Approve failed', error);
+    } finally {
+      setIsApproving(false);
     }
   };
 
   const handleReject = async (contentId: string) => {
+    const feedback = normalizeText(rejectReason, MAX_LONG_TEXT);
+    if (!feedback) {
+      setRejectAttempted(true);
+      return;
+    }
     try {
-      await rejectContent(contentId, 'Content rejected');
+      await rejectContent(contentId, feedback);
       setModerationQueue((items) => items.filter((item) => item.content_id !== contentId));
+      setSelectedModerationItem(null);
+      setRejectOpen(false);
+      setRejectReason('');
+      setRejectAttempted(false);
     } catch (error) {
       console.warn('Reject failed', error);
     }
@@ -82,6 +235,74 @@ const AdminDashboard = () => {
       setFlags((items) => items.filter((flag) => flag.id !== flagId));
     } catch (error) {
       console.warn('Resolve flag failed', error);
+    }
+  };
+
+  const handleAddTag = (value?: string) => {
+    const normalized = sanitizeTag(value ?? tagQuery);
+    if (!normalized) {
+      return;
+    }
+    if (editForm.tags.includes(normalized)) {
+      setTagQuery('');
+      setTagSuggestions([]);
+      return;
+    }
+    setEditForm((prev) => ({ ...prev, tags: [...prev.tags, normalized] }));
+    setTagQuery('');
+    setTagSuggestions([]);
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setEditForm((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }));
+  };
+
+  const handleSave = async () => {
+    setHasAttemptedSave(true);
+    if (!selectedModerationItem || !isFormValid) {
+      return;
+    }
+    const payload = {
+      title: normalizeText(editForm.title, MAX_TITLE),
+      description: normalizeText(editForm.description, MAX_DESCRIPTION),
+      learningObjective: normalizeText(editForm.learningObjective, MAX_OBJECTIVE),
+      originExplanation: normalizeText(editForm.originExplanation, MAX_LONG_TEXT),
+      definitionLiteral: normalizeText(editForm.definitionLiteral, MAX_LONG_TEXT),
+      definitionUsed: normalizeText(editForm.definitionUsed, MAX_LONG_TEXT),
+      olderVersionReference: normalizeText(editForm.olderVersionReference, MAX_OLDER_REFERENCE),
+      categoryId: editForm.categoryId,
+      tags: editForm.tags.map(sanitizeTag).filter(Boolean),
+    };
+    setIsSaving(true);
+    try {
+      await updateAdminContent(selectedModerationItem.content_id, payload);
+      setIsSaved(true);
+      const updatedContent = {
+        ...selectedModerationItem.content,
+        title: payload.title,
+        description: payload.description,
+        learning_objective: payload.learningObjective,
+        origin_explanation: payload.originExplanation,
+        definition_literal: payload.definitionLiteral,
+        definition_used: payload.definitionUsed,
+        older_version_reference: payload.olderVersionReference,
+        category_id: payload.categoryId,
+        tags: payload.tags as string[],
+      };
+      setModerationQueue((items) =>
+        items.map((item) =>
+          item.content_id === selectedModerationItem.content_id
+            ? { ...item, content: updatedContent }
+            : item
+        )
+      );
+      setSelectedModerationItem((prev) =>
+        prev ? { ...prev, content: updatedContent } : prev
+      );
+    } catch (error) {
+      console.warn('Save failed', error);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -281,13 +502,13 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       <div className="flex gap-2 flex-shrink-0">
-                        <Button size="sm" variant="outline" onClick={() => handleReject(item.content_id)}>
-                          <XCircle className="h-4 w-4 mr-1" />
-                          Reject
-                        </Button>
-                        <Button size="sm" onClick={() => handleApprove(item.content_id)}>
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                          Approve
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedModerationItem(item)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Open
                         </Button>
                       </div>
                     </div>
@@ -370,6 +591,334 @@ const AdminDashboard = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog
+          open={selectedModerationItem !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedModerationItem(null);
+            }
+          }}
+        >
+          <DialogContent className="max-w-6xl w-[95vw] p-0 overflow-hidden">
+            {selectedModerationItem && (
+              <div className="max-h-[85vh] overflow-y-auto">
+                <DialogHeader className="p-6 border-b">
+                  <DialogTitle>Moderation Review</DialogTitle>
+                  <DialogDescription>
+                    Review all content details and media before approving or rejecting.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
+                  <div className="p-6 border-b lg:border-b-0 lg:border-r space-y-4">
+                    <div className="grid gap-2">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
+                      <p className="text-sm">{selectedModerationItem.content.status}</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Content Type</p>
+                      <p className="text-sm">{selectedModerationItem.content.content_type}</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Submitted At</p>
+                      <p className="text-sm">
+                        {selectedModerationItem.submitted_at
+                          ? new Date(selectedModerationItem.submitted_at).toLocaleString()
+                          : 'Unknown'}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="admin-title">Title</Label>
+                      <Input
+                        id="admin-title"
+                        value={editForm.title}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, title: sanitizeInputValue(e.target.value, MAX_TITLE) }))}
+                        maxLength={MAX_TITLE}
+                      />
+                      {hasAttemptedSave && fieldErrors.title && (
+                        <p className="text-xs text-destructive">{fieldErrors.title}</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="admin-description">Description</Label>
+                      <Textarea
+                        id="admin-description"
+                        value={editForm.description}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, description: sanitizeInputValue(e.target.value, MAX_DESCRIPTION) }))}
+                        maxLength={MAX_DESCRIPTION}
+                        rows={4}
+                      />
+                      {hasAttemptedSave && fieldErrors.description && (
+                        <p className="text-xs text-destructive">{fieldErrors.description}</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="admin-learning-objective">Learning Objective</Label>
+                      <Input
+                        id="admin-learning-objective"
+                        value={editForm.learningObjective}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, learningObjective: sanitizeInputValue(e.target.value, MAX_OBJECTIVE) }))}
+                        maxLength={MAX_OBJECTIVE}
+                      />
+                      {hasAttemptedSave && fieldErrors.learningObjective && (
+                        <p className="text-xs text-destructive">{fieldErrors.learningObjective}</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="admin-origin-explanation">Origin Explanation</Label>
+                      <Textarea
+                        id="admin-origin-explanation"
+                        value={editForm.originExplanation}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, originExplanation: sanitizeInputValue(e.target.value, MAX_LONG_TEXT) }))}
+                        maxLength={MAX_LONG_TEXT}
+                        rows={3}
+                      />
+                      {hasAttemptedSave && fieldErrors.originExplanation && (
+                        <p className="text-xs text-destructive">{fieldErrors.originExplanation}</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="admin-definition-literal">Definition (Literal)</Label>
+                      <Textarea
+                        id="admin-definition-literal"
+                        value={editForm.definitionLiteral}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, definitionLiteral: sanitizeInputValue(e.target.value, MAX_LONG_TEXT) }))}
+                        maxLength={MAX_LONG_TEXT}
+                        rows={3}
+                      />
+                      {hasAttemptedSave && fieldErrors.definitionLiteral && (
+                        <p className="text-xs text-destructive">{fieldErrors.definitionLiteral}</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="admin-definition-used">Definition (Used)</Label>
+                      <Textarea
+                        id="admin-definition-used"
+                        value={editForm.definitionUsed}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, definitionUsed: sanitizeInputValue(e.target.value, MAX_LONG_TEXT) }))}
+                        maxLength={MAX_LONG_TEXT}
+                        rows={3}
+                      />
+                      {hasAttemptedSave && fieldErrors.definitionUsed && (
+                        <p className="text-xs text-destructive">{fieldErrors.definitionUsed}</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="admin-older-version">Older Version Reference</Label>
+                      <Input
+                        id="admin-older-version"
+                        value={editForm.olderVersionReference}
+                        onChange={(e) =>
+                          setEditForm((prev) => ({ ...prev, olderVersionReference: sanitizeInputValue(e.target.value, MAX_OLDER_REFERENCE) }))
+                        }
+                        maxLength={MAX_OLDER_REFERENCE}
+                      />
+                      {hasAttemptedSave && fieldErrors.olderVersionReference && (
+                        <p className="text-xs text-destructive">{fieldErrors.olderVersionReference}</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label>Category</Label>
+                      <Select
+                        value={editForm.categoryId}
+                        onValueChange={(value) => setEditForm((prev) => ({ ...prev, categoryId: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {hasAttemptedSave && fieldErrors.categoryId && (
+                        <p className="text-xs text-destructive">{fieldErrors.categoryId}</p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label>Tags</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Search or create a tag"
+                          value={tagQuery}
+                          onChange={(e) => setTagQuery(sanitizeInputValue(e.target.value, MAX_TAG))}
+                        />
+                        <Button type="button" variant="outline" onClick={() => handleAddTag()}>
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {isTagLoading && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Searching tags...
+                        </p>
+                      )}
+                      {tagSuggestions.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {tagSuggestions.map((tag) => (
+                            <Button
+                              key={tag}
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleAddTag(tag)}
+                            >
+                              #{tag}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                      {tagQuery.trim() && tagSuggestions.length === 0 && !isTagLoading && (
+                        <p className="text-xs text-muted-foreground">Press plus to add a new tag.</p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {editForm.tags.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="gap-1">
+                            #{tag}
+                            <button type="button" onClick={() => handleRemoveTag(tag)}>
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                      {hasAttemptedSave && fieldErrors.tags && (
+                        <p className="text-xs text-destructive">{fieldErrors.tags}</p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      <Button type="button" onClick={handleSave} disabled={!isFormValid || isSaving}>
+                        {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => handleApprove(selectedModerationItem.content_id)}
+                        disabled={!isSaved || !isFormValid || isApproving}
+                      >
+                        {isApproving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                        Approve
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setRejectOpen(true);
+                          setRejectAttempted(false);
+                        }}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="p-6 space-y-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Media</p>
+                    {selectedModerationItem.content.content_type === 'video' && selectedModerationItem.content.media_url ? (
+                      <video
+                        controls
+                        className="w-full max-h-[420px] rounded-md bg-black"
+                        src={selectedModerationItem.content.media_url}
+                      />
+                    ) : null}
+
+                    {selectedModerationItem.content.content_type !== 'video' && selectedModerationItem.content.media_url ? (
+                      <img
+                        src={selectedModerationItem.content.media_url}
+                        alt={selectedModerationItem.content.title}
+                        className="w-full max-h-[420px] rounded-md object-contain bg-muted"
+                      />
+                    ) : null}
+
+                    {!selectedModerationItem.content.media_url && selectedModerationItem.content.thumbnail_url ? (
+                      <img
+                        src={selectedModerationItem.content.thumbnail_url}
+                        alt={selectedModerationItem.content.title}
+                        className="w-full max-h-[420px] rounded-md object-contain bg-muted"
+                      />
+                    ) : null}
+
+                    {!selectedModerationItem.content.media_url && !selectedModerationItem.content.thumbnail_url ? (
+                      <p className="text-sm text-muted-foreground">No media URL available.</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={rejectOpen}
+          onOpenChange={(open) => {
+            setRejectOpen(open);
+            if (!open) {
+              setRejectReason('');
+              setRejectAttempted(false);
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Reject Content</DialogTitle>
+              <DialogDescription>
+                Provide a clear reason so the creator can improve the submission.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2">
+              <Label htmlFor="reject-reason">Rejection Reason</Label>
+              <Textarea
+                id="reject-reason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(sanitizeInputValue(e.target.value, MAX_LONG_TEXT))}
+                maxLength={MAX_LONG_TEXT}
+                rows={4}
+              />
+              {rejectAttempted && !normalizeText(rejectReason, MAX_LONG_TEXT) && (
+                <p className="text-xs text-destructive">Rejection reason is required.</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {rejectReason.length}/{MAX_LONG_TEXT}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRejectOpen(false);
+                  setRejectReason('');
+                  setRejectAttempted(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  if (selectedModerationItem) {
+                    handleReject(selectedModerationItem.content_id);
+                  }
+                }}
+              >
+                Reject
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

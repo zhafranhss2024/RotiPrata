@@ -5,6 +5,7 @@ public enum CategoryType {
     MEME,
     SOCIAL_PRACTICE,
     DANCE_TREND,
+    CULTURAL_REFERENCE,
     OTHER
 
     ;
@@ -16,6 +17,13 @@ public enum CategoryType {
 
     @com.fasterxml.jackson.annotation.JsonCreator
     public static CategoryType fromJson(String value) {
-        return value == null ? null : CategoryType.valueOf(value.toUpperCase());
+        if (value == null) {
+            return null;
+        }
+        try {
+            return CategoryType.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return OTHER;
+        }
     }
 }

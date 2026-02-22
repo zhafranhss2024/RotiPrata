@@ -23,6 +23,7 @@ import {
   fetchRecommendations,
   fetchTrendingContent,
   searchContent,
+  saveBrowsingHistory,
 } from '@/lib/api';
 
 // Backend: /api/search, /api/trending, /api/users/me/history, /api/recommendations
@@ -33,10 +34,10 @@ const ExplorePage = () => {
   const [activeTab, setActiveTab] = useState('trending');
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<{ id: string; type: string; title: string; snippet?: string }[]>([]);
+  const [searchResults, setSearchResults] = useState<{ id: string; content_type: string; title: string; snippet?: string }[]>([]);
   const [trendingContent, setTrendingContent] = useState<{ id: string; title: string; category: string; views: string }[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<{ id: string; title: string; items: string[] }[]>([]);
-  const [browsingHistory, setBrowsingHistory] = useState<{ id: string; title: string; type: string; viewedAt: string }[]>([]);
+  const [browsingHistory, setBrowsingHistory] = useState<{ itemId: String; lessonId?: string; contentId?: string; viewedAt: string }[]>([]);
 
   useEffect(() => {
     fetchTrendingContent()
@@ -52,22 +53,32 @@ const ExplorePage = () => {
       .catch((error) => console.warn('Failed to load browsing history', error));
   }, []);
 
-  const filters = ['Video', 'Lesson', 'Slang', 'Meme', 'Dance'];
+  const filters = ['video', 'lesson'];
 
   const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); 
+  };
 
+  useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
     }
 
     setIsSearching(true);
+
+  const debounceTimeout = setTimeout(() => {
     searchContent(searchQuery, selectedFilter)
-      .then(setSearchResults)
+      .then((results) => {
+        setSearchResults(results);
+      })
       .catch((error) => console.warn('Search failed', error))
       .finally(() => setIsSearching(false));
-  };
+  }, 300);
+
+
+    return () => clearTimeout(debounceTimeout);
+  }, [searchQuery, selectedFilter]);
 
   const handleClearHistory = () => {
     clearBrowsingHistory()
@@ -92,7 +103,7 @@ const ExplorePage = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search slang, memes, lessons..."
+              placeholder="Search videos and lessons..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 pr-4 h-12 rounded-xl"
@@ -130,14 +141,20 @@ const ExplorePage = () => {
               <div className="space-y-3">
                 {searchResults.map((result) => (
                   <Link
-                    key={`${result.type}-${result.id}`}
-                    to={result.type === 'lesson' ? `/lessons/${result.id}` : `/content/${result.id}`}
+                    key={`${result.content_type}-${result.id}`}
+                    to={result.content_type === 'lesson' ? `/lessons/${result.id}` : `/content/${result.id}`}
+                    onClick={() => {
+                        saveBrowsingHistory(
+                          result.content_type === 'lesson' ? undefined : result.id,
+                          result.content_type === 'lesson' ? result.id : undefined
+                        );
+                      }}
                   >
                     <Card className="hover:bg-muted/50 transition-colors">
                       <CardContent className="p-4">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                           <Badge variant="secondary" className="text-xs">
-                            {result.type}
+                            {result.content_type}
                           </Badge>
                         </div>
                         <h3 className="font-semibold">{result.title}</h3>
@@ -245,25 +262,30 @@ const ExplorePage = () => {
             </div>
             
             {browsingHistory.length > 0 ? (
-              browsingHistory.map((item) => (
-                <Link key={item.id} to={item.type === 'lesson' ? `/lessons/${item.id}` : `/content/${item.id}`}>
-                  <Card className="hover:bg-muted/50 transition-colors">
-                    <CardContent className="p-4 flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
-                        {item.type === 'lesson' ? (
-                          <BookOpen className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <Video className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold">{item.title}</h3>
-                        <p className="text-sm text-muted-foreground">{item.viewedAt}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))
+             browsingHistory.map((item) => {
+                const type = item.lessonId ? 'lesson' : 'video'; 
+                const id = item.lessonId ?? item.contentId;      
+
+                return (
+                  <Link key={`${type}-${id}`} to={type === 'lesson' ? `/lessons/${id}` : `/content/${id}`}>
+                    <Card className="hover:bg-muted/50 transition-colors">
+                      <CardContent className="p-4 flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                          {type === 'lesson' ? (
+                            <BookOpen className="h-5 w-5 text-muted-foreground" />
+                          ) : (
+                            <Video className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold">{id}</h3> {/* or a title if you have one */}
+                          <p className="text-sm text-muted-foreground">{new Date(item.viewedAt).toLocaleString()}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })
             ) : (
               <Card className="bg-muted/50">
                 <CardContent className="p-8 text-center">
