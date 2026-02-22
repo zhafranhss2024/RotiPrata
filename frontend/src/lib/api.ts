@@ -44,17 +44,15 @@ export type FeedResponse = {
   hasMore: boolean;
 };
 
-export type LessonFeedDifficultyFilter = "all" | "beginner" | "intermediate" | "advanced";
-export type LessonFeedDurationFilter = "all" | "short" | "medium" | "long";
-export type LessonFeedSort = "popular" | "newest" | "shortest" | "highest_xp";
+export type LessonFeedSort = "newest" | "popular" | "duration_asc" | "duration_desc";
 
-export type LessonFeedParams = {
-  query?: string;
-  difficulty?: LessonFeedDifficultyFilter;
-  duration?: LessonFeedDurationFilter;
-  sort?: LessonFeedSort;
+export type LessonFeedFilters = {
   page?: number;
   pageSize?: number;
+  q?: string;
+  difficulty?: 1 | 2 | 3;
+  maxMinutes?: number;
+  sort?: LessonFeedSort;
 };
 
 export type LessonFeedResponse = {
@@ -69,56 +67,6 @@ export type SearchResult = {
   type: "content" | "lesson" | "profile";
   title: string;
   snippet?: string;
-<<<<<<< HEAD
-};
-
-export type SaveHistoryDTO = {
-  itemId: string;
-  lessonId?: string;
-  contentId?: string;
-  viewedAt: string;
-}
-
-export type UserStats = {
-  lessonsEnrolled: number;
-  lessonsCompleted: number;
-  currentStreak?: number;
-  conceptsMastered: number;
-  hoursLearned?: number;
-  quizzesTaken?: number;
-  averageScore?: number;
-};
-
-export type AuthSessionResponse = {
-  accessToken?: string;
-  refreshToken?: string;
-  tokenType?: string;
-  expiresIn?: number;
-  userId?: string;
-  email?: string;
-  requiresEmailConfirmation?: boolean;
-  message?: string;
-};
-
-export type DisplayNameAvailabilityResponse = {
-  available: boolean;
-  normalized: string;
-};
-
-export type ContentMediaStartResponse = {
-  contentId: string;
-  status: string;
-  pollUrl: string;
-};
-
-export type ContentMediaStatusResponse = {
-  status: string;
-  hlsUrl?: string | null;
-  thumbnailUrl?: string | null;
-  errorMessage?: string | null;
-};
-
-=======
 };
 
 export type GetHistoryDTO = {
@@ -169,7 +117,6 @@ export type ContentMediaStatusResponse = {
   errorMessage?: string | null;
 };
 
->>>>>>> 849514f (test)
 const withMockFallback = async <T>(
   label: string,
   fallback: () => T,
@@ -191,127 +138,110 @@ const withMockFallback = async <T>(
   }
 };
 
-const DEFAULT_LESSON_FEED_PAGE = 1;
-const DEFAULT_LESSON_FEED_PAGE_SIZE = 12;
-const MAX_LESSON_FEED_PAGE_SIZE = 50;
-
-const normalizeLessonFeedPage = (page?: number) =>
-  page && page > 0 ? Math.floor(page) : DEFAULT_LESSON_FEED_PAGE;
-
-const normalizeLessonFeedPageSize = (pageSize?: number) => {
-  if (!pageSize || pageSize < 1) {
-    return DEFAULT_LESSON_FEED_PAGE_SIZE;
+const normalizePage = (value?: number) => {
+  if (!value || value < 1) {
+    return 1;
   }
-  return Math.min(MAX_LESSON_FEED_PAGE_SIZE, Math.floor(pageSize));
+  return Math.floor(value);
 };
 
-const filterLessonsLocally = (lessons: Lesson[], params: LessonFeedParams): Lesson[] => {
-  const query = params.query?.trim().toLowerCase();
-  const difficulty = params.difficulty ?? "all";
-  const duration = params.duration ?? "all";
-  const sort = params.sort ?? "popular";
+const normalizePageSize = (value?: number) => {
+  if (!value || value < 1) {
+    return 12;
+  }
+  return Math.min(Math.floor(value), 50);
+};
 
-  let filtered = lessons.filter((lesson) => {
-    if (query) {
-      const title = lesson.title?.toLowerCase() ?? "";
-      const description = lesson.description?.toLowerCase() ?? "";
-      const summary = lesson.summary?.toLowerCase() ?? "";
-      if (!title.includes(query) && !description.includes(query) && !summary.includes(query)) {
-        return false;
-      }
-    }
+const normalizeSort = (value?: LessonFeedSort): LessonFeedSort => {
+  if (!value) {
+    return "newest";
+  }
+  return value;
+};
 
-    if (difficulty === "beginner" && lesson.difficulty_level !== 1) return false;
-    if (difficulty === "intermediate" && lesson.difficulty_level !== 2) return false;
-    if (difficulty === "advanced" && lesson.difficulty_level !== 3) return false;
-
-    if (duration === "short" && lesson.estimated_minutes > 10) return false;
-    if (duration === "medium" && (lesson.estimated_minutes < 11 || lesson.estimated_minutes > 20)) return false;
-    if (duration === "long" && lesson.estimated_minutes < 21) return false;
-
-    return true;
-  });
-
-  filtered = [...filtered];
+const sortLessons = (lessons: Lesson[], sort: LessonFeedSort) => {
+  const sorted = [...lessons];
   switch (sort) {
-    case "newest":
-      filtered.sort(
-        (a, b) =>
-          new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
-      );
-      break;
-    case "shortest":
-      filtered.sort((a, b) => a.estimated_minutes - b.estimated_minutes);
-      break;
-    case "highest_xp":
-      filtered.sort((a, b) => b.xp_reward - a.xp_reward);
-      break;
     case "popular":
+      sorted.sort((a, b) => b.completion_count - a.completion_count);
+      break;
+    case "duration_asc":
+      sorted.sort((a, b) => a.estimated_minutes - b.estimated_minutes);
+      break;
+    case "duration_desc":
+      sorted.sort((a, b) => b.estimated_minutes - a.estimated_minutes);
+      break;
     default:
-      filtered.sort((a, b) => b.completion_count - a.completion_count);
+      sorted.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
       break;
   }
-
-  return filtered;
+  return sorted;
 };
 
-const buildLessonFeedPath = (params: LessonFeedParams = {}) => {
-  const page = normalizeLessonFeedPage(params.page);
-  const pageSize = normalizeLessonFeedPageSize(params.pageSize);
-  const query = params.query?.trim();
-  const searchParams = new URLSearchParams();
+const buildMockLessonFeed = (filters: LessonFeedFilters = {}): LessonFeedResponse => {
+  const page = normalizePage(filters.page);
+  const pageSize = normalizePageSize(filters.pageSize);
+  const sort = normalizeSort(filters.sort);
+  const q = filters.q?.trim().toLowerCase();
 
-  if (query) {
-    searchParams.set("query", query);
+  let filtered = [...mockLessons];
+  if (q) {
+    filtered = filtered.filter((lesson) => {
+      const searchable = `${lesson.title} ${lesson.description ?? ""}`.toLowerCase();
+      return searchable.includes(q);
+    });
   }
-  if (params.difficulty && params.difficulty !== "all") {
-    searchParams.set("difficulty", params.difficulty);
+  if (filters.difficulty) {
+    filtered = filtered.filter((lesson) => lesson.difficulty_level === filters.difficulty);
   }
-  if (params.duration && params.duration !== "all") {
-    searchParams.set("duration", params.duration);
+  const maxMinutes = filters.maxMinutes;
+  if (maxMinutes) {
+    filtered = filtered.filter((lesson) => lesson.estimated_minutes <= maxMinutes);
   }
-  if (params.sort && params.sort !== "popular") {
-    searchParams.set("sort", params.sort);
-  }
-  searchParams.set("page", String(page));
-  searchParams.set("pageSize", String(pageSize));
 
-  const queryString = searchParams.toString();
-  return queryString ? `/lessons?${queryString}` : "/lessons";
+  filtered = sortLessons(filtered, sort);
+
+  const start = (page - 1) * pageSize;
+  const window = filtered.slice(start, start + pageSize + 1);
+  const hasMore = window.length > pageSize;
+  const items = hasMore ? window.slice(0, pageSize) : window;
+  return {
+    items,
+    hasMore,
+    page,
+    pageSize,
+  };
 };
+
+export const buildLessonFeedQuery = (filters: LessonFeedFilters = {}) => {
+  const params = new URLSearchParams();
+  params.set("page", String(normalizePage(filters.page)));
+  params.set("pageSize", String(normalizePageSize(filters.pageSize)));
+  params.set("sort", normalizeSort(filters.sort));
+
+  const q = filters.q?.trim();
+  if (q) {
+    params.set("q", q);
+  }
+  if (filters.difficulty) {
+    params.set("difficulty", String(filters.difficulty));
+  }
+  if (filters.maxMinutes) {
+    params.set("maxMinutes", String(filters.maxMinutes));
+  }
+  return params.toString();
+};
+
+export const fetchLessonFeed = (filters: LessonFeedFilters = {}) =>
+  withMockFallback(
+    "lesson-feed",
+    () => buildMockLessonFeed(filters),
+    () => apiGet<LessonFeedResponse>(`/lessons?${buildLessonFeedQuery(filters)}`)
+  );
 
 export const fetchFeed = (page = 1) =>
   withMockFallback(
     "feed",
-<<<<<<< HEAD
-    () => ({ items: mockContents, hasMore: false }),
-    () => apiGet<FeedResponse>(`/feed?page=${page}`)
-  );
-
-export const fetchTrendingContent = () =>
-  withMockFallback("trending", () => mockTrendingContent, () => apiGet(`/trending`));
-
-export const searchContent = (query: string, filter?: string | null) =>
-  withMockFallback(
-    "search",
-    // () => mockSearchResults,
-    () => [],
-    () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
-  );
-
-export const saveBrowsingHistory = (contentId?: string, lessonId?: string) => {
-  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null };
-  apiPost<void>(`/users/me/history`, body);
-};
-
-export const fetchRecommendations = () =>
-  withMockFallback("recommendations", () => mockAiSuggestions, () => apiGet(`/recommendations`));
-
-export const fetchBrowsingHistory = () =>
-  // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
-  apiGet<SaveHistoryDTO[]>(`/users/me/history`);
-
-=======
     () => ({ items: mockContents, hasMore: false }),
     () => apiGet<FeedResponse>(`/feed?page=${page}`)
   );
@@ -339,30 +269,12 @@ export const fetchBrowsingHistory = () =>
   // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
   apiGet<GetHistoryDTO[]>(`/users/me/history`);
 
->>>>>>> 849514f (test)
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 
-export const fetchLessonFeed = (params: LessonFeedParams = {}) =>
-  withMockFallback(
-    "lesson-feed",
-    () => {
-      const page = normalizeLessonFeedPage(params.page);
-      const pageSize = normalizeLessonFeedPageSize(params.pageSize);
-      const filtered = filterLessonsLocally(mockLessons, params);
-      const offset = (page - 1) * pageSize;
-      const pageRows = filtered.slice(offset, offset + pageSize + 1);
-      const hasMore = pageRows.length > pageSize;
-      const items = hasMore ? pageRows.slice(0, pageSize) : pageRows;
-      return { items, hasMore, page, pageSize };
-    },
-    () => apiGet<LessonFeedResponse>(buildLessonFeedPath(params))
-  );
-
-export const fetchLessons = (params: LessonFeedParams = {}) =>
-  fetchLessonFeed(params).then((response) => response.items);
+export const fetchLessons = () => fetchLessonFeed({ page: 1, pageSize: 50 }).then((response) => response.items);
 
 export const searchLessons = (query: string) =>
-  fetchLessonFeed({ query }).then((response) => response.items);
+  fetchLessonFeed({ page: 1, pageSize: 50, q: query }).then((response) => response.items);
 
 export const fetchLessonById = (lessonId: string) =>
   withMockFallback(

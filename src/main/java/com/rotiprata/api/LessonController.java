@@ -1,9 +1,11 @@
 package com.rotiprata.api;
 
-import com.rotiprata.api.dto.LessonFeedRequest;
 import com.rotiprata.api.dto.LessonFeedResponse;
-import com.rotiprata.application.LessonService;
+import com.rotiprata.application.LessonFeedService;
 import com.rotiprata.security.SecurityUtils;
+import java.util.List;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,22 +14,35 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/lessons")
 public class LessonController {
-    private final LessonService lessonService;
+    private final LessonFeedService lessonFeedService;
 
-    public LessonController(LessonService lessonService) {
-        this.lessonService = lessonService;
+    public LessonController(LessonFeedService lessonFeedService) {
+        this.lessonFeedService = lessonFeedService;
     }
 
     @GetMapping
-    public LessonFeedResponse feed(
-        @RequestParam(required = false) String query,
-        @RequestParam(defaultValue = "all") String difficulty,
-        @RequestParam(defaultValue = "all") String duration,
-        @RequestParam(defaultValue = "popular") String sort,
-        @RequestParam(defaultValue = "1") Integer page,
-        @RequestParam(defaultValue = "12") Integer pageSize
+    public LessonFeedResponse lessonFeed(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam(value = "page", defaultValue = "1") int page,
+        @RequestParam(value = "pageSize", required = false) Integer pageSize,
+        @RequestParam(value = "q", required = false) String query,
+        @RequestParam(value = "difficulty", required = false) Integer difficulty,
+        @RequestParam(value = "maxMinutes", required = false) Integer maxMinutes,
+        @RequestParam(value = "sort", defaultValue = "newest") String sort
     ) {
-        LessonFeedRequest request = new LessonFeedRequest(query, difficulty, duration, sort, page, pageSize);
-        return lessonService.getLessonFeed(SecurityUtils.getAccessToken(), request);
+        if (jwt == null) {
+            int safePage = Math.max(1, page);
+            int safePageSize = pageSize == null ? 12 : Math.max(1, pageSize);
+            return new LessonFeedResponse(List.of(), false, safePage, safePageSize);
+        }
+        return lessonFeedService.getLessonFeed(
+            SecurityUtils.getAccessToken(),
+            page,
+            pageSize,
+            query,
+            difficulty,
+            maxMinutes,
+            sort
+        );
     }
 }
