@@ -2,16 +2,13 @@ package com.rotiprata.application;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.api.dto.SaveHistoryDTO;
-import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import com.fasterxml.jackson.core.type.TypeReference;
 // import com.rotiprata.api.dto.BrowsingHistoryDTO;
@@ -37,7 +34,7 @@ public class BrowsingService {
 
         if (normalizedFilter.isBlank()) {
             results.addAll(contentService.getFilteredContent(query, null, accessToken));
-            results.addAll(lessonService.searchLessons(query, accessToken));
+            results.addAll(mapLessonsToSearchResults(lessonService.searchLessons(query, accessToken)));
             return results;
         }
 
@@ -47,11 +44,33 @@ public class BrowsingService {
         }
 
         if ("lesson".equals(normalizedFilter)) {
-            results.addAll(lessonService.searchLessons(query, accessToken));
+            results.addAll(mapLessonsToSearchResults(lessonService.searchLessons(query, accessToken)));
             return results;
         }
 
         return results;
+    }
+
+    private List<ContentSearchDTO> mapLessonsToSearchResults(List<Map<String, Object>> lessons) {
+        List<ContentSearchDTO> lessonResults = new ArrayList<>();
+        for (Map<String, Object> lesson : lessons) {
+            String id = toStringValue(lesson.get("id"));
+            String title = toStringValue(lesson.get("title"));
+            String description = toStringValue(lesson.get("description"));
+            lessonResults.add(new ContentSearchDTO(id, "lesson", title, description, buildSnippet(description)));
+        }
+        return lessonResults;
+    }
+
+    private String buildSnippet(String description) {
+        if (description == null) {
+            return null;
+        }
+        return description.length() > 100 ? description.substring(0, 100) + "..." : description;
+    }
+
+    private String toStringValue(Object value) {
+        return value == null ? null : value.toString();
     }
 
     public void saveHistory(String contentId, String lessonId, String accessToken) {

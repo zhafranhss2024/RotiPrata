@@ -1,6 +1,7 @@
 package com.rotiprata.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
