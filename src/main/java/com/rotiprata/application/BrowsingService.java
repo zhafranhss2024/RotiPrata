@@ -8,6 +8,7 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 
 import com.rotiprata.api.dto.ContentSearchDTO;
+import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -73,13 +74,14 @@ public class BrowsingService {
         return value == null ? null : value.toString();
     }
 
-    public void saveHistory(String contentId, String lessonId, String accessToken) {
+    public void saveHistory(String contentId, String lessonId, String title, String accessToken) {
         if (contentId == null && lessonId == null) return;
 
         String itemId = contentId != null ? contentId : lessonId;
 
         SaveHistoryDTO dto = new SaveHistoryDTO();
         dto.setItemId(itemId);
+        dto.setTitle(title);
         dto.setContentId(contentId);
         dto.setLessonId(lessonId);
         dto.setViewedAt(Instant.now());
@@ -93,23 +95,34 @@ public class BrowsingService {
             dto,
             accessToken,
             new TypeReference<List<Map<String, Object>>>() {}
-        );   
+        );      
 
     }
 
-    // public List<SaveHistoryDTO> getHistory(String userId, String accessToken) {
+    public List<GetHistoryDTO> getHistory(String userId, String accessToken) {
 
-    //     String path = "/browsing_history?user_id=eq." + userId + "&order=viewed_at.desc&limit=5";
+        String path = "/browsing_history";
+        String query = "user_id=eq." + userId + "&order=viewed_at.desc&limit=5";
 
-    //     System.out.println("user: " + userId);
+        return supabaseRestClient.getList(
+            path,
+            query,
+            accessToken,
+            new TypeReference<List<GetHistoryDTO>>() {}
+        );
+    }
 
-    //     return supabaseRestClient.getList(
-    //         path,
-    //         null,
-    //         accessToken,
-    //         new TypeReference<List<SaveHistoryDTO>>() {}
-    //     );
-    // }
+    public void clearHistory(String userId, String accessToken) {
+        String path = "/browsing_history";
+        String query = "user_id=eq." + userId;
+
+        supabaseRestClient.deleteList(
+            path,
+            query,
+            accessToken,
+            new TypeReference<List<Map<String, Object>>>() {}
+        );
+    }
 
 
 }
