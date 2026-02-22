@@ -18,7 +18,6 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.databind.SerializationFeature;
 
 @Component
 public class SupabaseRestClient {
@@ -64,6 +63,10 @@ public class SupabaseRestClient {
         return exchangeList("PATCH", path, query, body, accessToken, typeRef);
     }
 
+    public <T> List<T> deleteList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {
+        return exchangeList("DELETE", path, query, null, accessToken, typeRef);
+    }
+
     private <T> List<T> exchangeList(
         String method,
         String path,
@@ -107,6 +110,15 @@ public class SupabaseRestClient {
                 responseBody = request
                     .header("Prefer", "return=representation")
                     .body(serialize(body))
+                    .retrieve()
+                    .body(String.class);
+            } else if ("DELETE".equals(method)) {
+                var request = restClient.delete().uri(uri);
+                if (accessToken != null && !accessToken.isBlank()) {
+                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+                }
+                responseBody = request
+                    .header("Prefer", "return=representation")
                     .retrieve()
                     .body(String.class);
             } else {
