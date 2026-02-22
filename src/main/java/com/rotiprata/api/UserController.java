@@ -95,6 +95,31 @@ public class UserController {
         browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
     }
 
+    @GetMapping("/me/stats")
+    public Map<String, Integer> userStats(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.getUserStats(userId, SecurityUtils.getAccessToken());
+    }
+
+    @PostMapping("/me/history")
+    public void saveBrowsingHistory(@RequestBody SaveHistoryDTO request, @AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        browsingService.saveHistory(userId.toString(), request.getContentId(), request.getLessonId(), SecurityUtils.getAccessToken());
+    }
+
+    @GetMapping("/me/history")
+    public List<SaveHistoryDTO> browsingHistory(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return browsingService.fetchHistory(userId.toString(), SecurityUtils.getAccessToken());
+    }
+
+    @DeleteMapping("/me/history")
+    public void clearBrowsingHistory(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        browsingService.purgeHistory(userId.toString(), SecurityUtils.getAccessToken());
+    }
+
+}
     // @GetMapping("/me/history")
     // public List<SaveHistoryDTO> getHistory(@AuthenticationPrincipal Jwt jwt) {
     //     String userId = jwt.getSubject();

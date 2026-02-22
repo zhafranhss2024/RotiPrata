@@ -69,6 +69,7 @@ public class LessonController {
         lessonService.updateLessonProgress(userId, lessonId, progress, SecurityUtils.getAccessToken());
     }
 
+
     @GetMapping("/admin/lessons")
     public List<Map<String, Object>> adminLessons(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = SecurityUtils.getUserId(jwt);
@@ -80,6 +81,7 @@ public class LessonController {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.createLesson(userId, payload, SecurityUtils.getAccessToken());
     }
+
 
     @PutMapping("/admin/lessons/{lessonId}")
     public Map<String, Object> updateLesson(
