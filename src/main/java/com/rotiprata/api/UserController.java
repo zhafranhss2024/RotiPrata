@@ -1,6 +1,8 @@
 package com.rotiprata.api;
 
+import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
+import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.LessonService;
 import com.rotiprata.application.UserService;
 import com.rotiprata.domain.Profile;
@@ -32,11 +34,13 @@ public class UserController {
 
     private final UserService userService;
     private final LessonService lessonService;
+    private final BrowsingService browsingService;
 
     // ✅ Only ONE constructor
-    public UserController(UserService userService, LessonService lessonService) {
+    public UserController(UserService userService, LessonService lessonService, BrowsingService browsingService) {
         this.userService = userService;
         this.lessonService = lessonService;
+        this.browsingService = browsingService;
     }
 
     @GetMapping("/me")

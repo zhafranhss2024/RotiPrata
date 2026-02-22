@@ -64,6 +64,10 @@ public class SupabaseRestClient {
         return exchangeList("PATCH", path, query, body, accessToken, typeRef);
     }
 
+    public <T> List<T> deleteList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {
+        return exchangeList("DELETE", path, query, null, accessToken, typeRef);
+    }
+
     private <T> List<T> exchangeList(
         String method,
         String path,

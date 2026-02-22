@@ -1,10 +1,13 @@
 package com.rotiprata.application;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.dto.ContentSearchDTO;
+import com.rotiprata.api.dto.SaveHistoryDTO;
+import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import org.springframework.stereotype.Service;
 
 import com.rotiprata.api.dto.ContentSearchDTO;
@@ -86,11 +89,10 @@ public class BrowsingService {
         dto.setLessonId(lessonId);
         dto.setViewedAt(Instant.now());
 
-        String path = "/browsing_history";
         String query = "on_conflict=user_id,item_id";
 
         supabaseRestClient.upsertList(
-            path,
+            "browsing_history",
             query,
             dto,
             accessToken,
@@ -125,4 +127,12 @@ public class BrowsingService {
     }
 
 
+    public void clearHistory(String userId, String accessToken) {
+        supabaseRestClient.deleteList(
+            "browsing_history",
+            "user_id=eq." + userId,
+            accessToken,
+            new TypeReference<List<Map<String, Object>>>() {}
+        );
+    }
 }
