@@ -36,13 +36,14 @@ package com.rotiprata.api.dto;
 
 import java.time.Instant;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class SaveHistoryDTO {
 
     @JsonProperty("item_id")
     private String itemId; 
+
+    private String title;
 
     @JsonProperty("content_id")
     private String contentId;
@@ -55,6 +56,9 @@ public class SaveHistoryDTO {
 
     public String getItemId() { return itemId; }
     public void setItemId(String itemId) { this.itemId = itemId; }
+
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
     public String getContentId() { return contentId; }
     public void setContentId(String contentId) { this.contentId = contentId; }

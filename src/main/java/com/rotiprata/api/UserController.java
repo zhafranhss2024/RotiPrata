@@ -88,7 +88,6 @@ import com.rotiprata.domain.ThemePreference;
 import com.rotiprata.security.SecurityUtils;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.UserService;
-import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 
@@ -157,7 +156,7 @@ public class UserController {
         @AuthenticationPrincipal Jwt jwt
     ) {
         String accessToken = jwt.getTokenValue();
-        browsingService.saveHistory(request.getContentId(), request.getLessonId(), accessToken);
+        browsingService.saveHistory(request.getContentId(), request.getLessonId(), request.getTitle(), accessToken);
     }
 
     @GetMapping("/me/history")

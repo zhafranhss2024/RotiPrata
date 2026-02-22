@@ -343,7 +343,7 @@ const ExplorePage = () => {
   const [searchResults, setSearchResults] = useState<{ id: string; content_type: string; title: string; snippet?: string }[]>([]);
   const [trendingContent, setTrendingContent] = useState<{ id: string; title: string; category: string; views: string }[]>([]);
   const [aiSuggestions, setAiSuggestions] = useState<{ id: string; title: string; items: string[] }[]>([]);
-  const [browsingHistory, setBrowsingHistory] = useState<{ id: string; itemId: string; contentId?: string | null; lessonId?: string | null; viewedAt: string }[]>([]);
+  const [browsingHistory, setBrowsingHistory] = useState<{ id: string; item_id: string; title?: string | null; content_id?: string | null; lesson_id?: string | null; viewed_at: string }[]>([]);
 
   useEffect(() => {
     fetchTrendingContent()
@@ -452,7 +452,8 @@ const ExplorePage = () => {
                     onClick={() => {
                         saveBrowsingHistory(
                           result.content_type === 'lesson' ? undefined : result.id,
-                          result.content_type === 'lesson' ? result.id : undefined
+                          result.content_type === 'lesson' ? result.id : undefined,
+                          result.title || 'Untitled',
                         );
                       }}
                   >
@@ -569,9 +570,8 @@ const ExplorePage = () => {
             
             {browsingHistory.length > 0 ? (
              browsingHistory.map((item) => {
-                const type = item.lessonId ? 'lesson' : 'video'; 
-                const renderId = item.lessonId ?? item.contentId;   
-                console.log(renderId)   
+                const type = item.lesson_id ? 'lesson' : 'video'; 
+                const renderId = item.lesson_id ?? item.content_id;   
 
                 return (
                   <Link key={`${item.id}-${renderId}`} to={type === 'lesson' ? `/lessons/${renderId}` : `/content/${renderId}`}>
@@ -585,8 +585,8 @@ const ExplorePage = () => {
                           )}
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold">{renderId}</h3> {/* or a title if you have one */}
-                          <p className="text-sm text-muted-foreground">{new Date(item.viewedAt).toLocaleString()}</p>
+                          <h3 className="font-semibold">{item.title}</h3> {/* or a title if you have one */}
+                          <p className="text-sm text-muted-foreground">{new Date(item.viewed_at).toLocaleString()}</p>
                         </div>
                       </CardContent>
                     </Card>

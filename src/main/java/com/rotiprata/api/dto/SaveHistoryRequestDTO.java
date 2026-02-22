@@ -1,13 +1,19 @@
 package com.rotiprata.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class SaveHistoryRequestDTO {
 
-    private String content_id; 
-    private String lesson_id;  
+    private String contentId;
+    private String lessonId;
+    private String title;
 
-    public String getContentId() { return content_id; }
-    public void setContentId(String content_id) { this.content_id = content_id; }
+    public String getContentId() { return contentId; }
+    public void setContentId(String contentId) { this.contentId = contentId; }
 
-    public String getLessonId() { return lesson_id; }
-    public void setLessonId(String lesson_id) { this.lesson_id = lesson_id; }
+    public String getLessonId() { return lessonId; }
+    public void setLessonId(String lessonId) { this.lessonId = lessonId; }
+
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 }
