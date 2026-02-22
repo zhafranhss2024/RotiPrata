@@ -134,7 +134,7 @@ const CreateLessonPage = () => {
         await createLessonQuiz(lesson.id, quizQuestions);
       }
 
-      navigate('/admin');
+      navigate('/admin/lessons');
     } catch (error) {
       console.warn('Create lesson failed', error);
     } finally {

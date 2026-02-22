@@ -120,7 +120,6 @@ public class LessonService {
         ensureAdmin(userId, token);
 
         Map<String, Object> lesson = getLessonById(lessonId, token);
-        ensureLessonOwnerOrAdmin(userId, lesson, token);
 
         Map<String, Object> patch = new LinkedHashMap<>();
         copyIfPresent(payload, patch, "title");
@@ -160,8 +159,7 @@ public class LessonService {
         String token = requireAccessToken(accessToken);
         ensureAdmin(userId, token);
 
-        Map<String, Object> lesson = getLessonById(lessonId, token);
-        ensureLessonOwnerOrAdmin(userId, lesson, token);
+        getLessonById(lessonId, token);
 
         supabaseRestClient.deleteList(
             "lessons",
@@ -387,23 +385,6 @@ public class LessonService {
         }
     }
 
-
-    private void ensureLessonOwnerOrAdmin(UUID userId, Map<String, Object> lesson, String accessToken) {
-        Object createdBy = lesson.get("created_by");
-        if (createdBy != null && userId.toString().equals(createdBy.toString())) {
-            return;
-        }
-
-        List<Map<String, Object>> roles = supabaseRestClient.getList(
-            "user_roles",
-            buildQuery(Map.of("select", "id", "user_id", "eq." + userId, "role", "eq.super_admin")),
-            accessToken,
-            MAP_LIST
-        );
-        if (roles.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You can only edit lessons you created");
-        }
-    }
 
     private void addSection(List<Map<String, Object>> sections, String id, String title, Object rawContent, int order) {
         String content = stringify(rawContent);
