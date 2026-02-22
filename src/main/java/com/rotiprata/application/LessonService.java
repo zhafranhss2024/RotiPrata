@@ -383,7 +383,7 @@ public class LessonService {
                 Map.of(
                     "select", "id",
                     "user_id", "eq." + userId,
-                    "or", "(role.eq.admin,role.eq.super_admin)"
+                    "role", "eq.admin"
                 )
             ),
             MAP_LIST
