@@ -54,7 +54,7 @@ public class ContentDraftService {
         }
 
         Content content = createDraft(userId, contentType);
-        UUID contentId = asUuid(readField(content, "id"));
+        UUID contentId = content.getId();
         createMediaRow(contentId, "upload", null, file.getSize());
         mediaProcessingService.processUpload(contentId, contentType, file);
 
@@ -67,7 +67,7 @@ public class ContentDraftService {
         }
 
         Content content = createDraft(userId, ContentType.VIDEO);
-        UUID contentId = asUuid(readField(content, "id"));
+        UUID contentId = content.getId();
         createMediaRow(contentId, "link", sourceUrl.trim(), null);
         mediaProcessingService.processLink(contentId, sourceUrl.trim());
 
@@ -76,7 +76,7 @@ public class ContentDraftService {
 
     public Content updateDraft(UUID userId, UUID contentId, ContentUpdateRequest request) {
         Content existing = requireContent(userId, contentId);
-        if (Boolean.TRUE.equals(asBoolean(readField(existing, "isSubmitted")))) {
+        if (Boolean.TRUE.equals(existing.getIsSubmitted())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Content already submitted");
         }
 
@@ -132,12 +132,12 @@ public class ContentDraftService {
 
     public Content submit(UUID userId, UUID contentId, ContentSubmitRequest request) {
         Content existing = requireContent(userId, contentId);
-        if (Boolean.TRUE.equals(asBoolean(readField(existing, "isSubmitted")))) {
+        if (Boolean.TRUE.equals(existing.getIsSubmitted())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Content already submitted");
         }
 
         ContentMedia media = requireMedia(contentId);
-        String mediaStatus = asString(readField(media, "status"));
+        String mediaStatus = media.getStatus();
         if (mediaStatus == null || !"ready".equalsIgnoreCase(mediaStatus)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Media processing is not complete");
         }
@@ -177,10 +177,10 @@ public class ContentDraftService {
         requireContent(userId, contentId);
         ContentMedia media = requireMedia(contentId);
         return new ContentMediaStatusResponse(
-            asString(readField(media, "status")),
-            asString(readField(media, "hlsUrl")),
-            asString(readField(media, "thumbnailUrl")),
-            asString(readField(media, "errorMessage"))
+            media.getStatus(),
+            media.getHlsUrl(),
+            media.getThumbnailUrl(),
+            media.getErrorMessage()
         );
     }
 
@@ -358,44 +358,4 @@ public class ContentDraftService {
         String uri = builder.build().encode().toUriString();
         return uri.startsWith("?") ? uri.substring(1) : uri;
     }
-
-
-
-    private Object readField(Object source, String fieldName) {
-        if (source == null) {
-            return null;
-        }
-        try {
-            var field = source.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            return field.get(source);
-        } catch (NoSuchFieldException | IllegalAccessException ex) {
-            return null;
-        }
-    }
-
-    private UUID asUuid(Object value) {
-        if (value instanceof UUID uuid) {
-            return uuid;
-        }
-        if (value == null) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Missing UUID value");
-        }
-        return UUID.fromString(value.toString());
-    }
-
-    private Boolean asBoolean(Object value) {
-        if (value instanceof Boolean b) {
-            return b;
-        }
-        if (value == null) {
-            return null;
-        }
-        return Boolean.parseBoolean(value.toString());
-    }
-
-    private String asString(Object value) {
-        return value == null ? null : value.toString();
-    }
-
 }

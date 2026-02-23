@@ -135,7 +135,7 @@ public class UserService {
             Profile profile = existing.get(0);
             boolean needsUpdate = false;
             Map<String, Object> patch = new HashMap<>();
-            if (readField(profile, "displayName") == null) {
+            if (profile.getDisplayName() == null) {
                 patch.put("display_name", displayName);
                 needsUpdate = true;
             }
@@ -171,7 +171,7 @@ public class UserService {
             token,
             USER_ROLE_LIST
         );
-        return roles.stream().map(role -> parseRole(readField(role, "role"))).toList();
+        return roles.stream().map(UserRole::getRole).toList();
     }
 
     public Profile updateThemePreference(UUID userId, ThemePreference preference, String accessToken) {
@@ -301,36 +301,6 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
         }
         return accessToken;
-    }
-
-
-
-
-    private Object readField(Object source, String fieldName) {
-        if (source == null) {
-            return null;
-        }
-        try {
-            var field = source.getClass().getDeclaredField(fieldName);
-            field.setAccessible(true);
-            return field.get(source);
-        } catch (NoSuchFieldException | IllegalAccessException ex) {
-            return null;
-        }
-    }
-
-    private AppRole parseRole(Object raw) {
-        if (raw == null) {
-            return AppRole.USER;
-        }
-        if (raw instanceof AppRole appRole) {
-            return appRole;
-        }
-        try {
-            return AppRole.valueOf(raw.toString().toUpperCase());
-        } catch (IllegalArgumentException ex) {
-            return AppRole.USER;
-        }
     }
 
 }

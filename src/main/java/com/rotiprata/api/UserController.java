@@ -1,8 +1,8 @@
 package com.rotiprata.api;
 
-import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
+import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.LessonService;
 import com.rotiprata.application.UserService;
@@ -81,7 +81,7 @@ public class UserController {
 
     @PostMapping("/me/history")
     public void saveBrowsingHistory(
-            @RequestBody SaveHistoryDTO request,
+            @RequestBody SaveHistoryRequestDTO request,
             @AuthenticationPrincipal Jwt jwt
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
@@ -90,12 +90,13 @@ public class UserController {
                 userId.toString(),
                 request.getContentId(),
                 request.getLessonId(),
+                request.getTitle(),
                 SecurityUtils.getAccessToken()
         );
     }
 
     @GetMapping("/me/history")
-    public List<SaveHistoryDTO> browsingHistory(
+    public List<GetHistoryDTO> browsingHistory(
             @AuthenticationPrincipal Jwt jwt
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
@@ -122,6 +123,17 @@ public class UserController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.getUserStats(
+                userId,
+                SecurityUtils.getAccessToken()
+        );
+    }
+
+    @GetMapping("/me/lessons/progress")
+    public Map<String, Integer> lessonProgress(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.getUserLessonProgress(
                 userId,
                 SecurityUtils.getAccessToken()
         );

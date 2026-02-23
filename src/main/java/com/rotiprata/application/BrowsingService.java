@@ -2,7 +2,7 @@ package com.rotiprata.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.dto.ContentSearchDTO;
-import com.rotiprata.api.dto.SaveHistoryDTO;
+import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import org.springframework.stereotype.Service;
 
@@ -67,6 +67,7 @@ public class BrowsingService {
             String userId,
             String contentId,
             String lessonId,
+            String title,
             String accessToken
     ) {
         if (contentId == null && lessonId == null) {
@@ -80,6 +81,7 @@ public class BrowsingService {
         payload.put("item_id", itemId);
         payload.put("content_id", contentId);
         payload.put("lesson_id", lessonId);
+        payload.put("title", title);
         payload.put("viewed_at", Instant.now());
 
         String query = "on_conflict=user_id,item_id";
@@ -95,7 +97,7 @@ public class BrowsingService {
 
     // ================= FETCH HISTORY =================
 
-    public List<SaveHistoryDTO> fetchHistory(
+    public List<GetHistoryDTO> fetchHistory(
             String userId,
             String accessToken
     ) {
@@ -108,11 +110,13 @@ public class BrowsingService {
                 new TypeReference<List<Map<String, Object>>>() {}
         );
 
-        List<SaveHistoryDTO> history = new ArrayList<>();
+        List<GetHistoryDTO> history = new ArrayList<>();
 
         for (Map<String, Object> row : rows) {
-            SaveHistoryDTO item = new SaveHistoryDTO();
+            GetHistoryDTO item = new GetHistoryDTO();
+            item.setId(toStringValue(row.get("id")));
             item.setItemId(toStringValue(row.get("item_id")));
+            item.setTitle(toStringValue(row.get("title")));
             item.setContentId(toStringValue(row.get("content_id")));
             item.setLessonId(toStringValue(row.get("lesson_id")));
 
