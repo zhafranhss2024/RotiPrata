@@ -33,6 +33,8 @@ public class LessonService {
             "lessons",
             buildQuery(Map.of(
                 "select", "*",
+                "is_active", "eq.true",
+                "archived_at", "is.null",
                 "is_published", "eq.true",
                 "order", "created_at.desc"
             )),
@@ -47,9 +49,20 @@ public class LessonService {
         ensureAdmin(userId, token);
         return supabaseAdminRestClient.getList(
             "lessons",
-            buildQuery(Map.of("select", "*", "order", "created_at.desc")),
+            buildQuery(Map.of(
+                "select", "*",
+                "is_active", "eq.true",
+                "archived_at", "is.null",
+                "order", "created_at.desc"
+            )),
             MAP_LIST
         );
+    }
+
+    public Map<String, Object> getAdminLessonById(UUID userId, UUID lessonId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+        return getAdminLessonById(lessonId);
     }
 
     public List<Map<String, Object>> searchLessons(String query, String accessToken) {
@@ -63,6 +76,8 @@ public class LessonService {
             "lessons",
             buildQuery(Map.of(
                 "select", "*",
+                "is_active", "eq.true",
+                "archived_at", "is.null",
                 "is_published", "eq.true",
                 "or", "(title.ilike.*" + safeQuery + "*,description.ilike.*" + safeQuery + "*)",
                 "order", "created_at.desc"
@@ -79,6 +94,8 @@ public class LessonService {
             buildQuery(Map.of(
                 "id", "eq." + lessonId,
                 "select", "*",
+                "is_active", "eq.true",
+                "archived_at", "is.null",
                 "is_published", "eq.true"
             )),
             token,
@@ -162,6 +179,8 @@ public class LessonService {
         copyIfPresent(payload, insert, "evolution_content");
         copyIfPresent(payload, insert, "comparison_content");
         insert.put("is_published", publish);
+        insert.put("is_active", true);
+        insert.put("archived_at", null);
         insert.put("completion_count", 0);
         insert.put("created_at", OffsetDateTime.now());
         insert.put("updated_at", OffsetDateTime.now());
@@ -245,21 +264,140 @@ public class LessonService {
 
         getAdminLessonById(lessonId);
 
-        supabaseAdminRestClient.deleteList(
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("is_active", false);
+        patch.put("archived_at", OffsetDateTime.now());
+        patch.put("is_published", false);
+        patch.put("updated_at", OffsetDateTime.now());
+
+        supabaseAdminRestClient.patchList(
             "lessons",
             buildQuery(Map.of("id", "eq." + lessonId)),
+            patch,
             MAP_LIST
         );
+
+        archiveActiveQuiz(lessonId);
     }
 
     public Map<String, Object> createLessonQuiz(UUID userId, UUID lessonId, Map<String, Object> payload, String accessToken) {
         String token = requireAccessToken(accessToken);
         ensureAdmin(userId, token);
 
-        Map<String, Object> lesson = getAdminLessonById(lessonId);
         List<Map<String, Object>> questions = normalizeQuestions(payload.get("questions"));
         validateQuestions(questions);
+        Map<String, Object> quiz = replaceLessonQuizInternal(userId, lessonId, questions, true);
+        if (quiz == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create quiz");
+        }
+        return quiz;
+    }
+
+    public List<Map<String, Object>> getActiveLessonQuizQuestions(UUID userId, UUID lessonId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+        return getActiveLessonQuizQuestionsInternal(lessonId);
+    }
+
+    public List<Map<String, Object>> replaceLessonQuiz(
+        UUID userId,
+        UUID lessonId,
+        Map<String, Object> payload,
+        String accessToken
+    ) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+
+        List<Map<String, Object>> questions = normalizeQuestions(payload.get("questions"));
+        replaceLessonQuizInternal(userId, lessonId, questions, false);
+        return getActiveLessonQuizQuestionsInternal(lessonId);
+    }
+
+    private Map<String, Object> replaceLessonQuizInternal(
+        UUID userId,
+        UUID lessonId,
+        List<Map<String, Object>> questions,
+        boolean requireAtLeastOne
+    ) {
+        Map<String, Object> lesson = getAdminLessonById(lessonId);
+        Map<String, Object> activeQuiz = findActiveLessonQuiz(lessonId);
+        boolean shouldCreate = activeQuiz != null || !questions.isEmpty();
+
+        if (requireAtLeastOne) {
+            validateQuestions(questions);
+        } else if (!questions.isEmpty()) {
+            validateQuestions(questions);
+        }
+
+        if (activeQuiz != null) {
+            archiveQuizById(activeQuiz.get("id"));
+        }
+
+        if (!shouldCreate) {
+            return null;
+        }
+
         return createQuizWithQuestions(userId, lesson, questions);
+    }
+
+    private List<Map<String, Object>> getActiveLessonQuizQuestionsInternal(UUID lessonId) {
+        Map<String, Object> activeQuiz = findActiveLessonQuiz(lessonId);
+        if (activeQuiz == null || activeQuiz.get("id") == null) {
+            return List.of();
+        }
+        String quizId = activeQuiz.get("id").toString();
+        return supabaseAdminRestClient.getList(
+            "quiz_questions",
+            buildQuery(Map.of(
+                "select", "*",
+                "quiz_id", "eq." + quizId,
+                "order", "order_index.asc"
+            )),
+            MAP_LIST
+        );
+    }
+
+    private Map<String, Object> findActiveLessonQuiz(UUID lessonId) {
+        List<Map<String, Object>> quizzes = supabaseAdminRestClient.getList(
+            "quizzes",
+            buildQuery(Map.of(
+                "select", "*",
+                "lesson_id", "eq." + lessonId,
+                "is_active", "eq.true",
+                "archived_at", "is.null",
+                "order", "created_at.desc",
+                "limit", "1"
+            )),
+            MAP_LIST
+        );
+        if (quizzes.isEmpty()) {
+            return null;
+        }
+        return quizzes.get(0);
+    }
+
+    private void archiveActiveQuiz(UUID lessonId) {
+        Map<String, Object> activeQuiz = findActiveLessonQuiz(lessonId);
+        if (activeQuiz == null || activeQuiz.get("id") == null) {
+            return;
+        }
+        archiveQuizById(activeQuiz.get("id"));
+    }
+
+    private void archiveQuizById(Object quizId) {
+        if (quizId == null) {
+            return;
+        }
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("is_active", false);
+        patch.put("archived_at", OffsetDateTime.now());
+        patch.put("updated_at", OffsetDateTime.now());
+        supabaseAdminRestClient.patchList(
+            "quizzes",
+            buildQuery(Map.of("id", "eq." + quizId.toString())),
+            patch,
+            MAP_LIST
+        );
     }
 
     public void enrollLesson(UUID userId, UUID lessonId, String accessToken) {
@@ -492,26 +630,14 @@ public class LessonService {
     }
 
     private boolean hasLessonQuestions(UUID lessonId) {
-        List<Map<String, Object>> quizzes = supabaseAdminRestClient.getList(
-            "quizzes",
-            buildQuery(Map.of("select", "id", "lesson_id", "eq." + lessonId)),
-            MAP_LIST
-        );
-        if (quizzes.isEmpty()) {
+        Map<String, Object> activeQuiz = findActiveLessonQuiz(lessonId);
+        if (activeQuiz == null || activeQuiz.get("id") == null) {
             return false;
         }
-        List<String> quizIds = quizzes.stream()
-            .map(row -> row.get("id"))
-            .filter(id -> id != null)
-            .map(Object::toString)
-            .toList();
-        if (quizIds.isEmpty()) {
-            return false;
-        }
-        String idList = String.join(",", quizIds);
+        String quizId = activeQuiz.get("id").toString();
         List<Map<String, Object>> questions = supabaseAdminRestClient.getList(
             "quiz_questions",
-            buildQuery(Map.of("select", "id", "quiz_id", "in.(" + idList + ")")),
+            buildQuery(Map.of("select", "id", "quiz_id", "eq." + quizId)),
             MAP_LIST
         );
         return !questions.isEmpty();
@@ -597,7 +723,10 @@ public class LessonService {
         quizInsert.put("title", lesson.getOrDefault("title", "Lesson Quiz") + " Quiz");
         quizInsert.put("description", "Auto-generated quiz for lesson");
         quizInsert.put("quiz_type", "multiple_choice");
+        quizInsert.put("is_active", true);
+        quizInsert.put("archived_at", null);
         quizInsert.put("created_by", userId);
+        quizInsert.put("updated_at", OffsetDateTime.now());
 
         List<Map<String, Object>> quizzes = supabaseAdminRestClient.postList("quizzes", quizInsert, MAP_LIST);
         if (quizzes.isEmpty()) {

@@ -76,6 +76,12 @@ public class LessonController {
         return lessonService.getAdminLessons(userId, SecurityUtils.getAccessToken());
     }
 
+    @GetMapping("/admin/lessons/{lessonId}")
+    public Map<String, Object> adminLessonById(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.getAdminLessonById(userId, lessonId, SecurityUtils.getAccessToken());
+    }
+
     @PostMapping("/admin/lessons")
     public Map<String, Object> createLesson(@AuthenticationPrincipal Jwt jwt, @RequestBody Map<String, Object> payload) {
         UUID userId = SecurityUtils.getUserId(jwt);
@@ -99,6 +105,15 @@ public class LessonController {
         lessonService.deleteLesson(userId, lessonId, SecurityUtils.getAccessToken());
     }
 
+    @GetMapping("/admin/lessons/{lessonId}/quiz")
+    public List<Map<String, Object>> getLessonQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.getActiveLessonQuizQuestions(userId, lessonId, SecurityUtils.getAccessToken());
+    }
+
     @PostMapping("/admin/lessons/{lessonId}/quiz")
     public Map<String, Object> createLessonQuiz(
         @AuthenticationPrincipal Jwt jwt,
@@ -107,5 +122,15 @@ public class LessonController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.createLessonQuiz(userId, lessonId, payload, SecurityUtils.getAccessToken());
+    }
+
+    @PutMapping("/admin/lessons/{lessonId}/quiz")
+    public List<Map<String, Object>> replaceLessonQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @RequestBody Map<String, Object> payload
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.replaceLessonQuiz(userId, lessonId, payload, SecurityUtils.getAccessToken());
     }
 }

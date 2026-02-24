@@ -27,6 +27,10 @@ public class Quiz {
 
     private Integer passingScore = 70;
 
+    private Boolean isActive = true;
+
+    private OffsetDateTime archivedAt;
+
     private UUID createdBy;
 
     private OffsetDateTime createdAt = OffsetDateTime.now();
