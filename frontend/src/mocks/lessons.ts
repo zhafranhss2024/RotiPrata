@@ -121,11 +121,60 @@ export const mockLessonDetail: Lesson = {
 };
 
 export const mockLessonSections = [
-  { id: "intro", title: "Introduction", completed: true },
-  { id: "breakdown", title: "Term Breakdown", completed: true },
-  { id: "context", title: "Cultural Context", completed: false },
-  { id: "challenge", title: "Micro-Challenge", completed: false },
-  { id: "assessment", title: "Final Assessment", completed: false },
+  {
+    id: "intro",
+    title: "Origin",
+    content:
+      "Gen Alpha slang emerged from TikTok clips, stream chat culture, and short-form remix trends.",
+    order_index: 1,
+    duration_minutes: 3,
+    completed: false,
+  },
+  {
+    id: "definition",
+    title: "Definition",
+    content:
+      "Terms like rizz, gyatt, and no cap signal social fluency, tone, and in-group context more than literal meaning.",
+    order_index: 2,
+    duration_minutes: 3,
+    completed: false,
+  },
+  {
+    id: "usage",
+    title: "Usage Examples",
+    content:
+      "That streamer has rizz. No cap, that clip is wild. Only in Ohio would this happen.",
+    order_index: 3,
+    duration_minutes: 3,
+    completed: false,
+  },
+  {
+    id: "lore",
+    title: "Lore",
+    content:
+      "Many phrases are born in niche communities, then mainstream creators simplify and spread them.",
+    order_index: 4,
+    duration_minutes: 3,
+    completed: false,
+  },
+  {
+    id: "evolution",
+    title: "Evolution",
+    content:
+      "Slang shifts fast. Meanings broaden and references fade as terms cross platforms and age groups.",
+    order_index: 5,
+    duration_minutes: 3,
+    completed: false,
+  },
+  {
+    id: "comparison",
+    title: "Comparison",
+    content:
+      "Rizz roughly maps to having game, while no cap maps to for real in earlier generations.",
+    order_index: 6,
+    duration_minutes: 3,
+    completed: false,
+  },
 ];
 
 export const mockLessonProgressByLessonId: Record<string, number> = {

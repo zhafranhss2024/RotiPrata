@@ -4,6 +4,7 @@
   Content,
   ContentFlag,
   Lesson,
+  LessonSection,
   Profile,
   Quiz,
   QuizQuestion,
@@ -298,7 +299,7 @@ export const fetchLessonSections = (lessonId: string) =>
   withMockFallback(
     "lesson-sections",
     () => mockLessonSections,
-    () => apiGet(`/lessons/${lessonId}/sections`)
+    () => apiGet<LessonSection[]>(`/lessons/${lessonId}/sections`)
   );
 
 export const fetchLessonProgress = () =>

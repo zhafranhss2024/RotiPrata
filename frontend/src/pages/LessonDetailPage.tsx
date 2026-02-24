@@ -16,7 +16,7 @@ import {
   CheckCircle,
   ChevronRight,
 } from 'lucide-react';
-import type { Lesson } from '@/types';
+import type { Lesson, LessonSection } from '@/types';
 import {
   enrollLesson,
   fetchLessonById,
@@ -31,9 +31,9 @@ import {
 const LessonDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [isEnrolled, setIsEnrolled] = useState(true);
+  const [isEnrolled, setIsEnrolled] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [lessonSections, setLessonSections] = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [lessonSections, setLessonSections] = useState<LessonSection[]>([]);
 
   useEffect(() => {
     if (!id) return;
@@ -42,11 +42,17 @@ const LessonDetailPage = () => {
       .catch((error) => console.warn('Failed to load lesson', error));
 
     fetchLessonProgress()
-      .then((progressMap) => setProgress(progressMap[id] ?? 0))
+      .then((progressMap) => {
+        const hasEnrollment = Object.prototype.hasOwnProperty.call(progressMap, id);
+        setIsEnrolled(hasEnrollment);
+        setProgress(progressMap[id] ?? 0);
+      })
       .catch((error) => console.warn('Failed to load progress', error));
 
     fetchLessonSections(id)
-      .then(setLessonSections)
+      .then((sections) =>
+        setLessonSections([...sections].sort((a, b) => a.order_index - b.order_index))
+      )
       .catch((error) => console.warn('Failed to load lesson sections', error));
   }, [id]);
 
@@ -55,6 +61,7 @@ const LessonDetailPage = () => {
     try {
       await enrollLesson(id);
       setIsEnrolled(true);
+      setProgress(0);
     } catch (error) {
       console.warn('Enroll failed', error);
     }
@@ -89,6 +96,15 @@ const LessonDetailPage = () => {
   }
 
   const difficulty = getDifficultyLabel(lesson.difficulty_level);
+  const totalSections = lessonSections.length;
+  const estimatedCompletedCount =
+    totalSections > 0 ? Math.floor((Math.max(progress, 0) / 100) * totalSections) : 0;
+  const completedCount = Math.min(totalSections, estimatedCompletedCount);
+  const completedSectionIds = new Set(lessonSections.slice(0, completedCount).map((section) => section.id));
+  const nextSectionIndex = totalSections > 0 ? Math.min(completedCount, totalSections - 1) : 0;
+  const ctaSectionId = lessonSections[nextSectionIndex]?.id;
+  const ctaPath = id && ctaSectionId ? `/lessons/${id}/${ctaSectionId}` : null;
+  const ctaLabel = progress >= 100 ? 'Review Lesson' : progress > 0 ? 'Continue Lesson' : 'Start Lesson';
 
   return (
     <MainLayout>
@@ -172,29 +188,32 @@ const LessonDetailPage = () => {
             <h2 className="font-semibold mb-3">Lesson Content</h2>
             <Card>
               <CardContent className="p-0">
-                {lessonSections.map((section, index) => (
-                  <React.Fragment key={section.id}>
-                    <Link 
-                      to={`/lessons/${id}/${section.id}`}
-                      className="flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        section.completed 
-                          ? 'bg-success text-white' 
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {section.completed ? (
-                          <CheckCircle className="h-5 w-5" />
-                        ) : (
-                          <span className="text-sm font-medium">{index + 1}</span>
-                        )}
-                      </div>
-                      <span className="flex-1 font-medium">{section.title}</span>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                    </Link>
-                    {index < lessonSections.length - 1 && <Separator />}
-                  </React.Fragment>
-                ))}
+                {lessonSections.map((section, index) => {
+                  const isCompleted = section.completed || completedSectionIds.has(section.id);
+                  return (
+                    <React.Fragment key={section.id}>
+                      <Link
+                        to={`/lessons/${id}/${section.id}`}
+                        className="flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors"
+                      >
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            isCompleted ? 'bg-success text-white' : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          {isCompleted ? (
+                            <CheckCircle className="h-5 w-5" />
+                          ) : (
+                            <span className="text-sm font-medium">{index + 1}</span>
+                          )}
+                        </div>
+                        <span className="flex-1 font-medium">{section.title}</span>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                      </Link>
+                      {index < lessonSections.length - 1 && <Separator />}
+                    </React.Fragment>
+                  );
+                })}
               </CardContent>
             </Card>
           </div>
@@ -221,12 +240,18 @@ const LessonDetailPage = () => {
         {/* CTA */}
         <div className="sticky bottom-nav-height md:bottom-4 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t md:border md:rounded-xl">
           {isEnrolled ? (
-            <Button asChild className="w-full gradient-primary border-0" size="lg">
-              <Link to={`/lessons/${id}/intro`}>
-                <Play className="h-5 w-5 mr-2" />
-                {progress > 0 ? 'Continue Lesson' : 'Start Lesson'}
-              </Link>
-            </Button>
+            ctaPath ? (
+              <Button asChild className="w-full gradient-primary border-0" size="lg">
+                <Link to={ctaPath}>
+                  <Play className="h-5 w-5 mr-2" />
+                  {ctaLabel}
+                </Link>
+              </Button>
+            ) : (
+              <Button className="w-full" size="lg" disabled>
+                Lesson content unavailable
+              </Button>
+            )
           ) : (
             <Button onClick={handleEnroll} className="w-full" size="lg">
               Enroll Now - Free

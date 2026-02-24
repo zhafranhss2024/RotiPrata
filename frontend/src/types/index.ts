@@ -107,6 +107,15 @@ export interface Lesson {
   updated_at: string;
 }
 
+export interface LessonSection {
+  id: string;
+  title: string;
+  content: string;
+  order_index: number;
+  duration_minutes: number;
+  completed: boolean;
+}
+
 export interface Quiz {
   id: string;
   lesson_id: string | null;
