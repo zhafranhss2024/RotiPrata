@@ -1,6 +1,8 @@
 package com.rotiprata.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.dto.LessonFeedRequest;
+import com.rotiprata.api.dto.LessonFeedResponse;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
@@ -17,6 +19,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class LessonService {
+    private static final int DEFAULT_LESSON_FEED_PAGE = 1;
+    private static final int DEFAULT_LESSON_FEED_PAGE_SIZE = 12;
+    private static final int MAX_LESSON_FEED_PAGE_SIZE = 50;
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
 
     private final SupabaseRestClient supabaseRestClient;
@@ -41,6 +46,36 @@ public class LessonService {
             token,
             MAP_LIST
         );
+    }
+
+    public LessonFeedResponse getLessonFeed(String accessToken, LessonFeedRequest request) {
+        String token = requireAccessToken(accessToken);
+        int page = request == null ? DEFAULT_LESSON_FEED_PAGE : normalizeLessonFeedPage(request.page());
+        int pageSize = request == null ? DEFAULT_LESSON_FEED_PAGE_SIZE : normalizeLessonFeedPageSize(request.pageSize());
+        int offset = (page - 1) * pageSize;
+        int limit = pageSize + 1;
+
+        LinkedHashMap<String, String> params = new LinkedHashMap<>();
+        params.put("select", "*");
+        params.put("is_published", "eq.true");
+        params.put("is_active", "eq.true");
+        params.put("archived_at", "is.null");
+        applyQueryFilter(request == null ? null : request.query(), params);
+        applyDifficultyFilter(request == null ? null : request.difficulty(), params);
+        applyDurationFilter(request == null ? null : request.duration(), params);
+        params.put("order", resolveSort(request == null ? null : request.sort()));
+        params.put("limit", String.valueOf(limit));
+        params.put("offset", String.valueOf(offset));
+
+        List<Map<String, Object>> rows = supabaseRestClient.getList(
+            "lessons",
+            buildQuery(params),
+            token,
+            MAP_LIST
+        );
+        boolean hasMore = rows.size() > pageSize;
+        List<Map<String, Object>> items = hasMore ? rows.subList(0, pageSize) : rows;
+        return new LessonFeedResponse(items, hasMore, page, pageSize);
     }
 
 
@@ -595,6 +630,73 @@ public class LessonService {
 
     private String escapeQuery(String query) {
         return query.replace(",", " ").replace("(", " ").replace(")", " ");
+    }
+
+    private void applyQueryFilter(String query, LinkedHashMap<String, String> params) {
+        if (query == null || query.isBlank()) {
+            return;
+        }
+        String safeQuery = escapeQuery(query.trim());
+        params.put(
+            "or",
+            String.format(
+                "(title.ilike.*%s*,description.ilike.*%s*,summary.ilike.*%s*)",
+                safeQuery,
+                safeQuery,
+                safeQuery
+            )
+        );
+    }
+
+    private void applyDifficultyFilter(String difficulty, LinkedHashMap<String, String> params) {
+        String normalized = difficulty == null ? "all" : difficulty.trim().toLowerCase();
+        switch (normalized) {
+            case "beginner", "1" -> params.put("difficulty_level", "eq.1");
+            case "intermediate", "2" -> params.put("difficulty_level", "eq.2");
+            case "advanced", "3" -> params.put("difficulty_level", "eq.3");
+            case "all", "" -> {
+                return;
+            }
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid difficulty filter");
+        }
+    }
+
+    private void applyDurationFilter(String duration, LinkedHashMap<String, String> params) {
+        String normalized = duration == null ? "all" : duration.trim().toLowerCase();
+        switch (normalized) {
+            case "short" -> params.put("estimated_minutes", "lte.10");
+            case "medium" -> params.put("and", "(estimated_minutes.gte.11,estimated_minutes.lte.20)");
+            case "long" -> params.put("estimated_minutes", "gte.21");
+            case "all", "" -> {
+                return;
+            }
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid duration filter");
+        }
+    }
+
+    private String resolveSort(String sort) {
+        String normalized = sort == null ? "popular" : sort.trim().toLowerCase();
+        return switch (normalized) {
+            case "popular", "" -> "completion_count.desc,created_at.desc";
+            case "newest" -> "created_at.desc";
+            case "shortest" -> "estimated_minutes.asc";
+            case "highest_xp" -> "xp_reward.desc";
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid sort option");
+        };
+    }
+
+    private int normalizeLessonFeedPage(Integer page) {
+        if (page == null || page < 1) {
+            return DEFAULT_LESSON_FEED_PAGE;
+        }
+        return page;
+    }
+
+    private int normalizeLessonFeedPageSize(Integer pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return DEFAULT_LESSON_FEED_PAGE_SIZE;
+        }
+        return Math.min(MAX_LESSON_FEED_PAGE_SIZE, pageSize);
     }
 
     private void validateLessonTitle(Map<String, Object> lesson) {

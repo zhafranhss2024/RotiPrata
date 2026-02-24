@@ -120,6 +120,8 @@ Categories
 Lessons
 - `GET /lessons`  
   Returns published lessons.
+- `GET /lessons/feed`  
+  Returns lesson feed with filters (query, difficulty, duration, sort, page, pageSize).
 - `GET /lessons/search?q=...`  
   Returns published lessons matching query.
 - `GET /lessons/{id}`  
@@ -144,7 +146,6 @@ Admin lessons
   Deletes a lesson (admin only).
 - `POST /admin/lessons/{id}/quiz`  
   Creates quiz + questions for a lesson (admin only).
-
 ## Missing Endpoints (Required by Frontend)
 
 Feed and content
