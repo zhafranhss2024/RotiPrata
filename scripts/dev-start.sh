@@ -60,6 +60,7 @@ Then re-run `bash ./scripts/dev-start.sh`.
 EOF
   exit 1
 }
+
 echo "Ensuring prerequisites (Java, Maven, Node.js)..."
 install_if_missing "java" "openjdk@17"
 install_if_missing "mvn" "maven"
