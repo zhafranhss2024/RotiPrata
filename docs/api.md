@@ -144,7 +144,6 @@ Admin lessons
   Deletes a lesson (admin only).
 - `POST /admin/lessons/{id}/quiz`  
   Creates quiz + questions for a lesson (admin only).
-
 ## Missing Endpoints (Required by Frontend)
 
 Feed and content
@@ -173,3 +172,4 @@ Admin
 ## Notes for Developers
 - All authenticated endpoints require `Authorization: Bearer <accessToken>`.
 - Frontend mocks can mask missing endpoints. To force real backend calls: set `VITE_USE_MOCKS=false`.
+
