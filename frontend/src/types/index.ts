@@ -94,6 +94,8 @@ export interface Lesson {
   badge_icon_url: string | null;
   difficulty_level: number;
   is_published: boolean;
+  is_active?: boolean;
+  archived_at?: string | null;
   completion_count: number;
   origin_content: string | null;
   definition_content: string | null;
@@ -114,6 +116,8 @@ export interface Quiz {
   quiz_type: string;
   time_limit_seconds: number | null;
   passing_score: number;
+  is_active?: boolean;
+  archived_at?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

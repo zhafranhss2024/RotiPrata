@@ -28,10 +28,37 @@ install_if_missing() {
   fi
 }
 
-resolve_java_home() {
-  /usr/libexec/java_home -v 17 2>/dev/null || \
-  /usr/libexec/java_home -v 21 2>/dev/null || \
-  true
+check_maven_repo_access() {
+  local settings_file="$repo_root/.mvn/settings.xml"
+  local maven_args=("-q" "-DforceStdout" "help:evaluate" "-Dexpression=settings.localRepository")
+
+  if [[ -f "$settings_file" ]]; then
+    maven_args=("-s" "$settings_file" "${maven_args[@]}")
+  fi
+
+  if mvn "${maven_args[@]}" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  cat <<'EOF'
+Maven could not reach dependency repositories.
+If you are behind a corporate/school proxy, add a project-level mirror in `.mvn/settings.xml`.
+Example:
+
+<settings>
+  <mirrors>
+    <mirror>
+      <id>internal-repo</id>
+      <name>Internal Maven Mirror</name>
+      <url>https://YOUR_MIRROR/repository/maven-public/</url>
+      <mirrorOf>*</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>
+
+Then re-run `bash ./scripts/dev-start.sh`.
+EOF
+  exit 1
 }
 
 echo "Ensuring prerequisites (Java, Maven, Node.js)..."
@@ -58,6 +85,9 @@ export PATH="$JAVA_HOME/bin:$PATH"
 echo "Installing media tools..."
 xattr -dr com.apple.quarantine "$repo_root/scripts/install-media-tools.sh" 2>/dev/null || true
 bash "$repo_root/scripts/install-media-tools.sh"
+
+echo "Checking Maven repository access..."
+check_maven_repo_access
 
 echo "Starting backend + frontend..."
 if command -v osascript >/dev/null 2>&1; then

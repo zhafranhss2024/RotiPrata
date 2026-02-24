@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Lesson, QuizQuestion } from '@/types';
-import { createLesson, createLessonQuiz } from '@/lib/api';
+import { createLesson } from '@/lib/api';
 
 // Backend: /api/admin/lessons and /api/admin/lessons/{id}/quiz
 // Dummy data is returned when mocks are enabled.
@@ -24,6 +24,7 @@ import { createLesson, createLessonQuiz } from '@/lib/api';
 const CreateLessonPage = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -41,6 +42,103 @@ const CreateLessonPage = () => {
     comparison_content: '',
   });
   const [quizQuestions, setQuizQuestions] = useState<Partial<QuizQuestion>[]>([]);
+
+  const validateForm = (publish: boolean) => {
+    if (!formData.title || !formData.title.trim()) {
+      return 'Lesson title is required.';
+    }
+
+    const validateQuestions = () => {
+      for (let i = 0; i < quizQuestions.length; i += 1) {
+        const q = quizQuestions[i];
+        if (!q.question_text || !q.question_text.trim()) {
+          return `Question ${i + 1}: question text is required.`;
+        }
+        if (!q.explanation || !q.explanation.trim()) {
+          return `Question ${i + 1}: explanation is required.`;
+        }
+        const options = (q.options ?? {}) as Record<string, string>;
+        for (const key of ['A', 'B', 'C', 'D']) {
+          if (!options[key] || !options[key].trim()) {
+            return `Question ${i + 1}: option ${key} is required.`;
+          }
+        }
+        if (!q.correct_answer || !['A', 'B', 'C', 'D'].includes(q.correct_answer)) {
+          return `Question ${i + 1}: correct answer must be A, B, C, or D.`;
+        }
+        const points = q.points ?? 0;
+        if (points < 1 || points > 100) {
+          return `Question ${i + 1}: points must be between 1 and 100.`;
+        }
+      }
+      return null;
+    };
+
+    if (!publish) {
+      return null;
+    }
+
+    const requiredFields: Array<[string, string]> = [
+      ['summary', formData.summary],
+      ['description', formData.description],
+      ['origin_content', formData.origin_content],
+      ['definition_content', formData.definition_content],
+      ['lore_content', formData.lore_content],
+      ['evolution_content', formData.evolution_content],
+      ['comparison_content', formData.comparison_content],
+      ['badge_name', formData.badge_name],
+    ];
+
+    for (const [key, value] of requiredFields) {
+      if (!value || !value.trim()) {
+        return `Missing required field: ${key.replace('_', ' ')}`;
+      }
+    }
+
+    const objectives = formData.learning_objectives.filter(o => o.trim());
+    if (objectives.length === 0) {
+      return 'At least one learning objective is required.';
+    }
+
+    const examples = formData.usage_examples.filter(e => e.trim());
+    if (examples.length === 0) {
+      return 'At least one usage example is required.';
+    }
+
+    if (!formData.estimated_minutes || formData.estimated_minutes <= 0) {
+      return 'Estimated minutes must be greater than 0.';
+    }
+
+    if (!formData.xp_reward || formData.xp_reward <= 0) {
+      return 'XP reward must be greater than 0.';
+    }
+
+    if (formData.difficulty_level < 1 || formData.difficulty_level > 3) {
+      return 'Difficulty level must be between 1 and 3.';
+    }
+
+    if (quizQuestions.length === 0) {
+      return 'At least one quiz question is required.';
+    }
+
+    return validateQuestions();
+  };
+
+  const buildQuestionsPayload = () =>
+    quizQuestions.map((q, idx) => ({
+      question_text: q.question_text?.trim(),
+      question_type: q.question_type ?? 'multiple_choice',
+      options: Object.fromEntries(
+        ['A', 'B', 'C', 'D'].map((key) => [
+          key,
+          ((q.options ?? {}) as Record<string, string>)[key]?.trim() ?? '',
+        ])
+      ),
+      correct_answer: q.correct_answer,
+      explanation: q.explanation?.trim(),
+      points: q.points ?? 10,
+      order_index: q.order_index ?? idx,
+    }));
 
   const handleAddObjective = () => {
     setFormData(prev => ({
@@ -119,24 +217,28 @@ const CreateLessonPage = () => {
     }));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (publish: boolean) => {
+    const validationError = validateForm(publish);
+    if (validationError) {
+      setSubmitError(validationError);
+      return;
+    }
     setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
       const lesson = await createLesson({
         ...formData,
         learning_objectives: formData.learning_objectives.filter(o => o.trim()),
         usage_examples: formData.usage_examples.filter(e => e.trim()),
+        is_published: publish,
+        questions: buildQuestionsPayload(),
       });
 
-      if (quizQuestions.length > 0) {
-        await createLessonQuiz(lesson.id, quizQuestions);
-      }
-
-      navigate('/admin');
+      navigate('/admin/lessons');
     } catch (error) {
       console.warn('Create lesson failed', error);
+      setSubmitError(error instanceof Error ? error.message : 'Failed to create lesson');
     } finally {
       setIsSubmitting(false);
     }
@@ -153,7 +255,8 @@ const CreateLessonPage = () => {
           <h1 className="text-2xl font-bold">Create Lesson</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(true); }} className="space-y-6">
+          {submitError && <p className="text-sm text-destructive">{submitError}</p>}
           {/* Basic Info */}
           <Card>
             <CardHeader>
@@ -468,9 +571,18 @@ const CreateLessonPage = () => {
             <Button type="button" variant="outline" className="flex-1" onClick={() => navigate('/admin')}>
               Cancel
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={() => handleSubmit(false)}
+              disabled={isSubmitting}
+            >
+              Save Draft
+            </Button>
             <Button type="submit" className="flex-1 gradient-primary border-0" disabled={isSubmitting}>
               <Save className="h-4 w-4 mr-2" />
-              {isSubmitting ? 'Creating...' : 'Create Lesson'}
+              {isSubmitting ? 'Creating...' : 'Publish Lesson'}
             </Button>
           </div>
         </form>

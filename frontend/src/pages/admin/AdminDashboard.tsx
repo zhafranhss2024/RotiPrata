@@ -315,9 +315,14 @@ const AdminDashboard = () => {
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             <p className="text-muted-foreground">Manage content and users</p>
           </div>
-          <Link to="/admin/lessons/create">
-            <Button>Create Lesson</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link to="/admin/lessons">
+              <Button variant="outline">Manage Lessons</Button>
+            </Link>
+            <Link to="/admin/lessons/create">
+              <Button>Create Lesson</Button>
+            </Link>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -437,10 +442,10 @@ const AdminDashboard = () => {
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Link to="/admin/lessons/create">
+                <Link to="/admin/lessons">
                   <Button variant="outline" className="w-full h-auto py-4 flex-col">
                     <FileText className="h-6 w-6 mb-2" />
-                    Create Lesson
+                    Manage Lessons
                   </Button>
                 </Link>
                 <Link to="/admin/categories">

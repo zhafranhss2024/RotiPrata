@@ -39,6 +39,11 @@ public class Lesson {
     @JsonProperty("is_published")
     private Boolean published = false;
 
+    @JsonProperty("is_active")
+    private Boolean active = true;
+
+    private OffsetDateTime archivedAt;
+
     private Integer completionCount = 0;
 
     private String originContent;
