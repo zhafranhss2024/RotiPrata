@@ -120,6 +120,8 @@ Categories
 Lessons
 - `GET /lessons`  
   Returns published lessons.
+- `GET /lessons/feed`  
+  Returns lesson feed with filters (query, difficulty, duration, sort, page, pageSize).
 - `GET /lessons/search?q=...`  
   Returns published lessons matching query.
 - `GET /lessons/{id}`  
