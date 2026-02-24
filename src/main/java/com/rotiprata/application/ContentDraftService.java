@@ -137,7 +137,8 @@ public class ContentDraftService {
         }
 
         ContentMedia media = requireMedia(contentId);
-        if (media.getStatus() == null || !"ready".equalsIgnoreCase(media.getStatus())) {
+        String mediaStatus = media.getStatus();
+        if (mediaStatus == null || !"ready".equalsIgnoreCase(mediaStatus)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Media processing is not complete");
         }
 

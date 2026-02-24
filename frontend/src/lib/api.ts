@@ -345,7 +345,35 @@ export const rejectContent = (contentId: string, feedback?: string) =>
 
 export const resolveFlag = (flagId: string) => apiPut<void>(`/admin/flags/${flagId}/resolve`);
 
+
+export const fetchAdminLessons = () =>
+  withMockFallback("admin-lessons", () => mockLessons, () => apiGet<Lesson[]>(`/admin/lessons`), { allowAutoFallback: false });
+
+export const fetchAdminLessonById = (lessonId: string) =>
+  withMockFallback(
+    "admin-lesson-detail",
+    () => mockLessonDetail,
+    () => apiGet<Lesson>(`/admin/lessons/${lessonId}`),
+    { allowAutoFallback: false }
+  );
+
+export const fetchAdminLessonQuizQuestions = (lessonId: string) =>
+  withMockFallback(
+    "admin-lesson-quiz",
+    () => [],
+    () => apiGet<QuizQuestion[]>(`/admin/lessons/${lessonId}/quiz`),
+    { allowAutoFallback: false }
+  );
+
+export const updateLesson = (lessonId: string, payload: Record<string, unknown>) =>
+  apiPut<Lesson>(`/admin/lessons/${lessonId}`, payload);
+
+export const deleteLesson = (lessonId: string) => apiDelete<void>(`/admin/lessons/${lessonId}`);
+
 export const createLesson = (payload: Record<string, unknown>) => apiPost<Lesson>(`/admin/lessons`, payload);
 
 export const createLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
   apiPost<Quiz>(`/admin/lessons/${lessonId}/quiz`, { questions });
+
+export const replaceAdminLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
+  apiPut<QuizQuestion[]>(`/admin/lessons/${lessonId}/quiz`, { questions });

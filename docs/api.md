@@ -67,8 +67,20 @@ Users
   Supabase backing: `PATCH /rest/v1/profiles?user_id=eq.<jwt.sub>`
 - `POST /users/me/history`  
   Header: `Authorization: Bearer <token>`  
-  Body: `{ contentId?, lessonId? }`  
+  Body: `{ contentId?, lessonId?, title? }`  
   Saves a browsing history entry.
+- `GET /users/me/history`  
+  Header: `Authorization: Bearer <token>`  
+  Returns recent browsing history.
+- `DELETE /users/me/history`  
+  Header: `Authorization: Bearer <token>`  
+  Clears browsing history.
+- `GET /users/me/lessons/progress`  
+  Header: `Authorization: Bearer <token>`  
+  Returns progress map keyed by lesson id.
+- `GET /users/me/stats`  
+  Header: `Authorization: Bearer <token>`  
+  Returns lesson progress stats summary.
 
 Content (draft + async media)
 - `POST /content/media/start`  
@@ -105,6 +117,34 @@ Categories
 - `GET /categories`  
   Returns category list.
 
+Lessons
+- `GET /lessons`  
+  Returns published lessons.
+- `GET /lessons/search?q=...`  
+  Returns published lessons matching query.
+- `GET /lessons/{id}`  
+  Returns lesson detail (published only).
+- `GET /lessons/{id}/sections`  
+  Returns computed lesson sections.
+- `POST /lessons/{id}/enroll`  
+  Creates or updates lesson progress.
+- `POST /lessons/{id}/save`  
+  Saves a lesson for the current user.
+- `PUT /lessons/{id}/progress`  
+  Updates lesson progress percentage.
+
+Admin lessons
+- `GET /admin/lessons`  
+  Returns all lessons (admin only).
+- `POST /admin/lessons`  
+  Creates a lesson (admin only).
+- `PUT /admin/lessons/{id}`  
+  Updates a lesson (admin only).
+- `DELETE /admin/lessons/{id}`  
+  Deletes a lesson (admin only).
+- `POST /admin/lessons/{id}/quiz`  
+  Creates quiz + questions for a lesson (admin only).
+
 ## Missing Endpoints (Required by Frontend)
 
 Feed and content
@@ -118,19 +158,8 @@ Feed and content
 - `POST /content/{id}/flag`
 
 Lessons
-- `GET /lessons`
-- `GET /lessons/search?q=...`
-- `GET /lessons/{id}`
-- `GET /lessons/{id}/sections`
-- `POST /lessons/{id}/enroll`
-- `POST /lessons/{id}/save`
-- `PUT /lessons/{id}/progress`
 
 User data
-- `GET /users/me/history`
-- `DELETE /users/me/history`
-- `GET /users/me/lessons/progress`
-- `GET /users/me/stats`
 - `GET /users/me/achievements`
 
 Admin
@@ -140,8 +169,6 @@ Admin
 - `PUT /admin/content/{id}/approve`
 - `PUT /admin/content/{id}/reject`
 - `PUT /admin/flags/{id}/resolve`
-- `POST /admin/lessons`
-- `POST /admin/lessons/{id}/quiz`
 
 ## Notes for Developers
 - All authenticated endpoints require `Authorization: Bearer <accessToken>`.

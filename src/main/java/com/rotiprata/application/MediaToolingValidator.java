@@ -84,12 +84,10 @@ public class MediaToolingValidator {
     }
 
     private void failStartup(String message) {
-        String red = "\u001B[31m";
-        String reset = "\u001B[0m";
         String script = installScriptHint();
-        String full = "ERROR: " + message + " Run " + script + " before starting the server.";
-        System.err.println(red + full + reset);
-        System.exit(1);
+        String full = message + " Run " + script + " before starting the server. "
+            + "To bypass this check temporarily, set MEDIA_CHECK_TOOLING_ON_STARTUP=false.";
+        throw new IllegalStateException(full);
     }
 
     private String installScriptHint() {
