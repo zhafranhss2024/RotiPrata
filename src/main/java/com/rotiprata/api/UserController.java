@@ -4,6 +4,7 @@ import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.application.BrowsingService;
+import com.rotiprata.application.ContentService;
 import com.rotiprata.application.LessonQuizService;
 import com.rotiprata.application.LessonService;
 import com.rotiprata.application.UserService;
@@ -28,17 +29,20 @@ public class UserController {
     private final LessonService lessonService;
     private final LessonQuizService lessonQuizService;
     private final BrowsingService browsingService;
+    private final ContentService contentService;
 
     public UserController(
             UserService userService,
             LessonService lessonService,
             LessonQuizService lessonQuizService,
-            BrowsingService browsingService
+            BrowsingService browsingService,
+            ContentService contentService
     ) {
         this.userService = userService;
         this.lessonService = lessonService;
         this.lessonQuizService = lessonQuizService;
         this.browsingService = browsingService;
+        this.contentService = contentService;
     }
 
     @GetMapping("/me")
@@ -106,6 +110,17 @@ public class UserController {
         UUID userId = SecurityUtils.getUserId(jwt);
         return browsingService.fetchHistory(
                 userId.toString(),
+                SecurityUtils.getAccessToken()
+        );
+    }
+
+    @GetMapping("/me/saved-content")
+    public List<Map<String, Object>> savedContent(
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return contentService.getSavedContent(
+                userId,
                 SecurityUtils.getAccessToken()
         );
     }

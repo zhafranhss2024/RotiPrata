@@ -125,6 +125,26 @@ public class ContentController {
         return new ContentLikeResponse(result.liked(), result.likesCount());
     }
 
+    @PostMapping("/{contentId}/save")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void saveContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        contentService.saveContent(userId, contentId, SecurityUtils.getAccessToken());
+    }
+
+    @DeleteMapping("/{contentId}/save")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unsaveContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        contentService.unsaveContent(userId, contentId, SecurityUtils.getAccessToken());
+    }
+
     private ContentType detectContentType(MultipartFile file) {
         String contentType = file.getContentType();
         if (contentType == null) {

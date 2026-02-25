@@ -1,4 +1,4 @@
-export type ActivityType = 'like' | 'watch';
+export type ActivityType = 'like' | 'watch' | 'save';
 
 export type LocalActivityItem = {
   id: string;
@@ -11,6 +11,7 @@ export type LocalActivityItem = {
 const STORAGE_KEYS = {
   like: 'rotiprata.activity.likes',
   watch: 'rotiprata.activity.watches',
+  save: 'rotiprata.activity.saves',
 } as const;
 
 const MAX_ITEMS = 50;
@@ -53,10 +54,24 @@ export const getLikeHistory = () => readItems('like');
 
 export const getWatchHistory = () => readItems('watch');
 
+export const getSaveHistory = () => readItems('save');
+
 export const recordLikeActivity = (contentId: string, title: string) => {
   upsertActivity('like', contentId, title || 'Untitled', 'content');
 };
 
 export const recordWatchActivity = (contentId: string, title: string) => {
   upsertActivity('watch', contentId, title || 'Untitled', 'content');
+};
+
+export const recordSaveActivity = (contentId: string, title: string) => {
+  upsertActivity('save', contentId, title || 'Untitled', 'content');
+};
+
+export const removeSaveActivity = (contentId: string) => {
+  const existing = readItems('save');
+  writeItems(
+    'save',
+    existing.filter((item) => item.id !== `content-${contentId}`)
+  );
 };

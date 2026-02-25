@@ -3,10 +3,11 @@ import { FeedCard } from './FeedCard';
 import { ContentDetailSheet } from './ContentDetailSheet';
 import { QuizSheet } from '../quiz/QuizSheet';
 import type { Content, Quiz } from '@/types';
-import { fetchContentQuiz, flagContent, likeContent, rejectContent, saveContent, trackContentView, unlikeContent } from '@/lib/api';
+import { fetchContentQuiz, flagContent, likeContent, rejectContent, saveContent, trackContentView, unlikeContent, unsaveContent } from '@/lib/api';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { recordLikeActivity, recordWatchActivity } from '@/lib/activityHistory';
+import { getSaveHistory, recordLikeActivity, recordSaveActivity, recordWatchActivity, removeSaveActivity } from '@/lib/activityHistory';
+import { useToast } from '@/hooks/use-toast';
 
 interface FeedContainerProps {
   contents: Content[];
@@ -35,6 +36,7 @@ export function FeedContainer({
   containerClassName,
 }: FeedContainerProps) {
   const { isAdmin } = useAuthContext();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const containerHeightClass =
@@ -47,6 +49,7 @@ export function FeedContainer({
   const [showQuiz, setShowQuiz] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [contentLikeState, setContentLikeState] = useState<Record<string, ContentLikeState>>({});
+  const [savedContentIds, setSavedContentIds] = useState<Set<string>>(() => new Set());
   const containerRef = useRef<HTMLDivElement>(null);
   const isAdminUser = isAdmin();
 
@@ -76,6 +79,17 @@ export function FeedContainer({
     () => contents.filter((content) => !hiddenContentIds.has(content.id)),
     [contents, hiddenContentIds]
   );
+
+  useEffect(() => {
+    const historySavedIds = getSaveHistory().map((item) => item.itemId);
+    const next = new Set(historySavedIds);
+    contents.forEach((content) => {
+      if ((content as Content & { saved_by_me?: boolean }).saved_by_me === true) {
+        next.add(content.id);
+      }
+    });
+    setSavedContentIds(next);
+  }, [contents]);
 
   useEffect(() => {
     const clamped = Math.max(0, Math.min(initialIndex, Math.max(visibleContents.length - 1, 0)));
@@ -218,9 +232,47 @@ export function FeedContainer({
   };
 
   const handleSave = async (contentId: string) => {
+    const isCurrentlySaved = savedContentIds.has(contentId);
+    setSavedContentIds((prev) => {
+      const next = new Set(prev);
+      if (isCurrentlySaved) {
+        next.delete(contentId);
+      } else {
+        next.add(contentId);
+      }
+      return next;
+    });
+    const savedContent = contents.find((content) => content.id === contentId);
+    if (isCurrentlySaved) {
+      removeSaveActivity(contentId);
+      toast({ title: 'Video removed from saved' });
+    } else {
+      recordSaveActivity(contentId, savedContent?.title || 'Untitled');
+      toast({ title: 'Video saved' });
+    }
+
     try {
-      await saveContent(contentId);
+      if (isCurrentlySaved) {
+        await unsaveContent(contentId);
+      } else {
+        await saveContent(contentId);
+      }
     } catch (error) {
+      // Roll back optimistic saved state on error.
+      setSavedContentIds((prev) => {
+        const next = new Set(prev);
+        if (isCurrentlySaved) {
+          next.add(contentId);
+        } else {
+          next.delete(contentId);
+        }
+        return next;
+      });
+      if (isCurrentlySaved) {
+        recordSaveActivity(contentId, savedContent?.title || 'Untitled');
+      } else {
+        removeSaveActivity(contentId);
+      }
       console.warn('Save failed', error);
     }
   };
@@ -316,6 +368,7 @@ export function FeedContainer({
                 likeCount={likeState.likesCount}
                 likedByMe={likeState.likedByMe}
                 isLiking={likeState.isLiking}
+                isSaved={savedContentIds.has(content.id)}
                 onSave={() => handleSave(content.id)}
                 onShare={() => handleShare(content)}
                 onFlag={() => handleFlag(content.id)}

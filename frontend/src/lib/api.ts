@@ -110,6 +110,13 @@ export type GetHistoryDTO = {
   viewed_at: string;
 }
 
+export type SavedContentDTO = {
+  id: string;
+  saved_at: string;
+  content_id: string;
+  content?: Content;
+};
+
 export type UserStats = {
   lessonsEnrolled: number;
   lessonsCompleted: number;
@@ -156,6 +163,7 @@ export type ContentLikeResponse = {
 
 const mockLikeCounts = new Map<string, number>();
 const mockLikedContentIds = new Set<string>();
+const mockSavedContentIds = new Set<string>();
 
 const withMockFallback = async <T>(
   label: string,
@@ -320,6 +328,19 @@ export const fetchRecommendations = () =>
 export const fetchBrowsingHistory = () =>
   // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
   apiGet<GetHistoryDTO[]>(`/users/me/history`);
+
+export const fetchSavedContent = () =>
+  withMockFallback(
+    "saved-content",
+    () =>
+      mockContents.slice(0, 5).map((item, index) => ({
+        id: `mock-saved-${item.id}-${index}`,
+        saved_at: new Date(Date.now() - index * 3600000).toISOString(),
+        content_id: item.id,
+        content: item,
+      })) as SavedContentDTO[],
+    () => apiGet<SavedContentDTO[]>(`/users/me/saved-content`)
+  );
 
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
 
@@ -650,7 +671,25 @@ export const unlikeContent = (contentId: string) =>
     () => apiDelete<ContentLikeResponse>(`/content/${contentId}/like`)
   );
 
-export const saveContent = (contentId: string) => apiPost<void>(`/content/${contentId}/save`);
+export const saveContent = (contentId: string) =>
+  withMockFallback(
+    "content-save",
+    () => {
+      mockSavedContentIds.add(contentId);
+      return undefined;
+    },
+    () => apiPost<void>(`/content/${contentId}/save`)
+  );
+
+export const unsaveContent = (contentId: string) =>
+  withMockFallback(
+    "content-unsave",
+    () => {
+      mockSavedContentIds.delete(contentId);
+      return undefined;
+    },
+    () => apiDelete<void>(`/content/${contentId}/save`)
+  );
 
 export const flagContent = (contentId: string, reason: string, description?: string) =>
   apiPost<void>(`/content/${contentId}/flag`, { reason, description });

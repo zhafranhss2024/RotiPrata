@@ -23,13 +23,14 @@ import {
   Heart,
   MessageCircle,
   Play,
+  Bookmark,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import type { Profile, UserAchievement } from '@/types';
-import { fetchAchievements, fetchBrowsingHistory, fetchProfile, fetchUserStats, type GetHistoryDTO } from '@/lib/api';
-import { getLikeHistory, getWatchHistory, type LocalActivityItem } from '@/lib/activityHistory';
+import { fetchAchievements, fetchBrowsingHistory, fetchProfile, fetchSavedContent, fetchUserStats, type GetHistoryDTO, type SavedContentDTO } from '@/lib/api';
+import { getLikeHistory, getSaveHistory, getWatchHistory, type LocalActivityItem } from '@/lib/activityHistory';
 
 // Backend: /api/users/me, /api/users/me/stats, /api/users/me/achievements
 // Watch history is merged from /api/users/me/history and local feed watch events.
@@ -65,6 +66,35 @@ const mergeWatchHistory = (localItems: LocalActivityItem[], remoteItems: LocalAc
     .slice(0, 20);
 };
 
+const mapSavedContentToActivity = (items: SavedContentDTO[]): LocalActivityItem[] =>
+  items
+    .map((item) => {
+      if (!item.content_id) return null;
+      return {
+        id: `content-${item.content_id}`,
+        itemId: item.content_id,
+        title: item.content?.title || 'Untitled',
+        itemType: 'content',
+        actedAt: item.saved_at,
+      } as LocalActivityItem;
+    })
+    .filter((item): item is LocalActivityItem => item !== null);
+
+const mergeActivity = (localItems: LocalActivityItem[], remoteItems: LocalActivityItem[]) => {
+  const byId = new Map<string, LocalActivityItem>();
+
+  [...localItems, ...remoteItems].forEach((item) => {
+    const existing = byId.get(item.id);
+    if (!existing || new Date(item.actedAt).getTime() > new Date(existing.actedAt).getTime()) {
+      byId.set(item.id, item);
+    }
+  });
+
+  return Array.from(byId.values())
+    .sort((a, b) => new Date(b.actedAt).getTime() - new Date(a.actedAt).getTime())
+    .slice(0, 50);
+};
+
 const ProfilePage = () => {
   const { isAuthenticated, logout, isAdmin, isContributor } = useAuthContext();
   const { toggleTheme, isDark } = useThemeContext();
@@ -72,6 +102,7 @@ const ProfilePage = () => {
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [likeHistory, setLikeHistory] = useState<LocalActivityItem[]>([]);
   const [watchHistory, setWatchHistory] = useState<LocalActivityItem[]>([]);
+  const [savedVideoHistory, setSavedVideoHistory] = useState<LocalActivityItem[]>([]);
   const [stats, setStats] = useState({
     lessonsEnrolled: 0,
     lessonsCompleted: 0,
@@ -105,6 +136,7 @@ const ProfilePage = () => {
 
     const localLikes = getLikeHistory();
     const localWatches = getWatchHistory();
+    const localSaves = getSaveHistory();
     setLikeHistory(localLikes);
 
     fetchBrowsingHistory()
@@ -115,6 +147,16 @@ const ProfilePage = () => {
       .catch((error) => {
         console.warn('Failed to load watch history', error);
         setWatchHistory(localWatches);
+      });
+
+    fetchSavedContent()
+      .then((savedItems) => {
+        const mapped = mapSavedContentToActivity(savedItems);
+        setSavedVideoHistory(mergeActivity(localSaves, mapped));
+      })
+      .catch((error) => {
+        console.warn('Failed to load saved videos', error);
+        setSavedVideoHistory(localSaves);
       });
   }, [isAuthenticated]);
 
@@ -349,81 +391,123 @@ const ProfilePage = () => {
           </TabsContent>
 
           <TabsContent value="activity" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Heart className="h-4 w-4" />
-                  Like History
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {likeHistory.length > 0 ? (
-                  <div className="space-y-3">
-                    {likeHistory.map((item) => (
-                      <Link key={item.id} to={`/content/${item.itemId}`}>
-                        <div className="rounded-md border p-3 hover:bg-muted/50 transition-colors">
-                          <p className="font-medium">{item.title}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(item.actedAt).toLocaleString()}</p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No likes yet.</p>
-                )}
-              </CardContent>
-            </Card>
+            <Tabs defaultValue="likes" className="space-y-4">
+              <TabsList className="w-full grid grid-cols-4">
+                <TabsTrigger value="likes">Likes</TabsTrigger>
+                <TabsTrigger value="saved">Saved videos</TabsTrigger>
+                <TabsTrigger value="watch">Watch</TabsTrigger>
+                <TabsTrigger value="comments">Comments</TabsTrigger>
+              </TabsList>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <MessageCircle className="h-4 w-4" />
-                  Comment History
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {commentHistory.length > 0 ? (
-                  <div className="space-y-3">
-                    {commentHistory.map((item) => (
-                      <div key={item.id} className="rounded-md border p-3">
-                        <p className="font-medium">{item.title}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(item.actedAt).toLocaleString()}</p>
+              <TabsContent value="likes">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Heart className="h-4 w-4" />
+                      Like History
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {likeHistory.length > 0 ? (
+                      <div className="space-y-3">
+                        {likeHistory.map((item) => (
+                          <Link key={item.id} to={`/content/${item.itemId}`}>
+                            <div className="rounded-md border p-3 hover:bg-muted/50 transition-colors">
+                              <p className="font-medium">{item.title}</p>
+                              <p className="text-xs text-muted-foreground">{new Date(item.actedAt).toLocaleString()}</p>
+                            </div>
+                          </Link>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No comments yet.</p>
-                )}
-              </CardContent>
-            </Card>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No likes yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Play className="h-4 w-4" />
-                  Watch History
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {watchHistory.length > 0 ? (
-                  <div className="space-y-3">
-                    {watchHistory.map((item) => (
-                      <Link
-                        key={item.id}
-                        to={item.itemType === 'lesson' ? `/lessons/${item.itemId}` : `/content/${item.itemId}`}
-                      >
-                        <div className="rounded-md border p-3 hover:bg-muted/50 transition-colors">
-                          <p className="font-medium">{item.title}</p>
-                          <p className="text-xs text-muted-foreground">{new Date(item.actedAt).toLocaleString()}</p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No watch history yet.</p>
-                )}
-              </CardContent>
-            </Card>
+              <TabsContent value="saved">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Bookmark className="h-4 w-4" />
+                      Saved Videos
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {savedVideoHistory.length > 0 ? (
+                      <div className="space-y-3">
+                        {savedVideoHistory.map((item) => (
+                          <Link key={item.id} to={`/content/${item.itemId}`}>
+                            <div className="rounded-md border p-3 hover:bg-muted/50 transition-colors">
+                              <p className="font-medium">{item.title}</p>
+                              <p className="text-xs text-muted-foreground">{new Date(item.actedAt).toLocaleString()}</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No saved videos yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="watch">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Play className="h-4 w-4" />
+                      Watch History
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {watchHistory.length > 0 ? (
+                      <div className="space-y-3">
+                        {watchHistory.map((item) => (
+                          <Link
+                            key={item.id}
+                            to={item.itemType === 'lesson' ? `/lessons/${item.itemId}` : `/content/${item.itemId}`}
+                          >
+                            <div className="rounded-md border p-3 hover:bg-muted/50 transition-colors">
+                              <p className="font-medium">{item.title}</p>
+                              <p className="text-xs text-muted-foreground">{new Date(item.actedAt).toLocaleString()}</p>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No watch history yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="comments">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4" />
+                      Comment History
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {commentHistory.length > 0 ? (
+                      <div className="space-y-3">
+                        {commentHistory.map((item) => (
+                          <div key={item.id} className="rounded-md border p-3">
+                            <p className="font-medium">{item.title}</p>
+                            <p className="text-xs text-muted-foreground">{new Date(item.actedAt).toLocaleString()}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No comments yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>

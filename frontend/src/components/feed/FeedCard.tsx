@@ -13,6 +13,7 @@ interface FeedCardProps {
   likeCount?: number;
   likedByMe?: boolean;
   isLiking?: boolean;
+  isSaved?: boolean;
   onSave?: () => void;
   onShare?: () => void;
   onFlag?: () => void;
@@ -40,6 +41,7 @@ export function FeedCard({
   likeCount,
   likedByMe = false,
   isLiking = false,
+  isSaved = false,
   onSave,
   onShare,
   onFlag,
@@ -287,8 +289,11 @@ export function FeedCard({
           onClick={onSave}
           className="flex flex-col items-center gap-1 text-white touch-target"
         >
-          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
-            <Bookmark className="h-6 w-6" />
+          <div className={cn(
+            "w-12 h-12 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors",
+            isSaved ? "bg-yellow-400/35" : "bg-white/20 hover:bg-white/30"
+          )}>
+            <Bookmark className={cn("h-6 w-6", isSaved ? "fill-yellow-400 text-yellow-400" : "")} />
           </div>
           <span className="text-xs font-medium">Save</span>
         </button>

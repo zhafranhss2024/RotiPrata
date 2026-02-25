@@ -146,6 +146,85 @@ public class ContentService {
         return new LikeContentResult(resolvedCount, false);
     }
 
+    public void saveContent(UUID userId, UUID contentId, String accessToken) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+        String token = requireAccessToken(accessToken);
+
+        List<Map<String, Object>> contentRows = supabaseRestClient.getList(
+            "/content",
+            buildQuery(Map.of("select", "id", "id", "eq." + contentId, "limit", "1")),
+            token,
+            MAP_LIST
+        );
+        if (contentRows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
+        }
+
+        List<Map<String, Object>> existing = supabaseRestClient.getList(
+            "/saved_content",
+            buildQuery(Map.of(
+                "select", "id",
+                "user_id", "eq." + userId,
+                "content_id", "eq." + contentId,
+                "limit", "1"
+            )),
+            token,
+            MAP_LIST
+        );
+        if (!existing.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("user_id", userId);
+        payload.put("content_id", contentId);
+        payload.put("saved_at", OffsetDateTime.now());
+        supabaseRestClient.postList("/saved_content", payload, token, MAP_LIST);
+    }
+
+    public void unsaveContent(UUID userId, UUID contentId, String accessToken) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+        String token = requireAccessToken(accessToken);
+
+        supabaseRestClient.deleteList(
+            "/saved_content",
+            buildQuery(Map.of(
+                "user_id", "eq." + userId,
+                "content_id", "eq." + contentId
+            )),
+            token,
+            MAP_LIST
+        );
+    }
+
+    public List<Map<String, Object>> getSavedContent(UUID userId, String accessToken) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        String token = requireAccessToken(accessToken);
+        return supabaseRestClient.getList(
+            "/saved_content",
+            buildQuery(Map.of(
+                "select", "id,saved_at,content_id,content:content_id(id,title,description,media_url,thumbnail_url,content_type,likes_count,created_at)",
+                "user_id", "eq." + userId,
+                "content_id", "not.is.null",
+                "order", "saved_at.desc"
+            )),
+            token,
+            MAP_LIST
+        );
+    }
+
     public List<ContentSearchDTO> getFilteredContent(String query, String filter, String accessToken) {
         if (query == null || query.isBlank()) {
             return List.of();
@@ -301,6 +380,13 @@ public class ContentService {
         } catch (NumberFormatException ex) {
             return 0;
         }
+    }
+
+    private String requireAccessToken(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
+        }
+        return accessToken;
     }
 
     public record LikeContentResult(int likesCount, boolean liked) {}
