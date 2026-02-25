@@ -579,8 +579,39 @@ public class MediaProcessingService {
             List<String> command = List.of(properties.getYtdlpPath(), "-U");
             runProcess(command, "yt-dlp-update");
         } catch (Exception ex) {
-            log.warn("yt-dlp update failed: {}", ex.getMessage());
+            String message = ex.getMessage() == null ? "" : ex.getMessage();
+            if (looksLikePipManagedYtDlp(message) && tryPipUpdateYtDlp()) {
+                log.info("yt-dlp updated via pip fallback");
+                return;
+            }
+            log.warn("yt-dlp update failed: {}", message);
         }
+    }
+
+    private boolean looksLikePipManagedYtDlp(String message) {
+        if (message == null) {
+            return false;
+        }
+        String lower = message.toLowerCase();
+        return lower.contains("installed yt-dlp with pip")
+            || lower.contains("using the wheel from pypi")
+            || lower.contains("use that to update");
+    }
+
+    private boolean tryPipUpdateYtDlp() {
+        List<List<String>> commands = List.of(
+            List.of("python", "-m", "pip", "install", "-U", "yt-dlp"),
+            List.of("python3", "-m", "pip", "install", "-U", "yt-dlp")
+        );
+        for (List<String> command : commands) {
+            try {
+                runProcess(command, "yt-dlp-update-pip");
+                return true;
+            } catch (Exception ex) {
+                log.debug("yt-dlp pip update command failed: {}", command, ex);
+            }
+        }
+        return false;
     }
 
     private ProcessResult runProcess(List<String> command, String label) throws IOException, InterruptedException {

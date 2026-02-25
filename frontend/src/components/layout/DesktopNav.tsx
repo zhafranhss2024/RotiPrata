@@ -1,50 +1,50 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { 
-  Home, 
-  Search, 
-  BookOpen, 
-  User,
-  PlusCircle,
-  Shield,
-  Moon,
-  Sun,
+import React from "react";
+import { Link, useLocation } from "react-router-dom";
+import {
+  Compass,
+  Home,
   LogIn,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { useThemeContext } from '@/contexts/ThemeContext';
+  LogOut,
+  PlusCircle,
+  Search,
+  Shield,
+  User,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { HeartsIndicator } from "./HeartsIndicator";
+import { useIsDesktop } from "@/hooks/use-desktop";
 
 const navItems = [
-  { label: 'Feed', href: '/', icon: Home },
-  { label: 'Explore', href: '/explore', icon: Search },
-  { label: 'Lesson Hub', href: '/lessons', icon: BookOpen },
+  { label: "Learn", href: "/lessons", icon: Home },
+  { label: "Feed", href: "/", icon: Compass },
+  { label: "Explore", href: "/explore", icon: Search },
+  { label: "Profile", href: "/profile", icon: User },
 ];
 
 export function DesktopNav() {
   const location = useLocation();
-  const { isAuthenticated, isAdmin } = useAuthContext();
-  const { toggleTheme, isDark } = useThemeContext();
+  const { isAuthenticated, isAdmin, logout } = useAuthContext();
+  const isDesktop = useIsDesktop();
 
   return (
-    <header className="hidden md:flex fixed top-0 left-0 right-0 z-50 glass border-b border-border">
-      <div className="container flex items-center justify-between h-16">
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2">
-          <div className="gradient-primary p-2 rounded-xl">
-            <span className="text-xl font-bold text-white">🥞</span>
-          </div>
-          <span className="text-xl font-display font-bold text-gradient-primary">
-            Rotiprata
-          </span>
+    <header className="hidden lg:flex fixed top-0 left-0 right-0 z-50 border-b border-mainAlt bg-mainDark/95 backdrop-blur">
+      <div className="relative w-full px-6 h-16 flex items-center justify-between gap-6">
+        <Link to="/" className="flex items-center gap-3 min-w-fit">
+          <img
+            src="/icon-images/LEADERBOARD_ICON.png"
+            alt=""
+            className="h-9 w-9 rounded-md object-cover"
+          />
+          <span className="text-white text-xl">Rotiprata</span>
         </Link>
 
-        {/* Navigation */}
-        <nav className="flex items-center gap-1">
+        <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.href || 
-              (item.href !== '/' && location.pathname.startsWith(item.href));
+            const isActive =
+              location.pathname === item.href ||
+              (item.href !== "/" && location.pathname.startsWith(item.href));
             const Icon = item.icon;
 
             return (
@@ -52,62 +52,58 @@ export function DesktopNav() {
                 key={item.href}
                 to={item.href}
                 className={cn(
-                  "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
-                  isActive 
-                    ? "bg-primary/10 text-primary" 
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  "flex items-center gap-2 rounded-xl border px-3 py-2 transition-colors",
+                  isActive
+                    ? "border-mainAlt bg-main text-mainAccent"
+                    : "border-transparent text-white hover:border-mainAlt hover:bg-main/60"
                 )}
               >
-                <Icon className="h-5 w-5" />
-                <span className="font-medium">{item.label}</span>
+                <Icon className="h-4 w-4" />
+                <span className="text-sm">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        {/* Right section */}
-        <div className="flex items-center gap-2">
-          {/* Theme toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleTheme}
-            className="rounded-full"
-          >
-            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        <div className="flex items-center gap-2 min-w-fit">
+          {isAuthenticated && isDesktop && <HeartsIndicator />}
+
+          <Button asChild className="duo-button-primary h-10">
+            <Link to="/create">
+              <PlusCircle className="h-4 w-4 mr-2" />
+              Create
+            </Link>
           </Button>
 
+          {isAdmin() && (
+            <Button
+              asChild
+              variant="outline"
+              className="h-10 border-mainAlt bg-main text-white hover:bg-mainAlt"
+            >
+              <Link to="/admin">
+                <Shield className="h-4 w-4 mr-2" />
+                Admin
+              </Link>
+            </Button>
+          )}
+
           {isAuthenticated ? (
-            <>
-              {/* Create button */}
-              <Button asChild className="gradient-primary border-0">
-                <Link to="/create">
-                  <PlusCircle className="h-5 w-5 mr-2" />
-                  Create
-                </Link>
-              </Button>
-
-              {/* Admin link */}
-              {isAdmin() && (
-                <Button variant="outline" asChild>
-                  <Link to="/admin">
-                    <Shield className="h-5 w-5 mr-2" />
-                    Admin
-                  </Link>
-                </Button>
-              )}
-
-              {/* Profile */}
-              <Button variant="ghost" size="icon" asChild className="rounded-full">
-                <Link to="/profile">
-                  <User className="h-5 w-5" />
-                </Link>
-              </Button>
-            </>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-10 text-white hover:bg-mainAlt hover:text-white"
+              onClick={() => {
+                void logout();
+              }}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Log Out
+            </Button>
           ) : (
-            <Button asChild>
+            <Button asChild className="duo-button-primary h-10">
               <Link to="/login">
-                <LogIn className="h-5 w-5 mr-2" />
+                <LogIn className="h-4 w-4 mr-2" />
                 Sign In
               </Link>
             </Button>

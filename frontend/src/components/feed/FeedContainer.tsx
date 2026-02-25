@@ -1,15 +1,19 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { FeedCard } from './FeedCard';
 import { ContentDetailSheet } from './ContentDetailSheet';
 import { QuizSheet } from '../quiz/QuizSheet';
 import type { Content, Quiz } from '@/types';
-import { fetchContentQuiz, flagContent, saveContent, trackContentView, voteContent } from '@/lib/api';
+import { fetchContentQuiz, flagContent, rejectContent, saveContent, trackContentView, voteContent } from '@/lib/api';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 interface FeedContainerProps {
   contents: Content[];
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoading?: boolean;
+  initialIndex?: number;
+  containerClassName?: string;
 }
 
 // Backend: /api/content/{id} actions.
@@ -20,15 +24,37 @@ export function FeedContainer({
   onLoadMore,
   hasMore = false,
   isLoading = false,
+  initialIndex = 0,
+  containerClassName,
 }: FeedContainerProps) {
+  const { isAdmin } = useAuthContext();
+  const navigate = useNavigate();
+  const location = useLocation();
   const containerHeightClass =
-    "h-[calc(100vh-var(--bottom-nav-height)-var(--safe-area-bottom))] md:h-[calc(100vh-4rem)] md:mt-16";
-  const [activeIndex, setActiveIndex] = useState(0);
+    "h-[calc(100vh-var(--bottom-nav-height)-var(--safe-area-bottom))] md:h-[calc(100vh-4rem)]";
+  const [hiddenContentIds, setHiddenContentIds] = useState<Set<string>>(() => new Set());
+  const [takingDownContentId, setTakingDownContentId] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isAdminUser = isAdmin();
+  const visibleContents = useMemo(
+    () => contents.filter((content) => !hiddenContentIds.has(content.id)),
+    [contents, hiddenContentIds]
+  );
+
+  useEffect(() => {
+    const clamped = Math.max(0, Math.min(initialIndex, Math.max(visibleContents.length - 1, 0)));
+    setActiveIndex(clamped);
+    const container = containerRef.current;
+    if (!container) return;
+    requestAnimationFrame(() => {
+      container.scrollTop = clamped * container.clientHeight;
+    });
+  }, [initialIndex, visibleContents.length]);
 
   // Track active content on scroll
   const handleScroll = useCallback(() => {
@@ -43,7 +69,7 @@ export function FeedContainer({
       setActiveIndex(newIndex);
       
       // Fire-and-forget view tracking. Safe to ignore errors.
-      const contentId = contents[newIndex]?.id;
+      const contentId = visibleContents[newIndex]?.id;
       if (contentId) {
         trackContentView(contentId).catch((error) => {
           console.warn('Failed to track view', error);
@@ -55,7 +81,7 @@ export function FeedContainer({
     if (hasMore && !isLoading && scrollTop + itemHeight * 2 >= container.scrollHeight) {
       onLoadMore?.();
     }
-  }, [activeIndex, hasMore, isLoading, onLoadMore]);
+  }, [activeIndex, hasMore, isLoading, onLoadMore, visibleContents]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -126,7 +152,39 @@ export function FeedContainer({
     }
   };
 
-  if (contents.length === 0 && !isLoading) {
+  const handleTakeDown = async (contentId: string) => {
+    if (!isAdminUser) return;
+    const confirmed = window.confirm(
+      'Confirm take down video? This video will then be unpublished.'
+    );
+    if (!confirmed) return;
+
+    setTakingDownContentId(contentId);
+    try {
+      await rejectContent(contentId, 'Taken down by admin from feed/explore.');
+      setHiddenContentIds((prev) => {
+        const next = new Set(prev);
+        next.add(contentId);
+        return next;
+      });
+    } catch (error) {
+      console.warn('Take down failed', error);
+    } finally {
+      setTakingDownContentId(null);
+    }
+  };
+
+  const handleEdit = (content: Content) => {
+    if (!isAdminUser) return;
+    navigate('/create', {
+      state: {
+        editContent: content,
+        returnTo: `${location.pathname}${location.search}`,
+      },
+    });
+  };
+
+  if (visibleContents.length === 0 && !isLoading) {
     return (
       <div className={`${containerHeightClass} flex items-center justify-center`}>
         <div className="text-center p-8">
@@ -144,10 +202,10 @@ export function FeedContainer({
     <>
       <div
         ref={containerRef}
-        className={`${containerHeightClass} overflow-y-scroll snap-mandatory-y scrollbar-hide`}
+        className={`${containerHeightClass} ${containerClassName ?? ""} overflow-y-auto snap-y snap-mandatory overscroll-y-contain scrollbar-hide`}
       >
-        {contents.map((content, index) => (
-          <div key={content.id} className="h-full w-full">
+        {visibleContents.map((content, index) => (
+          <div key={content.id} className="h-full w-full snap-start snap-always">
             <FeedCard
               content={content}
               isActive={index === activeIndex}
@@ -157,6 +215,11 @@ export function FeedContainer({
               onShare={() => handleShare(content)}
               onFlag={() => handleFlag(content.id)}
               onQuizClick={() => handleQuizClick(content)}
+              showEdit={isAdminUser && content.content_type === 'video'}
+              onEdit={() => handleEdit(content)}
+              showTakeDown={isAdminUser && content.content_type === 'video'}
+              onTakeDown={() => handleTakeDown(content.id)}
+              isTakingDown={takingDownContentId === content.id}
             />
           </div>
         ))}

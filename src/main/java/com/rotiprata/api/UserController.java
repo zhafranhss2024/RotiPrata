@@ -4,6 +4,7 @@ import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.application.BrowsingService;
+import com.rotiprata.application.LessonQuizService;
 import com.rotiprata.application.LessonService;
 import com.rotiprata.application.UserService;
 import com.rotiprata.domain.Profile;
@@ -25,15 +26,18 @@ public class UserController {
 
     private final UserService userService;
     private final LessonService lessonService;
+    private final LessonQuizService lessonQuizService;
     private final BrowsingService browsingService;
 
     public UserController(
             UserService userService,
             LessonService lessonService,
+            LessonQuizService lessonQuizService,
             BrowsingService browsingService
     ) {
         this.userService = userService;
         this.lessonService = lessonService;
+        this.lessonQuizService = lessonQuizService;
         this.browsingService = browsingService;
     }
 
@@ -136,6 +140,16 @@ public class UserController {
         return lessonService.getUserLessonProgress(
                 userId,
                 SecurityUtils.getAccessToken()
+        );
+    }
+
+    @GetMapping("/me/hearts")
+    public Map<String, Object> hearts(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        var hearts = lessonQuizService.getHeartsStatus(userId, SecurityUtils.getAccessToken());
+        return Map.of(
+            "heartsRemaining", hearts.heartsRemaining(),
+            "heartsRefillAt", hearts.heartsRefillAt()
         );
     }
 }

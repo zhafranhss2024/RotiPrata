@@ -52,7 +52,10 @@ public class ApiExceptionHandler {
             if (normalized.contains("username") || normalized.contains("display name") || normalized.contains("display_name")) {
                 return "username_in_use";
             }
-            return "email_in_use";
+            if (normalized.contains("email")) {
+                return "email_in_use";
+            }
+            return "conflict";
         }
         if (status == HttpStatus.TOO_MANY_REQUESTS) {
             return "rate_limited";

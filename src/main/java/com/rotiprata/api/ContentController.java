@@ -5,6 +5,7 @@ import com.rotiprata.api.dto.ContentMediaStartResponse;
 import com.rotiprata.api.dto.ContentMediaStatusResponse;
 import com.rotiprata.api.dto.ContentSubmitRequest;
 import com.rotiprata.api.dto.ContentUpdateRequest;
+import com.rotiprata.application.ContentService;
 import com.rotiprata.application.ContentDraftService;
 import com.rotiprata.domain.Content;
 import com.rotiprata.domain.ContentType;
@@ -28,9 +29,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/content")
 public class ContentController {
-    private final ContentDraftService contentService;
+    private final ContentDraftService contentDraftService;
+    private final ContentService contentService;
 
-    public ContentController(ContentDraftService contentService) {
+    public ContentController(ContentDraftService contentDraftService, ContentService contentService) {
+        this.contentDraftService = contentDraftService;
         this.contentService = contentService;
     }
 
@@ -48,7 +51,7 @@ public class ContentController {
         }
         ContentType contentType = detectContentType(file);
         UUID userId = SecurityUtils.getUserId(jwt);
-        return contentService.startUpload(userId, contentType, file);
+        return contentDraftService.startUpload(userId, contentType, file);
     }
 
     @PostMapping("/media/start-link")
@@ -58,7 +61,7 @@ public class ContentController {
         @Valid @RequestBody ContentMediaStartLinkRequest request
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
-        return contentService.startLink(userId, request.sourceUrl());
+        return contentDraftService.startLink(userId, request.sourceUrl());
     }
 
     @PatchMapping("/{contentId}")
@@ -68,7 +71,7 @@ public class ContentController {
         @RequestBody ContentUpdateRequest request
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
-        return contentService.updateDraft(userId, contentId, request);
+        return contentDraftService.updateDraft(userId, contentId, request);
     }
 
     @PostMapping("/{contentId}/submit")
@@ -78,7 +81,7 @@ public class ContentController {
         @Valid @RequestBody ContentSubmitRequest request
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
-        return contentService.submit(userId, contentId, request);
+        return contentDraftService.submit(userId, contentId, request);
     }
 
     @GetMapping("/{contentId}/media")
@@ -87,7 +90,17 @@ public class ContentController {
         @PathVariable UUID contentId
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
-        return contentService.getMediaStatus(userId, contentId);
+        return contentDraftService.getMediaStatus(userId, contentId);
+    }
+
+    @PostMapping("/{contentId}/view")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void trackView(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        contentService.trackView(userId, contentId);
     }
 
     private ContentType detectContentType(MultipartFile file) {

@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -25,9 +27,11 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     private static final String REGISTER_PATH = "/api/auth/register";
     private static final String FORGOT_PASSWORD_PATH = "/api/auth/forgot-password";
     private static final String RESET_PASSWORD_PATH = "/api/auth/reset-password";
+    private static final String QUIZ_ANSWER_SUFFIX = "/quiz/answer";
 
     private static final RateLimitDefinition SIGNIN_LIMIT = new RateLimitDefinition(30, Duration.ofMinutes(5));
     private static final RateLimitDefinition FORGOT_PASSWORD_LIMIT = new RateLimitDefinition(2, Duration.ofHours(1));
+    private static final RateLimitDefinition QUIZ_ANSWER_LIMIT = new RateLimitDefinition(120, Duration.ofMinutes(1));
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -50,8 +54,8 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String ip = resolveClientIp(request);
-        Bucket bucket = buckets.computeIfAbsent(limit.keyPrefix() + ":" + ip, key -> newBucket(limit));
+        String key = resolveRateLimitKey(path, request, limit);
+        Bucket bucket = buckets.computeIfAbsent(key, k -> newBucket(limit));
 
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
         if (probe.isConsumed()) {
@@ -73,6 +77,9 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     }
 
     private RateLimitDefinition resolveLimit(String path) {
+        if (path != null && path.startsWith("/api/lessons/") && path.endsWith(QUIZ_ANSWER_SUFFIX)) {
+            return QUIZ_ANSWER_LIMIT.withKeyPrefix("quiz-answer");
+        }
         return switch (path) {
             case LOGIN_PATH -> SIGNIN_LIMIT.withKeyPrefix("login");
             case REGISTER_PATH -> SIGNIN_LIMIT.withKeyPrefix("register");
@@ -106,6 +113,19 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             return realIp.trim();
         }
         return request.getRemoteAddr();
+    }
+
+    private String resolveRateLimitKey(String path, HttpServletRequest request, RateLimitDefinition definition) {
+        if (path != null && path.startsWith("/api/lessons/") && path.endsWith(QUIZ_ANSWER_SUFFIX)) {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.isAuthenticated() && authentication.getName() != null) {
+                String principal = authentication.getName().trim();
+                if (!principal.isBlank() && !"anonymousUser".equalsIgnoreCase(principal)) {
+                    return definition.keyPrefix() + ":user:" + principal;
+                }
+            }
+        }
+        return definition.keyPrefix() + ":ip:" + resolveClientIp(request);
     }
 
     private record RateLimitDefinition(int capacity, Duration duration, String keyPrefix) {

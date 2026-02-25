@@ -2,6 +2,18 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "Installing media tools (ffmpeg, ffprobe, yt-dlp)..."
 
+function Refresh-Path {
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if ($machinePath -and $userPath) {
+        $env:Path = "$machinePath;$userPath"
+    } elseif ($machinePath) {
+        $env:Path = $machinePath
+    } elseif ($userPath) {
+        $env:Path = $userPath
+    }
+}
+
 function Install-WithWinget {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { return $false }
     winget install --id Gyan.FFmpeg -e --accept-source-agreements --accept-package-agreements
@@ -31,6 +43,37 @@ function Find-Executable([string]$name) {
 function Set-UserEnv([string]$key, [string]$value) {
     [Environment]::SetEnvironmentVariable($key, $value, "User")
     Set-Item -Path "Env:$key" -Value $value
+}
+
+function Update-YtDlp([string]$ytdlpPath) {
+    if (-not $ytdlpPath) { return }
+
+    Write-Host "Updating yt-dlp..."
+    $updateOutput = ""
+    try {
+        $updateOutput = (& $ytdlpPath -U 2>&1 | Out-String)
+    } catch {
+        $updateOutput = $_.Exception.Message
+    }
+    if ($LASTEXITCODE -eq 0) {
+        return
+    }
+
+    $usedFallback = $false
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) {
+        $python = Get-Command python3 -ErrorAction SilentlyContinue
+    }
+    if ($python) {
+        Write-Host "yt-dlp self-update failed; trying pip fallback..."
+        & $python.Source -m pip install -U yt-dlp
+        $usedFallback = $true
+    }
+
+    if (-not $usedFallback -and (Get-Command winget -ErrorAction SilentlyContinue)) {
+        Write-Host "Trying winget upgrade fallback..."
+        winget upgrade --id yt-dlp.yt-dlp -e --accept-source-agreements --accept-package-agreements
+    }
 }
 
 function Add-ToUserPath([string]$dir) {
@@ -82,6 +125,10 @@ if (-not $installed) {
 
 $ffmpegPath = Find-Executable "ffmpeg"
 $ffprobePath = Find-Executable "ffprobe"
+$ytdlpPath = Find-Executable "yt-dlp"
+
+Update-YtDlp $ytdlpPath
+Refresh-Path
 $ytdlpPath = Find-Executable "yt-dlp"
 
 if (-not $ffmpegPath -or -not $ffprobePath -or -not $ytdlpPath) {

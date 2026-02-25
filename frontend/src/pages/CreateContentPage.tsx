@@ -21,8 +21,8 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
-import type { ContentType, Category } from '@/types';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import type { ContentType, Category, Content } from '@/types';
 import {
   fetchCategories,
   fetchContentMediaStatus,
@@ -30,6 +30,7 @@ import {
   startContentMediaLink,
   startContentMediaUpload,
   submitContent,
+  updateAdminContent,
   updateDraftContent,
 } from '@/lib/api';
 
@@ -71,8 +72,18 @@ const isValidMediaLink = (value: string) => {
   return lower.includes('tiktok.com') || lower.includes('instagram.com/reel') || lower.includes('instagram.com/reels');
 };
 
+type CreateContentLocationState = {
+  editContent?: Content;
+  returnTo?: string;
+};
+
 const CreateContentPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = (location.state as CreateContentLocationState | null) ?? null;
+  const editingContent = locationState?.editContent ?? null;
+  const isEditingContent = Boolean(editingContent?.id);
+  const returnTo = locationState?.returnTo ?? '/';
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -119,6 +130,30 @@ const CreateContentPage = () => {
   }, []);
 
   useEffect(() => {
+    if (!editingContent) return;
+    setFormData({
+      title: editingContent.title ?? '',
+      description: editingContent.description ?? '',
+      content_type: editingContent.content_type ?? 'video',
+      category_id: editingContent.category_id ?? '',
+      learning_objective: editingContent.learning_objective ?? '',
+      origin_explanation: editingContent.origin_explanation ?? '',
+      definition_literal: editingContent.definition_literal ?? '',
+      definition_used: editingContent.definition_used ?? '',
+      older_version_reference: editingContent.older_version_reference ?? '',
+      tags: editingContent.tags ?? [],
+    });
+    setContentId(editingContent.id);
+    setMediaStatus(editingContent.media_url ? 'ready' : 'idle');
+    setMediaPreview(null);
+    setMediaHlsUrl(editingContent.content_type === 'video' ? editingContent.media_url : null);
+    setMediaThumbnailUrl(editingContent.thumbnail_url ?? editingContent.media_url ?? null);
+    setMediaError(null);
+    setLinkError(null);
+    setCurrentStep(editingContent.media_url ? 1 : 0);
+  }, [editingContent?.id]);
+
+  useEffect(() => {
     if (!contentId || mediaStatus !== 'processing') return;
     let cancelled = false;
     const poll = async () => {
@@ -153,7 +188,7 @@ const CreateContentPage = () => {
   }, [contentId, mediaStatus]);
 
   useEffect(() => {
-    if (!contentId) return;
+    if (!contentId || isEditingContent) return;
     const payload = {
       title: normalizeText(formData.title, MAX_TITLE),
       description: normalizeText(formData.description, MAX_DESCRIPTION),
@@ -178,7 +213,7 @@ const CreateContentPage = () => {
         .catch((error) => console.warn('Failed to autosave draft', error));
     }, 500);
     return () => window.clearTimeout(handler);
-  }, [contentId, formData]);
+  }, [contentId, formData, isEditingContent]);
 
   useEffect(() => {
     const query = tagQuery.trim();
@@ -401,7 +436,7 @@ const CreateContentPage = () => {
         return normalized ? normalized : null;
       };
 
-      await submitContent(contentId, {
+      const payload = {
         title: normalizeText(formData.title, MAX_TITLE),
         description: normalizeText(formData.description, MAX_DESCRIPTION),
         contentType: formData.content_type,
@@ -412,7 +447,15 @@ const CreateContentPage = () => {
         definitionUsed: toNull(formData.definition_used, MAX_LONG_TEXT),
         olderVersionReference: toNull(formData.older_version_reference, MAX_OLDER_REFERENCE),
         tags: formData.tags.map(sanitizeTag).filter(Boolean),
-      });
+      };
+
+      if (isEditingContent) {
+        await updateAdminContent(contentId, payload);
+        navigate(returnTo);
+        return;
+      }
+
+      await submitContent(contentId, payload);
 
       navigate('/');
     } catch (error) {
@@ -426,10 +469,10 @@ const CreateContentPage = () => {
     <MainLayout>
       <div className="container max-w-3xl mx-auto px-4 py-6 md:py-8 pb-safe">
         <div className="flex items-center gap-4 mb-6">
-          <Link to="/" className="text-muted-foreground hover:text-foreground">
+          <Link to={returnTo} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-2xl font-bold">Create Content</h1>
+          <h1 className="text-2xl font-bold">{isEditingContent ? 'Edit Content' : 'Create Content'}</h1>
         </div>
 
         <div className="mb-6">
@@ -910,9 +953,15 @@ const CreateContentPage = () => {
                 )}
               </div>
 
-              <div className="bg-muted rounded-xl p-4 text-sm text-muted-foreground">
-                <p>Your submission will be reviewed by moderators before appearing on the feed.</p>
-              </div>
+              {isEditingContent ? (
+                <div className="bg-muted rounded-xl p-4 text-sm text-muted-foreground">
+                  <p>Your changes will be saved to this video.</p>
+                </div>
+              ) : (
+                <div className="bg-muted rounded-xl p-4 text-sm text-muted-foreground">
+                  <p>Your submission will be reviewed by moderators before appearing on the feed.</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -935,7 +984,7 @@ const CreateContentPage = () => {
               disabled={isSubmitting || !isMediaReady || !isBasicsValid}
               onClick={handleSubmit}
             >
-              {isSubmitting ? 'Submitting...' : 'Submit for Review'}
+              {isSubmitting ? (isEditingContent ? 'Saving...' : 'Submitting...') : (isEditingContent ? 'Save Changes' : 'Submit for Review')}
             </Button>
           )}
         </div>

@@ -1,238 +1,277 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { 
-  ArrowLeft, 
-  Clock, 
-  Star, 
-  Users, 
-  Play, 
-  Bookmark,
-  CheckCircle,
-  ChevronRight,
-} from 'lucide-react';
-import type { Lesson } from '@/types';
+import { ArrowLeft, Check, Clock3, Play, Star, Users } from 'lucide-react';
+import type { Lesson, LessonProgressDetail } from '@/types';
 import {
   enrollLesson,
   fetchLessonById,
-  fetchLessonProgress,
-  fetchLessonSections,
+  fetchLessonProgressDetail,
   saveLesson,
 } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
-// Backend: /api/lessons/{id}, /api/lessons/{id}/enroll, /api/lessons/{id}/progress
-// Dummy data is returned when mocks are enabled.
+const formatRefill = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString();
+};
 
 const LessonDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [isEnrolled, setIsEnrolled] = useState(true);
-  const [progress, setProgress] = useState(0);
-  const [lessonSections, setLessonSections] = useState<{ id: string; title: string; completed: boolean }[]>([]);
+  const [progressDetail, setProgressDetail] = useState<LessonProgressDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    fetchLessonById(id)
-      .then(setLesson)
-      .catch((error) => console.warn('Failed to load lesson', error));
+    let active = true;
 
-    fetchLessonProgress()
-      .then((progressMap) => setProgress(progressMap[id] ?? 0))
-      .catch((error) => console.warn('Failed to load progress', error));
+    Promise.all([fetchLessonById(id), fetchLessonProgressDetail(id)])
+      .then(([lessonData, progress]) => {
+        if (!active) return;
+        setLesson(lessonData);
+        setProgressDetail(progress);
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        console.warn('Failed to load lesson detail', loadError);
+        setError('Failed to load lesson details. Please try again.');
+      })
+      .finally(() => {
+        if (active) {
+          setIsLoading(false);
+        }
+      });
 
-    fetchLessonSections(id)
-      .then(setLessonSections)
-      .catch((error) => console.warn('Failed to load lesson sections', error));
+    return () => {
+      active = false;
+    };
   }, [id]);
-
-  const handleEnroll = async () => {
-    if (!id) return;
-    try {
-      await enrollLesson(id);
-      setIsEnrolled(true);
-    } catch (error) {
-      console.warn('Enroll failed', error);
-    }
-  };
 
   const handleSave = async () => {
     if (!id) return;
     try {
       await saveLesson(id);
-    } catch (error) {
-      console.warn('Save lesson failed', error);
+    } catch (saveError) {
+      console.warn('Save lesson failed', saveError);
     }
   };
 
   const getDifficultyLabel = (level: number) => {
     switch (level) {
-      case 1: return { label: 'Beginner', color: 'bg-success' };
-      case 2: return { label: 'Intermediate', color: 'bg-warning' };
-      case 3: return { label: 'Advanced', color: 'bg-destructive' };
-      default: return { label: 'Beginner', color: 'bg-success' };
+      case 1:
+        return 'Beginner';
+      case 2:
+        return 'Intermediate';
+      case 3:
+        return 'Advanced';
+      default:
+        return 'Beginner';
     }
   };
 
-  if (!lesson) {
+  const stopLabels = useMemo(
+    () => [
+      { id: 'intro', label: 'Origin' },
+      { id: 'definition', label: 'Definition' },
+      { id: 'usage', label: 'Usage' },
+      { id: 'lore', label: 'Lore' },
+      { id: 'evolution', label: 'Evolution' },
+      { id: 'comparison', label: 'Comparison' },
+      { id: 'quiz', label: 'Quiz' },
+    ],
+    []
+  );
+
+  if (isLoading) {
     return (
       <MainLayout>
-        <div className="container max-w-2xl mx-auto px-4 py-16 text-center text-muted-foreground">
-          Loading lesson...
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center text-mainAccent">Loading lesson...</div>
+      </MainLayout>
+    );
+  }
+
+  if (error || !lesson) {
+    return (
+      <MainLayout>
+        <div className="mx-auto max-w-3xl px-4 py-10">
+          <div className="rounded-2xl p-6 text-center space-y-4">
+            <p className="text-red-200">{error ?? 'Unable to load this lesson.'}</p>
+            <Button asChild className="duo-button-primary">
+              <Link to="/lessons">Back to Lessons</Link>
+            </Button>
+          </div>
         </div>
       </MainLayout>
     );
   }
 
-  const difficulty = getDifficultyLabel(lesson.difficulty_level);
+  const isEnrolled = progressDetail?.isEnrolled ?? false;
+  const progress = progressDetail?.progressPercentage ?? 0;
+  const completedStops = progressDetail?.completedStops ?? 0;
+  const currentStopId = progressDetail?.currentStopId ?? null;
+  const totalStops = Math.max(1, progressDetail?.totalStops ?? stopLabels.length);
+  const displayStops = stopLabels.slice(0, totalStops);
+  const heartsRefill = formatRefill(progressDetail?.heartsRefillAt);
+  const quizBlocked = progressDetail?.quizStatus === 'blocked_hearts';
+
+  const resolveNextPath = (detail: LessonProgressDetail | null) => {
+    if (!id || !detail) return null;
+    if (detail.nextStopType === 'quiz') {
+      return `/lessons/${id}/quiz`;
+    }
+    if (detail.nextSectionId) {
+      return `/lessons/${id}/${detail.nextSectionId}`;
+    }
+    if (detail.currentSection) {
+      return `/lessons/${id}/${detail.currentSection}`;
+    }
+    return null;
+  };
+
+  const ctaLabel =
+    progressDetail?.status === 'completed'
+      ? 'Review Lesson'
+      : progressDetail?.nextStopType === 'quiz'
+        ? progressDetail.quizStatus === 'in_progress'
+          ? 'Continue Quiz'
+          : 'Start Quiz'
+        : progress > 0
+          ? 'Continue Lesson'
+          : 'Start Lesson';
+
+  const handleStartLesson = async () => {
+    if (!id) return;
+    setIsStarting(true);
+    setError(null);
+    try {
+      let detail = progressDetail;
+      if (!isEnrolled) {
+        await enrollLesson(id);
+        detail = await fetchLessonProgressDetail(id);
+        setProgressDetail(detail);
+      }
+
+      const nextPath = resolveNextPath(detail);
+      if (nextPath) {
+        navigate(nextPath);
+      } else {
+        setError('Lesson sections are not available yet');
+      }
+    } catch (startError) {
+      console.warn('Unable to start lesson', startError);
+      setError('Unable to start lesson right now. Please try again.');
+    } finally {
+      setIsStarting(false);
+    }
+  };
 
   return (
     <MainLayout>
-      <div className="container max-w-2xl mx-auto px-4 py-6 md:py-8 pb-safe">
-        {/* Back button */}
-        <Link to="/lessons" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-4">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6">
+        <Link to="/lessons" className="inline-flex items-center text-mainAccent hover:text-white">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Lessons
         </Link>
 
-        {/* Header */}
-        <div className="rounded-2xl gradient-primary p-6 mb-6 text-white">
-          <div className="flex items-start justify-between mb-4">
-            <Badge className={`${difficulty.color} text-white`}>
-              {difficulty.label}
-            </Badge>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" onClick={handleSave}>
-              <Bookmark className="h-5 w-5" />
-            </Button>
-          </div>
-          
-          <h1 className="text-2xl font-bold mb-2">{lesson.title}</h1>
-          <p className="text-white/80 mb-4">{lesson.summary}</p>
-          
-          <div className="flex flex-wrap items-center gap-4 text-sm text-white/80">
-            <span className="flex items-center gap-1">
-              <Clock className="h-4 w-4" />
-              {lesson.estimated_minutes} min
+        <section className="mx-auto mt-6 max-w-2xl rounded-3xl px-6 py-7">
+          <div className="flex items-start justify-between gap-3">
+            <span className="rounded-full border border-mainAlt bg-mainDark px-3 py-1 text-xs text-mainAccent">
+              {getDifficultyLabel(lesson.difficulty_level)}
             </span>
-            <span className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleSave}
+              className="rounded-full border border-mainAlt px-3 py-1 text-xs text-white hover:bg-mainAlt"
+            >
+              Save
+            </button>
+          </div>
+
+          <h1 className="mt-4 text-4xl text-white leading-tight">{lesson.title}</h1>
+          <p className="mt-2 text-white/80 leading-7">{lesson.summary ?? lesson.description}</p>
+
+          <div className="mt-5 flex flex-wrap gap-2 text-sm">
+            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-white">
+              <Clock3 className="h-4 w-4" />
+              {lesson.estimated_minutes}m
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-white">
               <Star className="h-4 w-4" />
               {lesson.xp_reward} XP
             </span>
-            <span className="flex items-center gap-1">
+            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-white">
               <Users className="h-4 w-4" />
-              {lesson.completion_count} completed
+              {lesson.completion_count} learners
             </span>
           </div>
-          
-          {lesson.badge_name && (
-            <div className="mt-4 inline-flex items-center gap-2 bg-white/20 rounded-full px-3 py-1">
-              <span>🏆</span>
-              <span className="text-sm">Earn: {lesson.badge_name}</span>
+
+          <div className="mt-6 rounded-2xl p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm uppercase tracking-wide text-mainAccent">Path Progress</p>
+              <span className="text-sm text-white">{progress}%</span>
             </div>
-          )}
-        </div>
 
-        {/* Progress (if enrolled) */}
-        {isEnrolled && (
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium">Your Progress</span>
-                <span className="text-sm text-muted-foreground">{progress}%</span>
-              </div>
-              <Progress value={progress} className="h-2" />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Learning Objectives */}
-        <div className="mb-6">
-          <h2 className="font-semibold mb-3">What You'll Learn</h2>
-          <Card>
-            <CardContent className="p-4">
-              <ul className="space-y-2">
-                {lesson.learning_objectives?.map((objective, index) => (
-                  <li key={index} className="flex items-start gap-2">
-                    <CheckCircle className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
-                    <span>{objective}</span>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Lesson Sections */}
-        {isEnrolled && (
-          <div className="mb-6">
-            <h2 className="font-semibold mb-3">Lesson Content</h2>
-            <Card>
-              <CardContent className="p-0">
-                {lessonSections.map((section, index) => (
-                  <React.Fragment key={section.id}>
-                    <Link 
-                      to={`/lessons/${id}/${section.id}`}
-                      className="flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        section.completed 
-                          ? 'bg-success text-white' 
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {section.completed ? (
-                          <CheckCircle className="h-5 w-5" />
-                        ) : (
-                          <span className="text-sm font-medium">{index + 1}</span>
+            <div className="mt-3 overflow-x-auto pb-1 scrollbar-hide">
+              <div className="flex min-w-max items-center">
+                {displayStops.map((stop, index) => {
+                  const isDone = index < completedStops;
+                  const isCurrent =
+                    !isDone &&
+                    (currentStopId === stop.id ||
+                      (!currentStopId && index === completedStops && completedStops < displayStops.length));
+                  return (
+                    <React.Fragment key={stop.id}>
+                      <div
+                        className={cn(
+                          'h-10 w-10 rounded-full border flex items-center justify-center text-xs',
+                          isDone
+                            ? 'border-[#b51f3d] bg-duoGreen text-white'
+                            : isCurrent
+                              ? 'border-mainAccent bg-mainAccent text-main'
+                              : 'border-mainAlt text-mainAccent'
                         )}
+                        title={stop.label}
+                      >
+                        {isDone ? <Check className="h-4 w-4" /> : index + 1}
                       </div>
-                      <span className="flex-1 font-medium">{section.title}</span>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                    </Link>
-                    {index < lessonSections.length - 1 && <Separator />}
-                  </React.Fragment>
-                ))}
-              </CardContent>
-            </Card>
+                      {index < displayStops.length - 1 ? (
+                        <div className={cn('h-[2px] w-7 mx-1', index < completedStops - 1 ? 'bg-duoGreen' : 'bg-mainAlt')} />
+                      ) : null}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+
           </div>
-        )}
 
-        {/* Description */}
-        <div className="mb-6">
-          <h2 className="font-semibold mb-3">About This Lesson</h2>
-          <p className="text-muted-foreground">{lesson.description}</p>
-        </div>
-
-        {/* Comparison section */}
-        {lesson.comparison_content && (
-          <div className="mb-6">
-            <h2 className="font-semibold mb-3">Boomer Translation Guide</h2>
-            <Card className="bg-muted/50">
-              <CardContent className="p-4">
-                <p className="text-sm">{lesson.comparison_content}</p>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* CTA */}
-        <div className="sticky bottom-nav-height md:bottom-4 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t md:border md:rounded-xl">
-          {isEnrolled ? (
-            <Button asChild className="w-full gradient-primary border-0" size="lg">
-              <Link to={`/lessons/${id}/intro`}>
+          <div className="mt-6">
+            {quizBlocked && isEnrolled ? (
+              <Button className="w-full h-14 text-base" disabled>
+                {heartsRefill ? `No hearts left. Refill at ${heartsRefill}` : 'No hearts left. Try again later.'}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => {
+                  void handleStartLesson();
+                }}
+                className="w-full h-14 duo-button-primary text-base"
+                disabled={isStarting}
+              >
                 <Play className="h-5 w-5 mr-2" />
-                {progress > 0 ? 'Continue Lesson' : 'Start Lesson'}
-              </Link>
-            </Button>
-          ) : (
-            <Button onClick={handleEnroll} className="w-full" size="lg">
-              Enroll Now - Free
-            </Button>
-          )}
-        </div>
+                {isStarting ? 'Starting...' : ctaLabel}
+              </Button>
+            )}
+          </div>
+        </section>
+
       </div>
     </MainLayout>
   );

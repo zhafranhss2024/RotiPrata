@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { deleteLesson, fetchAdminLessons } from '@/lib/api';
 import type { Lesson } from '@/types';
 
@@ -59,53 +58,59 @@ const AdminLessonsPage = () => {
 
         {loadError && <p className="text-sm text-destructive">{loadError}</p>}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>All Lessons ({lessons.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading lessons...
-              </div>
-            ) : lessons.length === 0 ? (
-              <p className="text-muted-foreground">No lessons available yet.</p>
-            ) : (
-              lessons.map((lesson) => (
-                <div key={lesson.id} className="border rounded-lg p-4 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold">{lesson.title}</p>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${
-                          lesson.is_published ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-                        }`}
-                      >
-                        {lesson.is_published ? 'Published' : 'Draft'}
-                      </span>
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-white">All Lessons ({lessons.length})</h2>
+
+          {isLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading lessons...
+            </div>
+          ) : lessons.length === 0 ? (
+            <p className="text-muted-foreground">No lessons available yet.</p>
+          ) : (
+            <div className="space-y-1">
+              {lessons.map((lesson) => (
+                <div key={lesson.id} className="px-1">
+                  <div className="flex items-start justify-between gap-4 rounded-xl px-3 py-3 hover:bg-mainAlt/25 transition-colors">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-white truncate">{lesson.title}</p>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full ${
+                            lesson.is_published
+                              ? 'bg-emerald-900/40 text-emerald-300'
+                              : 'bg-amber-900/35 text-amber-300'
+                          }`}
+                        >
+                          {lesson.is_published ? 'Published' : 'Draft'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground line-clamp-2">{lesson.summary || lesson.description}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">{lesson.summary || lesson.description}</p>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <Link to={`/admin/lessons/${lesson.id}/edit`}>
-                      <Button variant="outline" size="sm">
-                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                    <div className="flex gap-2 shrink-0">
+                      <Link to={`/admin/lessons/${lesson.id}/edit`}>
+                        <Button
+                          size="sm"
+                          className="h-9 border border-mainAlt bg-transparent text-white hover:bg-mainAlt/35"
+                        >
+                          <Pencil className="h-4 w-4 mr-1" /> Edit
+                        </Button>
+                      </Link>
+                      <Button
+                        size="sm"
+                        onClick={() => handleDelete(lesson)}
+                        disabled={isDeleting}
+                        className="h-9 bg-[#fe2c55] hover:bg-[#ff3f69] text-white"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" /> Delete
                       </Button>
-                    </Link>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(lesson)}
-                      disabled={isDeleting}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" /> Delete
-                    </Button>
+                    </div>
                   </div>
                 </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </MainLayout>
   );

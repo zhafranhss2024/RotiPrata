@@ -58,6 +58,29 @@ set_env_paths() {
   echo "If the server still cannot find tools, open a new terminal and re-run mvn."
 }
 
+update_ytdlp() {
+  if ! command -v yt-dlp >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Updating yt-dlp..."
+  if yt-dlp -U >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    echo "yt-dlp self-update failed; trying pip fallback..."
+    python3 -m pip install -U yt-dlp
+    return 0
+  fi
+
+  if command -v python >/dev/null 2>&1; then
+    echo "yt-dlp self-update failed; trying pip fallback..."
+    python -m pip install -U yt-dlp
+    return 0
+  fi
+}
+
 OS_NAME="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 if [[ "$OS_NAME" == "darwin" ]]; then
@@ -67,6 +90,8 @@ if [[ "$OS_NAME" == "darwin" ]]; then
   fi
   brew update
   brew install ffmpeg yt-dlp
+  brew upgrade yt-dlp || true
+  update_ytdlp
   set_env_paths
   echo "Done."
   exit 0
@@ -77,6 +102,7 @@ if [[ "$OS_NAME" == "linux" ]]; then
     sudo apt-get update
     sudo apt-get install -y ffmpeg python3 python3-pip
     python3 -m pip install -U yt-dlp
+    update_ytdlp
     set_env_paths
     echo "Done."
     exit 0
@@ -85,6 +111,7 @@ if [[ "$OS_NAME" == "linux" ]]; then
   if command -v dnf >/dev/null 2>&1; then
     sudo dnf install -y ffmpeg python3 python3-pip || true
     python3 -m pip install -U yt-dlp
+    update_ytdlp
     set_env_paths
     echo "Done (ffmpeg may require RPM Fusion on some distros)."
     exit 0
@@ -93,6 +120,7 @@ if [[ "$OS_NAME" == "linux" ]]; then
   if command -v yum >/dev/null 2>&1; then
     sudo yum install -y ffmpeg python3 python3-pip || true
     python3 -m pip install -U yt-dlp
+    update_ytdlp
     set_env_paths
     echo "Done (ffmpeg may require EPEL/RPM Fusion on some distros)."
     exit 0
@@ -101,6 +129,7 @@ if [[ "$OS_NAME" == "linux" ]]; then
   if command -v apk >/dev/null 2>&1; then
     sudo apk add --no-cache ffmpeg python3 py3-pip
     python3 -m pip install -U yt-dlp
+    update_ytdlp
     set_env_paths
     echo "Done."
     exit 0
@@ -109,6 +138,7 @@ if [[ "$OS_NAME" == "linux" ]]; then
   if command -v pacman >/dev/null 2>&1; then
     sudo pacman -Sy --noconfirm ffmpeg python-pip
     python -m pip install -U yt-dlp
+    update_ytdlp
     set_env_paths
     echo "Done."
     exit 0
@@ -117,6 +147,7 @@ if [[ "$OS_NAME" == "linux" ]]; then
   if command -v zypper >/dev/null 2>&1; then
     sudo zypper install -y ffmpeg python3 python3-pip || true
     python3 -m pip install -U yt-dlp
+    update_ytdlp
     set_env_paths
     echo "Done (ffmpeg may require Packman repo on some distros)."
     exit 0

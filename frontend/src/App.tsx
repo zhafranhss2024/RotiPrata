@@ -13,6 +13,8 @@ import FeedPage from "./pages/FeedPage";
 import ExplorePage from "./pages/ExplorePage";
 import LessonsPage from "./pages/LessonsPage";
 import LessonDetailPage from "./pages/LessonDetailPage";
+import LessonSectionPage from "./pages/LessonSectionPage";
+import LessonQuizPage from "./pages/LessonQuizPage";
 import ProfilePage from "./pages/ProfilePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -67,6 +69,22 @@ const App = () => (
                 element={
                   <RequireAuth>
                     <LessonDetailPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/lessons/:id/quiz"
+                element={
+                  <RequireAuth>
+                    <LessonQuizPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/lessons/:id/:sectionId"
+                element={
+                  <RequireAuth>
+                    <LessonSectionPage />
                   </RequireAuth>
                 }
               />
