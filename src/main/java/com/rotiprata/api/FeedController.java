@@ -3,6 +3,7 @@ package com.rotiprata.api;
 import com.rotiprata.api.dto.FeedResponse;
 import com.rotiprata.application.FeedService;
 import com.rotiprata.security.SecurityUtils;
+import java.util.UUID;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,7 @@ public class FeedController {
         if (jwt == null) {
             return new FeedResponse(java.util.List.of(), false);
         }
-        return feedService.getFeed(SecurityUtils.getAccessToken(), page);
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return feedService.getFeed(SecurityUtils.getAccessToken(), userId, page);
     }
 }

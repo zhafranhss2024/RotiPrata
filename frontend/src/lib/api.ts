@@ -149,6 +149,14 @@ export type ContentMediaStatusResponse = {
   errorMessage?: string | null;
 };
 
+export type ContentLikeResponse = {
+  liked: boolean;
+  likesCount: number;
+};
+
+const mockLikeCounts = new Map<string, number>();
+const mockLikedContentIds = new Set<string>();
+
 const withMockFallback = async <T>(
   label: string,
   fallback: () => T,
@@ -601,8 +609,46 @@ export const fetchContentQuiz = (contentId: string) =>
 
 export const trackContentView = (contentId: string) => apiPost<void>(`/content/${contentId}/view`);
 
-export const voteContent = (contentId: string, voteType: string) =>
-  apiPost<void>(`/content/${contentId}/vote`, { vote_type: voteType });
+export const likeContent = (contentId: string) =>
+  withMockFallback(
+    "content-like",
+    () => {
+      const current =
+        mockLikeCounts.get(contentId) ??
+        Number(
+          mockContents.find((item) => item.id === contentId)?.likes_count ??
+          mockContents.find((item) => item.id === contentId)?.educational_value_votes ??
+          0
+        );
+      if (mockLikedContentIds.has(contentId)) {
+        return { liked: true, likesCount: current };
+      }
+      const next = current + 1;
+      mockLikeCounts.set(contentId, next);
+      mockLikedContentIds.add(contentId);
+      return { liked: true, likesCount: next };
+    },
+    () => apiPost<ContentLikeResponse>(`/content/${contentId}/like`)
+  );
+
+export const unlikeContent = (contentId: string) =>
+  withMockFallback(
+    "content-unlike",
+    () => {
+      const current =
+        mockLikeCounts.get(contentId) ??
+        Number(
+          mockContents.find((item) => item.id === contentId)?.likes_count ??
+          mockContents.find((item) => item.id === contentId)?.educational_value_votes ??
+          0
+        );
+      const next = Math.max(0, current - (mockLikedContentIds.has(contentId) ? 1 : 0));
+      mockLikeCounts.set(contentId, next);
+      mockLikedContentIds.delete(contentId);
+      return { liked: false, likesCount: next };
+    },
+    () => apiDelete<ContentLikeResponse>(`/content/${contentId}/like`)
+  );
 
 export const saveContent = (contentId: string) => apiPost<void>(`/content/${contentId}/save`);
 
@@ -937,5 +983,3 @@ export const createLessonQuiz = (lessonId: string, questions: Partial<QuizQuesti
 
 export const replaceAdminLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
   apiPut<QuizQuestion[]>(`/admin/lessons/${lessonId}/quiz`, { questions });
-
-

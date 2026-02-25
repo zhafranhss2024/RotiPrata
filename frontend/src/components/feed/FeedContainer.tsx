@@ -3,9 +3,10 @@ import { FeedCard } from './FeedCard';
 import { ContentDetailSheet } from './ContentDetailSheet';
 import { QuizSheet } from '../quiz/QuizSheet';
 import type { Content, Quiz } from '@/types';
-import { fetchContentQuiz, flagContent, rejectContent, saveContent, trackContentView, voteContent } from '@/lib/api';
+import { fetchContentQuiz, flagContent, likeContent, rejectContent, saveContent, trackContentView, unlikeContent } from '@/lib/api';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { recordLikeActivity, recordWatchActivity } from '@/lib/activityHistory';
 
 interface FeedContainerProps {
   contents: Content[];
@@ -15,6 +16,12 @@ interface FeedContainerProps {
   initialIndex?: number;
   containerClassName?: string;
 }
+
+type ContentLikeState = {
+  likesCount: number;
+  likedByMe: boolean;
+  isLiking: boolean;
+};
 
 // Backend: /api/content/{id} actions.
 // Dummy behavior is used when mocks are enabled.
@@ -39,8 +46,32 @@ export function FeedContainer({
   const [showDetail, setShowDetail] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
+  const [contentLikeState, setContentLikeState] = useState<Record<string, ContentLikeState>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const isAdminUser = isAdmin();
+
+  const resolveLikesCount = useCallback(
+    (content: Content) => Number(content.likes_count ?? content.educational_value_votes ?? 0),
+    []
+  );
+
+  const resolveLikedByMe = useCallback((content: Content) => {
+    return content.liked_by_me === true || content.liked_by_me === 'true';
+  }, []);
+
+  const getLikeState = useCallback(
+    (content: Content): ContentLikeState => {
+      const existing = contentLikeState[content.id];
+      if (existing) return existing;
+      return {
+        likesCount: resolveLikesCount(content),
+        likedByMe: resolveLikedByMe(content),
+        isLiking: false,
+      };
+    },
+    [contentLikeState, resolveLikedByMe, resolveLikesCount]
+  );
+
   const visibleContents = useMemo(
     () => contents.filter((content) => !hiddenContentIds.has(content.id)),
     [contents, hiddenContentIds]
@@ -74,6 +105,7 @@ export function FeedContainer({
         trackContentView(contentId).catch((error) => {
           console.warn('Failed to track view', error);
         });
+        recordWatchActivity(contentId, visibleContents[newIndex]?.title || 'Untitled');
       }
     }
 
@@ -110,11 +142,70 @@ export function FeedContainer({
       });
   };
 
-  const handleVote = async (contentId: string, type: string) => {
+  const handleLike = async (content: Content) => {
+    const likeState = getLikeState(content);
+    if (likeState.isLiking) {
+      return;
+    }
+
+    const optimisticState: ContentLikeState = {
+      likesCount: likeState.likedByMe
+        ? Math.max(0, likeState.likesCount - 1)
+        : likeState.likesCount + 1,
+      likedByMe: !likeState.likedByMe,
+      isLiking: true,
+    };
+    setContentLikeState((prev) => ({ ...prev, [content.id]: optimisticState }));
+    if (selectedContent?.id === content.id) {
+      setSelectedContent((prev) =>
+        prev
+          ? {
+              ...prev,
+              likes_count: optimisticState.likesCount,
+              liked_by_me: optimisticState.likedByMe,
+            }
+          : prev
+      );
+    }
+
     try {
-      await voteContent(contentId, type);
+      const response = likeState.likedByMe
+        ? await unlikeContent(content.id)
+        : await likeContent(content.id);
+      const finalState: ContentLikeState = {
+        likesCount: response.likesCount,
+        likedByMe: response.liked,
+        isLiking: false,
+      };
+      setContentLikeState((prev) => ({ ...prev, [content.id]: finalState }));
+      if (selectedContent?.id === content.id) {
+        setSelectedContent((prev) =>
+          prev
+            ? {
+                ...prev,
+                likes_count: finalState.likesCount,
+                liked_by_me: finalState.likedByMe,
+              }
+            : prev
+        );
+      }
+      if (finalState.likedByMe) {
+        recordLikeActivity(content.id, content.title || 'Untitled');
+      }
     } catch (error) {
-      console.warn('Vote failed', error);
+      setContentLikeState((prev) => ({ ...prev, [content.id]: { ...likeState, isLiking: false } }));
+      if (selectedContent?.id === content.id) {
+        setSelectedContent((prev) =>
+          prev
+            ? {
+                ...prev,
+                likes_count: likeState.likesCount,
+                liked_by_me: likeState.likedByMe,
+              }
+            : prev
+        );
+      }
+      console.warn('Like failed', error);
     }
   };
 
@@ -204,25 +295,31 @@ export function FeedContainer({
         ref={containerRef}
         className={`${containerHeightClass} ${containerClassName ?? ""} overflow-y-auto snap-y snap-mandatory overscroll-y-contain scrollbar-hide`}
       >
-        {visibleContents.map((content, index) => (
-          <div key={content.id} className="h-full w-full snap-start snap-always">
-            <FeedCard
-              content={content}
-              isActive={index === activeIndex}
-              onSwipeLeft={() => handleSwipeLeft(content)}
-              onVote={(type) => handleVote(content.id, type)}
-              onSave={() => handleSave(content.id)}
-              onShare={() => handleShare(content)}
-              onFlag={() => handleFlag(content.id)}
-              onQuizClick={() => handleQuizClick(content)}
-              showEdit={isAdminUser && content.content_type === 'video'}
-              onEdit={() => handleEdit(content)}
-              showTakeDown={isAdminUser && content.content_type === 'video'}
-              onTakeDown={() => handleTakeDown(content.id)}
-              isTakingDown={takingDownContentId === content.id}
-            />
-          </div>
-        ))}
+        {visibleContents.map((content, index) => {
+          const likeState = getLikeState(content);
+          return (
+            <div key={content.id} className="h-full w-full snap-start snap-always">
+              <FeedCard
+                content={content}
+                isActive={index === activeIndex}
+                onSwipeLeft={() => handleSwipeLeft(content)}
+                onLike={() => handleLike(content)}
+                likeCount={likeState.likesCount}
+                likedByMe={likeState.likedByMe}
+                isLiking={likeState.isLiking}
+                onSave={() => handleSave(content.id)}
+                onShare={() => handleShare(content)}
+                onFlag={() => handleFlag(content.id)}
+                onQuizClick={() => handleQuizClick(content)}
+                showEdit={isAdminUser && content.content_type === 'video'}
+                onEdit={() => handleEdit(content)}
+                showTakeDown={isAdminUser && content.content_type === 'video'}
+                onTakeDown={() => handleTakeDown(content.id)}
+                isTakingDown={takingDownContentId === content.id}
+              />
+            </div>
+          );
+        })}
         
         {/* Loading indicator */}
         {isLoading && (

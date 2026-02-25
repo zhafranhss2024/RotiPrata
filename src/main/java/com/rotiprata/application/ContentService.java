@@ -37,6 +37,115 @@ public class ContentService {
         this.supabaseAdminRestClient = supabaseAdminRestClient;
     }
 
+    public LikeContentResult likeContent(UUID userId, UUID contentId) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content",
+            buildQuery(Map.of(
+                "select", "id,likes_count",
+                "id", "eq." + contentId
+            )),
+            MAP_LIST
+        );
+
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
+        }
+
+        int currentCount = toInt(rows.get(0).get("likes_count"));
+        List<Map<String, Object>> existingLike = supabaseAdminRestClient.getList(
+            "content_likes",
+            buildQuery(Map.of(
+                "select", "id",
+                "content_id", "eq." + contentId,
+                "user_id", "eq." + userId,
+                "limit", "1"
+            )),
+            MAP_LIST
+        );
+
+        if (!existingLike.isEmpty()) {
+            return new LikeContentResult(currentCount, true);
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("content_id", contentId);
+        payload.put("user_id", userId);
+        payload.put("created_at", OffsetDateTime.now());
+        supabaseAdminRestClient.postList("content_likes", payload, MAP_LIST);
+
+        int nextCount = Math.max(0, currentCount + 1);
+        List<Map<String, Object>> updated = supabaseAdminRestClient.patchList(
+            "content",
+            buildQuery(Map.of("id", "eq." + contentId)),
+            Map.of(
+                "likes_count", nextCount,
+                "updated_at", OffsetDateTime.now()
+            ),
+            MAP_LIST
+        );
+
+        int resolvedCount = updated.isEmpty() ? nextCount : toInt(updated.get(0).get("likes_count"));
+        return new LikeContentResult(resolvedCount, true);
+    }
+
+    public LikeContentResult unlikeContent(UUID userId, UUID contentId) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content",
+            buildQuery(Map.of(
+                "select", "id,likes_count",
+                "id", "eq." + contentId
+            )),
+            MAP_LIST
+        );
+
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
+        }
+
+        int currentCount = toInt(rows.get(0).get("likes_count"));
+        List<Map<String, Object>> deletedLikes = supabaseAdminRestClient.deleteList(
+            "content_likes",
+            buildQuery(Map.of(
+                "content_id", "eq." + contentId,
+                "user_id", "eq." + userId
+            )),
+            MAP_LIST
+        );
+
+        if (deletedLikes.isEmpty()) {
+            return new LikeContentResult(Math.max(0, currentCount), false);
+        }
+
+        int decrement = Math.max(1, deletedLikes.size());
+        int nextCount = Math.max(0, currentCount - decrement);
+        List<Map<String, Object>> updated = supabaseAdminRestClient.patchList(
+            "content",
+            buildQuery(Map.of("id", "eq." + contentId)),
+            Map.of(
+                "likes_count", nextCount,
+                "updated_at", OffsetDateTime.now()
+            ),
+            MAP_LIST
+        );
+
+        int resolvedCount = updated.isEmpty() ? nextCount : toInt(updated.get(0).get("likes_count"));
+        return new LikeContentResult(resolvedCount, false);
+    }
+
     public List<ContentSearchDTO> getFilteredContent(String query, String filter, String accessToken) {
         if (query == null || query.isBlank()) {
             return List.of();
@@ -193,4 +302,6 @@ public class ContentService {
             return 0;
         }
     }
+
+    public record LikeContentResult(int likesCount, boolean liked) {}
 }

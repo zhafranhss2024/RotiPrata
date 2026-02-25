@@ -23,6 +23,7 @@ export function ContentDetailSheet({
   onOpenChange,
 }: ContentDetailSheetProps) {
   if (!content) return null;
+  const likeCount = Number(content.likes_count ?? content.educational_value_votes ?? 0);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -136,7 +137,7 @@ export function ContentDetailSheet({
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span>{content.view_count} views</span>
             <span>•</span>
-            <span>{content.educational_value_votes} found this helpful</span>
+            <span>{likeCount} liked this</span>
           </div>
         </div>
       </SheetContent>

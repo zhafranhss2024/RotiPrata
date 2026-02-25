@@ -3,6 +3,7 @@ package com.rotiprata.api;
 import com.rotiprata.api.dto.ContentMediaStartLinkRequest;
 import com.rotiprata.api.dto.ContentMediaStartResponse;
 import com.rotiprata.api.dto.ContentMediaStatusResponse;
+import com.rotiprata.api.dto.ContentLikeResponse;
 import com.rotiprata.api.dto.ContentSubmitRequest;
 import com.rotiprata.api.dto.ContentUpdateRequest;
 import com.rotiprata.application.ContentService;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -101,6 +103,26 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         contentService.trackView(userId, contentId);
+    }
+
+    @PostMapping("/{contentId}/like")
+    public ContentLikeResponse likeContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        ContentService.LikeContentResult result = contentService.likeContent(userId, contentId);
+        return new ContentLikeResponse(result.liked(), result.likesCount());
+    }
+
+    @DeleteMapping("/{contentId}/like")
+    public ContentLikeResponse unlikeContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        ContentService.LikeContentResult result = contentService.unlikeContent(userId, contentId);
+        return new ContentLikeResponse(result.liked(), result.likesCount());
     }
 
     private ContentType detectContentType(MultipartFile file) {

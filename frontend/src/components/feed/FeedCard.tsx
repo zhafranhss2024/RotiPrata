@@ -8,7 +8,10 @@ interface FeedCardProps {
   content: Content;
   isActive?: boolean;
   onSwipeLeft?: () => void;
-  onVote?: (type: 'educational') => void;
+  onLike?: () => void;
+  likeCount?: number;
+  likedByMe?: boolean;
+  isLiking?: boolean;
   onSave?: () => void;
   onShare?: () => void;
   onFlag?: () => void;
@@ -21,7 +24,8 @@ interface FeedCardProps {
 }
 
 // TODO: Replace with Java backend API calls
-// POST /api/content/{id}/vote - Vote on content
+// POST /api/content/{id}/like - Like content
+// DELETE /api/content/{id}/like - Unlike content
 // POST /api/content/{id}/save - Save/bookmark content
 // POST /api/content/{id}/view - Track view
 // POST /api/content/{id}/flag - Flag content
@@ -30,7 +34,10 @@ export function FeedCard({
   content,
   isActive = false,
   onSwipeLeft,
-  onVote,
+  onLike,
+  likeCount,
+  likedByMe = false,
+  isLiking = false,
   onSave,
   onShare,
   onFlag,
@@ -41,6 +48,8 @@ export function FeedCard({
   onTakeDown,
   isTakingDown = false,
 }: FeedCardProps) {
+  const resolvedLikeCount = Number(likeCount ?? content.likes_count ?? content.educational_value_votes ?? 0);
+
   const getCategoryBadgeClass = (type?: string) => {
     switch (type) {
       case 'slang': return 'badge-slang';
@@ -174,13 +183,17 @@ export function FeedCard({
         )}
         {/* Educational value vote */}
         <button
-          onClick={() => onVote?.('educational')}
-          className="flex flex-col items-center gap-1 text-white touch-target"
+          onClick={onLike}
+          disabled={isLiking}
+          className="flex flex-col items-center gap-1 text-white touch-target disabled:opacity-90 disabled:cursor-default"
         >
-          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
-            <Heart className="h-6 w-6" />
+          <div className={cn(
+            "w-12 h-12 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors",
+            likedByMe ? "bg-red-500/35" : "bg-white/20 hover:bg-white/30"
+          )}>
+            <Heart className={cn("h-6 w-6", likedByMe ? "fill-red-500 text-red-500" : "")} />
           </div>
-          <span className="text-xs font-medium">{content.educational_value_votes}</span>
+          <span className="text-xs font-medium">{resolvedLikeCount}</span>
         </button>
 
         {/* Comments - link to detail */}
@@ -229,4 +242,3 @@ export function FeedCard({
     </div>
   );
 }
-

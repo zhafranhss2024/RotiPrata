@@ -60,6 +60,11 @@ export interface Content {
   definition_used: string | null;
   older_version_reference: string | null;
   educational_value_votes: number;
+  likes_count?: number;
+  comments_count?: number;
+  saves_count?: number;
+  shares_count?: number;
+  liked_by_me?: boolean;
   view_count: number;
   is_featured: boolean;
   reviewed_by: string | null;
