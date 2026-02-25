@@ -3,6 +3,8 @@ package com.rotiprata.api;
 import com.rotiprata.api.dto.ContentMediaStartLinkRequest;
 import com.rotiprata.api.dto.ContentMediaStartResponse;
 import com.rotiprata.api.dto.ContentMediaStatusResponse;
+import com.rotiprata.api.dto.ContentQuizResultResponse;
+import com.rotiprata.api.dto.ContentQuizSubmitRequest;
 import com.rotiprata.api.dto.ContentLikeResponse;
 import com.rotiprata.api.dto.ContentSubmitRequest;
 import com.rotiprata.api.dto.ContentUpdateRequest;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/content")
@@ -93,6 +96,66 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return contentDraftService.getMediaStatus(userId, contentId);
+    }
+
+    @GetMapping("/{contentId}/quiz")
+    public Map<String, Object> contentQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        return contentService.getContentQuiz(contentId, SecurityUtils.getAccessToken());
+    }
+
+    @PostMapping("/{contentId}/quiz/submit")
+    public ContentQuizResultResponse submitContentQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @Valid @RequestBody ContentQuizSubmitRequest request
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        Map<String, Object> result = contentService.submitContentQuizResult(
+            userId,
+            contentId,
+            request.score(),
+            request.maxScore(),
+            request.answers(),
+            request.timeTakenSeconds(),
+            SecurityUtils.getAccessToken()
+        );
+        return new ContentQuizResultResponse(
+            result.get("score") instanceof Number n ? n.intValue() : 0,
+            result.get("max_score") instanceof Number n ? n.intValue() : 0,
+            result.get("percentage") instanceof Number n ? n.doubleValue() : 0.0,
+            result.get("passed") instanceof Boolean b ? b : false,
+            result.get("answers") instanceof Map<?, ?> m ? (Map<String, Object>) m : null,
+            result.get("time_taken_seconds") instanceof Number n ? n.intValue() : null,
+            result.get("attempted_at") == null ? null : java.time.OffsetDateTime.parse(result.get("attempted_at").toString())
+        );
+    }
+
+    @GetMapping("/{contentId}/quiz/results/latest")
+    public ContentQuizResultResponse latestContentQuizResult(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        Map<String, Object> result = contentService.getLatestContentQuizResult(
+            userId,
+            contentId,
+            SecurityUtils.getAccessToken()
+        );
+        if (result == null) {
+            return null;
+        }
+        return new ContentQuizResultResponse(
+            result.get("score") instanceof Number n ? n.intValue() : 0,
+            result.get("max_score") instanceof Number n ? n.intValue() : 0,
+            result.get("percentage") instanceof Number n ? n.doubleValue() : 0.0,
+            result.get("passed") instanceof Boolean b ? b : false,
+            result.get("answers") instanceof Map<?, ?> m ? (Map<String, Object>) m : null,
+            result.get("time_taken_seconds") instanceof Number n ? n.intValue() : null,
+            result.get("attempted_at") == null ? null : java.time.OffsetDateTime.parse(result.get("attempted_at").toString())
+        );
     }
 
     @PostMapping("/{contentId}/view")

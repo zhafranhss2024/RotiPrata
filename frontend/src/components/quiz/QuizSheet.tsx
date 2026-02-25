@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fetchLatestContentQuizResult, submitContentQuizResult } from '@/lib/api';
 import type { Quiz, QuizQuestion, Content } from '@/types';
 
 interface QuizSheetProps {
@@ -13,6 +14,33 @@ interface QuizSheetProps {
   onOpenChange: (open: boolean) => void;
   onComplete?: (score: number, maxScore: number) => void;
 }
+
+type StoredQuickQuizResult = {
+  score: number;
+  maxScore: number;
+  completedAt: string;
+};
+
+const QUICK_QUIZ_RESULTS_KEY = 'rotiprata.quickQuiz.latestResults.v1';
+
+const readStoredQuickQuizResults = (): Record<string, StoredQuickQuizResult> => {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(QUICK_QUIZ_RESULTS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, StoredQuickQuizResult> : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeStoredQuickQuizResult = (quizKey: string, result: StoredQuickQuizResult) => {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  const existing = readStoredQuickQuizResults();
+  existing[quizKey] = result;
+  localStorage.setItem(QUICK_QUIZ_RESULTS_KEY, JSON.stringify(existing));
+};
 
 // TODO: Replace with Java backend API calls
 // POST /api/quizzes/{id}/submit - Submit quiz answers
@@ -31,6 +59,7 @@ export function QuizSheet({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [quizComplete, setQuizComplete] = useState(false);
   const [score, setScore] = useState(0);
+  const [completedResult, setCompletedResult] = useState<{ score: number; maxScore: number } | null>(null);
 
   // DUMMY QUESTIONS: used when no quiz is returned from the backend.
   const mockQuestions: QuizQuestion[] = [
@@ -56,6 +85,56 @@ export function QuizSheet({
 
   const questions = quiz?.questions || mockQuestions;
   const currentQ = questions[currentQuestion];
+  const maxScore = useMemo(
+    () => questions.reduce((total, question) => total + (question.points ?? 10), 0),
+    [questions]
+  );
+  const quickQuizKey = useMemo(
+    () => `quiz:${quiz?.id ?? `content:${content?.id ?? 'unknown'}`}`,
+    [quiz?.id, content?.id]
+  );
+
+  const resetQuizState = () => {
+    setCurrentQuestion(0);
+    setSelectedAnswer(null);
+    setShowResult(false);
+    setAnswers({});
+    setQuizComplete(false);
+    setScore(0);
+    setCompletedResult(null);
+  };
+
+  useEffect(() => {
+    if (!open || !content) return;
+    resetQuizState();
+    let cancelled = false;
+    const applyStoredLatest = () => {
+      const stored = readStoredQuickQuizResults()[quickQuizKey];
+      if (!stored || cancelled) return;
+      setCompletedResult({ score: stored.score, maxScore: stored.maxScore });
+      setScore(stored.score);
+      setQuizComplete(true);
+      setCurrentQuestion(Math.max(0, questions.length - 1));
+    };
+    fetchLatestContentQuizResult(content.id)
+      .then((latest) => {
+        if (cancelled) return;
+        if (!latest) {
+          applyStoredLatest();
+          return;
+        }
+        setCompletedResult({ score: latest.score, maxScore: latest.maxScore });
+        setScore(latest.score);
+        setQuizComplete(true);
+        setCurrentQuestion(Math.max(0, questions.length - 1));
+      })
+      .catch(() => {
+        applyStoredLatest();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, content, quickQuizKey, questions.length]);
 
   const handleSelectAnswer = (answer: string) => {
     if (showResult) return;
@@ -73,7 +152,7 @@ export function QuizSheet({
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
       setSelectedAnswer(null);
@@ -81,29 +160,28 @@ export function QuizSheet({
     } else {
       // Quiz complete
       setQuizComplete(true);
+      setCompletedResult({ score, maxScore });
+      writeStoredQuickQuizResult(quickQuizKey, {
+        score,
+        maxScore,
+        completedAt: new Date().toISOString(),
+      });
+      if (content) {
+        submitContentQuizResult(content.id, {
+          score,
+          maxScore,
+          answers,
+        }).catch((error) => {
+          console.warn('Failed to persist quick quiz result', error);
+        });
+      }
       
-      // TODO: Submit quiz results to backend
-      // await fetch(`/api/quizzes/${quiz?.id}/submit`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ answers, score, max_score: questions.length * 10 }),
-      // });
-      
-      onComplete?.(score, questions.length * 10);
+      onComplete?.(score, maxScore);
     }
   };
 
-  const handleReset = () => {
-    setCurrentQuestion(0);
-    setSelectedAnswer(null);
-    setShowResult(false);
-    setAnswers({});
-    setQuizComplete(false);
-    setScore(0);
-  };
-
   const handleClose = () => {
-    handleReset();
+    resetQuizState();
     onOpenChange(false);
   };
 
@@ -126,11 +204,11 @@ export function QuizSheet({
             /* Results screen */
             <div className="text-center py-8">
               <div className="text-6xl mb-4">
-                {score >= questions.length * 5 ? '🎉' : '💪'}
+                {(completedResult?.score ?? score) >= Math.round((completedResult?.maxScore ?? maxScore) * 0.5) ? '🎉' : '💪'}
               </div>
               <h2 className="text-2xl font-bold mb-2">Quiz Complete!</h2>
               <p className="text-muted-foreground mb-6">
-                You scored {score} out of {questions.length * 10} points
+                You scored {completedResult?.score ?? score} out of {completedResult?.maxScore ?? maxScore} points
               </p>
               
               <div className="w-32 h-32 mx-auto mb-6 relative">
@@ -151,19 +229,19 @@ export function QuizSheet({
                     stroke="currentColor"
                     strokeWidth="8"
                     fill="none"
-                    strokeDasharray={`${(score / (questions.length * 10)) * 352} 352`}
+                    strokeDasharray={`${((completedResult?.score ?? score) / Math.max(1, completedResult?.maxScore ?? maxScore)) * 352} 352`}
                     className="text-primary"
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-2xl font-bold">
-                    {Math.round((score / (questions.length * 10)) * 100)}%
+                    {Math.round(((completedResult?.score ?? score) / Math.max(1, completedResult?.maxScore ?? maxScore)) * 100)}%
                   </span>
                 </div>
               </div>
 
               <div className="flex gap-3">
-                <Button variant="outline" onClick={handleReset} className="flex-1">
+                <Button variant="outline" onClick={resetQuizState} className="flex-1">
                   Try Again
                 </Button>
                 <Button onClick={handleClose} className="flex-1">

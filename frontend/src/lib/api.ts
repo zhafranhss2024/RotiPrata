@@ -161,6 +161,16 @@ export type ContentLikeResponse = {
   likesCount: number;
 };
 
+export type ContentQuizResultResponse = {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean;
+  answers?: Record<string, unknown> | null;
+  timeTakenSeconds?: number | null;
+  attemptedAt?: string | null;
+};
+
 const mockLikeCounts = new Map<string, number>();
 const mockLikedContentIds = new Set<string>();
 const mockSavedContentIds = new Set<string>();
@@ -627,6 +637,19 @@ export const submitContent = (contentId: string, payload: Record<string, unknown
 
 export const fetchContentQuiz = (contentId: string) =>
   withMockFallback("content-quiz", () => null, () => apiGet<Quiz>(`/content/${contentId}/quiz`));
+
+export const submitContentQuizResult = (
+  contentId: string,
+  payload: { score: number; maxScore: number; answers?: Record<string, unknown>; timeTakenSeconds?: number }
+) =>
+  apiPost<ContentQuizResultResponse>(`/content/${contentId}/quiz/submit`, payload);
+
+export const fetchLatestContentQuizResult = (contentId: string) =>
+  withMockFallback(
+    "content-quiz-latest-result",
+    () => null,
+    () => apiGet<ContentQuizResultResponse | null>(`/content/${contentId}/quiz/results/latest`)
+  );
 
 export const trackContentView = (contentId: string) => apiPost<void>(`/content/${contentId}/view`);
 

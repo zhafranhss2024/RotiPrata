@@ -225,6 +225,121 @@ public class ContentService {
         );
     }
 
+    public Map<String, Object> getContentQuiz(UUID contentId, String accessToken) {
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+        String token = requireAccessToken(accessToken);
+
+        List<Map<String, Object>> quizzes = supabaseRestClient.getList(
+            "/quizzes",
+            buildQuery(Map.of(
+                "select", "id,lesson_id,content_id,title,description,quiz_type,time_limit_seconds,passing_score,created_by,created_at,updated_at,is_active,archived_at",
+                "content_id", "eq." + contentId,
+                "is_active", "eq.true",
+                "order", "created_at.desc",
+                "limit", "1"
+            )),
+            token,
+            MAP_LIST
+        );
+        if (quizzes.isEmpty()) {
+            return null;
+        }
+
+        Map<String, Object> quiz = new LinkedHashMap<>(quizzes.get(0));
+        Object quizId = quiz.get("id");
+        if (quizId == null) {
+            return quiz;
+        }
+
+        List<Map<String, Object>> questions = supabaseRestClient.getList(
+            "/quiz_questions",
+            buildQuery(Map.of(
+                "select", "id,quiz_id,question_text,question_type,media_url,options,correct_answer,explanation,points,order_index,created_at",
+                "quiz_id", "eq." + quizId,
+                "order", "order_index.asc"
+            )),
+            token,
+            MAP_LIST
+        );
+        quiz.put("questions", questions);
+        return quiz;
+    }
+
+    public Map<String, Object> submitContentQuizResult(
+        UUID userId,
+        UUID contentId,
+        int score,
+        int maxScore,
+        Map<String, Object> answers,
+        Integer timeTakenSeconds,
+        String accessToken
+    ) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+        String token = requireAccessToken(accessToken);
+        Map<String, Object> quiz = getContentQuiz(contentId, token);
+        if (quiz == null || quiz.get("id") == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quiz not found for content");
+        }
+
+        int normalizedMax = Math.max(1, maxScore);
+        int normalizedScore = Math.max(0, Math.min(score, normalizedMax));
+        double percentage = (normalizedScore * 100.0) / normalizedMax;
+        int passingScore = toInt(quiz.get("passing_score"));
+        boolean passed = percentage >= Math.max(0, passingScore);
+
+        Map<String, Object> insert = new LinkedHashMap<>();
+        insert.put("user_id", userId);
+        insert.put("quiz_id", quiz.get("id"));
+        insert.put("score", normalizedScore);
+        insert.put("max_score", normalizedMax);
+        insert.put("percentage", percentage);
+        insert.put("passed", passed);
+        insert.put("answers", answers == null ? null : answers);
+        insert.put("time_taken_seconds", timeTakenSeconds);
+        insert.put("attempted_at", OffsetDateTime.now());
+
+        List<Map<String, Object>> created = supabaseRestClient.postList("/user_quiz_results", insert, token, MAP_LIST);
+        if (created.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to save quiz result");
+        }
+        return created.get(0);
+    }
+
+    public Map<String, Object> getLatestContentQuizResult(UUID userId, UUID contentId, String accessToken) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+        String token = requireAccessToken(accessToken);
+        Map<String, Object> quiz = getContentQuiz(contentId, token);
+        if (quiz == null || quiz.get("id") == null) {
+            return null;
+        }
+
+        List<Map<String, Object>> rows = supabaseRestClient.getList(
+            "/user_quiz_results",
+            buildQuery(Map.of(
+                "select", "score,max_score,percentage,passed,answers,time_taken_seconds,attempted_at",
+                "user_id", "eq." + userId,
+                "quiz_id", "eq." + quiz.get("id"),
+                "order", "attempted_at.desc",
+                "limit", "1"
+            )),
+            token,
+            MAP_LIST
+        );
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public List<ContentSearchDTO> getFilteredContent(String query, String filter, String accessToken) {
         if (query == null || query.isBlank()) {
             return List.of();
