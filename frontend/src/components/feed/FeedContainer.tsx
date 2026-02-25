@@ -209,6 +209,14 @@ export function FeedContainer({
     }
   };
 
+  const handleDoubleTapLike = async (content: Content) => {
+    const likeState = getLikeState(content);
+    if (likeState.likedByMe || likeState.isLiking) {
+      return;
+    }
+    await handleLike(content);
+  };
+
   const handleSave = async (contentId: string) => {
     try {
       await saveContent(contentId);
@@ -304,6 +312,7 @@ export function FeedContainer({
                 isActive={index === activeIndex}
                 onSwipeLeft={() => handleSwipeLeft(content)}
                 onLike={() => handleLike(content)}
+                onDoubleTapLike={() => handleDoubleTapLike(content)}
                 likeCount={likeState.likesCount}
                 likedByMe={likeState.likedByMe}
                 isLiking={likeState.isLiking}

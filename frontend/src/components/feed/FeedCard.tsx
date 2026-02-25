@@ -1,5 +1,5 @@
-import React from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, Flag, ChevronLeft, BookOpen, ShieldOff, FilePenLine } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Heart, MessageCircle, Share2, Bookmark, Flag, ChevronLeft, BookOpen, ShieldOff, FilePenLine, Pause } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import type { Content, Category } from '@/types';
@@ -9,6 +9,7 @@ interface FeedCardProps {
   isActive?: boolean;
   onSwipeLeft?: () => void;
   onLike?: () => void;
+  onDoubleTapLike?: () => void;
   likeCount?: number;
   likedByMe?: boolean;
   isLiking?: boolean;
@@ -35,6 +36,7 @@ export function FeedCard({
   isActive = false,
   onSwipeLeft,
   onLike,
+  onDoubleTapLike,
   likeCount,
   likedByMe = false,
   isLiking = false,
@@ -49,6 +51,64 @@ export function FeedCard({
   isTakingDown = false,
 }: FeedCardProps) {
   const resolvedLikeCount = Number(likeCount ?? content.likes_count ?? content.educational_value_votes ?? 0);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const singleTapTimeoutRef = useRef<number | null>(null);
+  const [isPausedByUser, setIsPausedByUser] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!isActive) {
+      video.pause();
+      return;
+    }
+    if (isPausedByUser) {
+      video.pause();
+      return;
+    }
+    video.play().catch(() => {
+      // Ignore autoplay/playback interruptions from the browser.
+    });
+  }, [isActive, isPausedByUser]);
+
+  useEffect(() => {
+    return () => {
+      if (singleTapTimeoutRef.current !== null) {
+        window.clearTimeout(singleTapTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const toggleVideoPlayback = () => {
+    const video = videoRef.current;
+    if (!video || !isActive) return;
+
+    if (video.paused) {
+      video.play().then(() => setIsPausedByUser(false)).catch(() => {
+        // Ignore playback interruptions from the browser.
+      });
+      return;
+    }
+    video.pause();
+    setIsPausedByUser(true);
+  };
+
+  const handleMediaTap = () => {
+    if (content.content_type !== 'video' || !content.media_url) {
+      return;
+    }
+    if (singleTapTimeoutRef.current !== null) {
+      window.clearTimeout(singleTapTimeoutRef.current);
+      singleTapTimeoutRef.current = null;
+      onDoubleTapLike?.();
+      return;
+    }
+    singleTapTimeoutRef.current = window.setTimeout(() => {
+      singleTapTimeoutRef.current = null;
+      toggleVideoPlayback();
+    }, 220);
+  };
 
   const getCategoryBadgeClass = (type?: string) => {
     switch (type) {
@@ -67,12 +127,14 @@ export function FeedCard({
       <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden">
         {content.content_type === 'video' && content.media_url ? (
           <video
+            ref={videoRef}
             src={content.media_url}
             className="w-full h-full object-contain"
             loop
             muted={!isActive}
             autoPlay={isActive}
             playsInline
+            onClick={handleMediaTap}
           />
         ) : content.content_type === 'image' && content.media_url ? (
           <img
@@ -87,8 +149,21 @@ export function FeedCard({
         )}
       </div>
 
+      {content.content_type === 'video' && content.media_url && isPausedByUser && (
+        <button
+          onClick={toggleVideoPlayback}
+          className="absolute inset-0 z-20 flex items-center justify-center text-white"
+          aria-label="Resume video"
+        >
+          <div className="flex items-center gap-2 rounded-full bg-black/55 px-4 py-2 backdrop-blur-sm">
+            <Pause className="h-5 w-5" />
+            <span className="text-sm font-semibold">Paused</span>
+          </div>
+        </button>
+      )}
+
       {/* Gradient overlay */}
-      <div className="absolute inset-0 gradient-feed" />
+      <div className="absolute inset-0 gradient-feed pointer-events-none" />
 
       {/* Swipe left indicator */}
       <button
