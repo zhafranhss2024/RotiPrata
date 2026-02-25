@@ -489,7 +489,7 @@ const AdminDashboard = () => {
                   moderationQueue.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-start gap-4 p-4 border rounded-lg"
+                      className="flex items-start gap-4 p-4 rounded-lg"
                     >
                       <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                         {item.content.content_type === 'video' ? '🎬' : item.content.content_type === 'image' ? '🖼️' : '📝'}
@@ -542,7 +542,7 @@ const AdminDashboard = () => {
                   flags.map((flag) => (
                     <div
                       key={flag.id}
-                      className="flex items-start gap-4 p-4 border rounded-lg border-destructive/30 bg-destructive/5"
+                      className="flex items-start gap-4 p-4 rounded-lg"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
@@ -608,7 +608,7 @@ const AdminDashboard = () => {
           <DialogContent className="max-w-6xl w-[95vw] p-0 overflow-hidden">
             {selectedModerationItem && (
               <div className="max-h-[85vh] overflow-y-auto">
-                <DialogHeader className="p-6 border-b">
+                <DialogHeader className="p-6">
                   <DialogTitle>Moderation Review</DialogTitle>
                   <DialogDescription>
                     Review all content details and media before approving or rejecting.
@@ -616,7 +616,7 @@ const AdminDashboard = () => {
                 </DialogHeader>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-                  <div className="p-6 border-b lg:border-b-0 lg:border-r space-y-4">
+                  <div className="p-6 space-y-4">
                     <div className="grid gap-2">
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
                       <p className="text-sm">{selectedModerationItem.content.status}</p>

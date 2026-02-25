@@ -1,7 +1,6 @@
 import React from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, Flag, ChevronLeft, ExternalLink } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Bookmark, Flag, ChevronLeft, BookOpen, ShieldOff, FilePenLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import type { Content, Category } from '@/types';
 
@@ -14,6 +13,11 @@ interface FeedCardProps {
   onShare?: () => void;
   onFlag?: () => void;
   onQuizClick?: () => void;
+  showEdit?: boolean;
+  onEdit?: () => void;
+  showTakeDown?: boolean;
+  onTakeDown?: () => void;
+  isTakingDown?: boolean;
 }
 
 // TODO: Replace with Java backend API calls
@@ -31,6 +35,11 @@ export function FeedCard({
   onShare,
   onFlag,
   onQuizClick,
+  showEdit = false,
+  onEdit,
+  showTakeDown = false,
+  onTakeDown,
+  isTakingDown = false,
 }: FeedCardProps) {
   const getCategoryBadgeClass = (type?: string) => {
     switch (type) {
@@ -46,11 +55,11 @@ export function FeedCard({
   return (
     <div className="relative w-full h-full snap-start">
       {/* Background media */}
-      <div className="absolute inset-0 bg-muted">
+      <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden">
         {content.content_type === 'video' && content.media_url ? (
           <video
             src={content.media_url}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             loop
             muted={!isActive}
             autoPlay={isActive}
@@ -60,7 +69,7 @@ export function FeedCard({
           <img
             src={content.media_url}
             alt={content.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center gradient-primary">
@@ -120,21 +129,49 @@ export function FeedCard({
             @{content.creator?.display_name || 'anonymous'}
           </span>
         </div>
-
-        {/* Quick quiz button */}
-        {onQuizClick && (
-          <Button
-            onClick={onQuizClick}
-            className="mt-4 gradient-secondary border-0 text-white"
-            size="sm"
-          >
-            🧩 Take Quick Quiz
-          </Button>
-        )}
       </div>
 
       {/* Right side actions */}
       <div className="absolute right-4 bottom-24 flex flex-col items-center gap-4">
+        {/* Admin edit */}
+        {showEdit && onEdit && (
+          <button
+            onClick={onEdit}
+            className="flex flex-col items-center gap-1 text-white touch-target"
+          >
+            <div className="w-12 h-12 rounded-full bg-sky-500/30 backdrop-blur-sm flex items-center justify-center hover:bg-sky-500/45 transition-colors">
+              <FilePenLine className="h-6 w-6" />
+            </div>
+            <span className="text-xs font-medium">Edit</span>
+          </button>
+        )}
+
+        {/* Admin take down */}
+        {showTakeDown && onTakeDown && (
+          <button
+            onClick={onTakeDown}
+            disabled={isTakingDown}
+            className="flex flex-col items-center gap-1 text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <div className="w-12 h-12 rounded-full bg-rose-500/30 backdrop-blur-sm flex items-center justify-center hover:bg-rose-500/45 transition-colors">
+              <ShieldOff className="h-6 w-6" />
+            </div>
+            <span className="text-xs font-medium">{isTakingDown ? '...' : 'Take down'}</span>
+          </button>
+        )}
+
+        {/* Quick quiz */}
+        {onQuizClick && (
+          <button
+            onClick={onQuizClick}
+            className="flex flex-col items-center gap-1 text-white touch-target"
+          >
+            <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
+              <BookOpen className="h-6 w-6" />
+            </div>
+            <span className="text-xs font-medium">Quiz</span>
+          </button>
+        )}
         {/* Educational value vote */}
         <button
           onClick={() => onVote?.('educational')}
@@ -192,3 +229,4 @@ export function FeedCard({
     </div>
   );
 }
+

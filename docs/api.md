@@ -2,176 +2,196 @@
 
 Base URL: `http://localhost:8080/api`
 
-This document lists:
-- Endpoints that already exist in the Spring Boot backend.
-- Endpoints the frontend expects (from `frontend/src/lib/api.ts`) that are still missing.
+Last audited: 2026-02-25  
+Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controller.java` and frontend calls in `frontend/src/lib/api.ts`.
 
-## Why PostgREST
-- The backend proxies Supabase PostgREST so RLS is enforced.
-- Every data call forwards the user JWT + anon key.
-- For media processing and moderation, the backend also uses a Supabase service role key.
+## Security and Error Contract
 
-## Implemented Endpoints
+- Public endpoints (no JWT required):
+  - `GET /auth/login/google`
+  - `GET /auth/username-available`
+  - `GET /categories`
+  - `POST /auth/login`
+  - `POST /auth/register`
+  - `POST /auth/forgot-password`
+  - `POST /auth/reset-password`
+- All other `/api/**` endpoints require `Authorization: Bearer <accessToken>`.
+- Standard API error envelope:
+  - `{ code, message, fieldErrors?, retryAfterSeconds? }`
+- Validation errors return `400` with `code=validation_error` and `fieldErrors`.
 
-Auth
-- `POST /auth/login`  
-  Body: `{ email, password }`  
-  Returns: tokens + user info.  
-  Supabase backing: `POST /auth/v1/token?grant_type=password`
-- `POST /auth/register`  
-  Body: `{ email, password, displayName, isGenAlpha?, redirectTo? }`  
-  Returns: tokens or email confirmation required flag.  
-  Supabase backing: `POST /auth/v1/signup`
-- `POST /auth/forgot-password`  
-  Body: `{ email, redirectTo? }`  
-  Sends password recovery email.  
-  Note: `redirectTo` must be allowlisted in Supabase Auth settings.  
-  Supabase backing: `POST /auth/v1/recover`
-- `POST /auth/reset-password`  
-  Body: `{ accessToken, password }`  
-  Resets password using Supabase access token.  
-  Supabase backing: `PUT /auth/v1/user`
-- `POST /auth/logout`  
-  Header: `Authorization: Bearer <token>`  
-  Logs out from Supabase.  
-  Supabase backing: `POST /auth/v1/logout`
-- `GET /auth/login/google`  
-  Query: `redirectTo?`  
-  Returns 302 redirect to Supabase OAuth.  
-  Supabase backing: `GET /auth/v1/authorize`
-- `GET /auth/username-available`  
-  Query: `displayName` (or `username` for backward-compat)  
-  Returns `{ available, normalized }` based on `display_name_registry` view.
-- `GET /auth/me`  
-  Header: `Authorization: Bearer <token>`  
-  Returns or creates the profile mapped to the JWT.  
-  Supabase backing: `GET /rest/v1/profiles?user_id=eq.<jwt.sub>`
+## Implemented Endpoints (Controller-Verified)
 
-Users
-- `GET /users/me`  
-  Header: `Authorization: Bearer <token>`  
-  Returns the current user profile.  
-  Supabase backing: `GET /rest/v1/profiles?user_id=eq.<jwt.sub>`
-- `GET /users/me/roles`  
-  Header: `Authorization: Bearer <token>`  
-  Returns a list of role strings.  
-  Supabase backing: `GET /rest/v1/user_roles?user_id=eq.<jwt.sub>&select=role`
-- `GET /users/me/preferences`  
-  Header: `Authorization: Bearer <token>`  
-  Returns theme preference (`light|dark|system`).  
-  Supabase backing: `GET /rest/v1/profiles?user_id=eq.<jwt.sub>&select=theme_preference`
-- `PUT /users/me/preferences`  
-  Header: `Authorization: Bearer <token>`  
-  Body: `{ themePreference }`  
-  Updates theme preference.  
-  Supabase backing: `PATCH /rest/v1/profiles?user_id=eq.<jwt.sub>`
-- `POST /users/me/history`  
-  Header: `Authorization: Bearer <token>`  
-  Body: `{ contentId?, lessonId?, title? }`  
-  Saves a browsing history entry.
-- `GET /users/me/history`  
-  Header: `Authorization: Bearer <token>`  
-  Returns recent browsing history.
-- `DELETE /users/me/history`  
-  Header: `Authorization: Bearer <token>`  
-  Clears browsing history.
-- `GET /users/me/lessons/progress`  
-  Header: `Authorization: Bearer <token>`  
-  Returns progress map keyed by lesson id.
-- `GET /users/me/stats`  
-  Header: `Authorization: Bearer <token>`  
-  Returns lesson progress stats summary.
+### Auth (`AuthController`)
+- `POST /auth/login`
+- `POST /auth/register`
+- `POST /auth/forgot-password`
+- `POST /auth/reset-password`
+- `POST /auth/logout`
+- `GET /auth/login/google`
+- `GET /auth/username-available`
+- `GET /auth/me`
 
-Content (draft + async media)
-- `POST /content/media/start`  
-  Header: `Authorization: Bearer <token>`  
-  Multipart: `file`  
-  Starts async upload + conversion. Returns `{ contentId, status, pollUrl }`.  
-- `POST /content/media/start-link`  
-  Header: `Authorization: Bearer <token>`  
-  Body: `{ sourceUrl }`  
-  Starts async link ingest + conversion (TikTok/Instagram Reels only).  
-- `GET /content/{id}/media`  
-  Header: `Authorization: Bearer <token>`  
-  Returns `{ status, hlsUrl, thumbnailUrl, errorMessage }`.  
-- `PATCH /content/{id}`  
-  Header: `Authorization: Bearer <token>`  
-  Body: Draft fields to update while media is processing (supports tags).  
-- `POST /content/{id}/submit`  
-  Header: `Authorization: Bearer <token>`  
-  Body: `{ title, description, contentType, categoryId?, learningObjective?, originExplanation?, definitionLiteral?, definitionUsed?, olderVersionReference?, tags? }`  
-  Finalizes draft if media is ready. Inserts into moderation queue.  
+### Users (`UserController`)
+- `GET /users/me`
+- `GET /users/me/roles`
+- `GET /users/me/preferences`
+- `PUT /users/me/preferences`
+- `POST /users/me/history`
+- `GET /users/me/history`
+- `DELETE /users/me/history`
+- `GET /users/me/stats`
+- `GET /users/me/lessons/progress`
+- `GET /users/me/hearts`
 
-Search
-- `GET /search`  
-  Query: `query`, `filter` (optional)  
-  Filters: `video`, `lesson`  
-  Returns approved video content and published lessons.
+### Feed and Search (`FeedController`, `BrowsingController`)
+- `GET /feed`
+- `GET /search`
 
-Tags
-- `GET /tags`  
-  Query: `query`  
-  Returns matching tag strings.
+### Categories and Tags (`CategoryController`, `TagController`)
+- `GET /categories`
+- `GET /tags`
 
-Categories
-- `GET /categories`  
-  Returns category list.
+### Content (`ContentController`)
+- `POST /content/media/start`
+- `POST /content/media/start-link`
+- `PATCH /content/{contentId}`
+- `POST /content/{contentId}/submit`
+- `GET /content/{contentId}/media`
+- `POST /content/{contentId}/view`
 
-Lessons
-- `GET /lessons`  
-  Returns published lessons.
-- `GET /lessons/feed`  
-  Returns lesson feed with filters (query, difficulty, duration, sort, page, pageSize).
-- `GET /lessons/search?q=...`  
-  Returns published lessons matching query.
-- `GET /lessons/{id}`  
-  Returns lesson detail (published only).
-- `GET /lessons/{id}/sections`  
-  Returns computed lesson sections.
-- `POST /lessons/{id}/enroll`  
-  Creates or updates lesson progress.
-- `POST /lessons/{id}/save`  
-  Saves a lesson for the current user.
-- `PUT /lessons/{id}/progress`  
-  Updates lesson progress percentage.
+### Lessons Learner Flow (`LessonController`)
+- `GET /lessons`
+- `GET /lessons/feed`
+- `GET /lessons/hub`
+- `GET /lessons/search`
+- `GET /lessons/{lessonId}`
+- `GET /lessons/{lessonId}/sections`
+- `GET /lessons/{lessonId}/progress`
+- `GET /lessons/{lessonId}/quiz/state`
+- `POST /lessons/{lessonId}/quiz/answer`
+- `POST /lessons/{lessonId}/quiz/restart`
+- `POST /lessons/{lessonId}/sections/{sectionId}/complete`
+- `POST /lessons/{lessonId}/enroll`
+- `POST /lessons/{lessonId}/save`
+- `PUT /lessons/{lessonId}/progress` (legacy compatibility endpoint)
 
-Admin lessons
-- `GET /admin/lessons`  
-  Returns all lessons (admin only).
-- `POST /admin/lessons`  
-  Creates a lesson (admin only).
-- `PUT /admin/lessons/{id}`  
-  Updates a lesson (admin only).
-- `DELETE /admin/lessons/{id}`  
-  Deletes a lesson (admin only).
-- `POST /admin/lessons/{id}/quiz`  
-  Creates quiz + questions for a lesson (admin only).
-## Missing Endpoints (Required by Frontend)
+### Admin Moderation and Content (`AdminController`)
+- `GET /admin/stats`
+- `GET /admin/moderation-queue`
+- `PUT /admin/content/{contentId}/approve`
+- `PUT /admin/content/{contentId}`
+- `PUT /admin/content/{contentId}/reject`
+- `GET /admin/flags`
+- `PUT /admin/flags/{flagId}/resolve`
 
-Feed and content
-- `GET /feed?page=...`
+### Admin Lessons and Quiz Builder (`LessonController`)
+- `GET /admin/lessons`
+- `GET /admin/lessons/{lessonId}`
+- `POST /admin/lessons/draft`
+- `PUT /admin/lessons/{lessonId}/draft/step/{stepKey}`
+- `POST /admin/lessons/{lessonId}/publish`
+- `POST /admin/lessons`
+- `PUT /admin/lessons/{lessonId}`
+- `DELETE /admin/lessons/{lessonId}`
+- `GET /admin/lessons/{lessonId}/quiz`
+- `GET /admin/quiz/question-types`
+- `POST /admin/lessons/{lessonId}/quiz`
+- `PUT /admin/lessons/{lessonId}/quiz`
+
+## Frontend Parity Checklist (`frontend/src/lib/api.ts`)
+
+### Feed / Explore
+- `GET /feed?page=...` -> implemented
+- `GET /trending` -> missing
+- `GET /search?query=...&filter=...` -> implemented
+- `GET /recommendations` -> missing
+
+### User profile / utility
+- `GET /users/me` -> implemented
+- `GET /users/me/roles` -> implemented
+- `GET /users/me/preferences` -> implemented
+- `PUT /users/me/preferences` -> implemented
+- `GET /users/me/history` -> implemented
+- `POST /users/me/history` -> implemented
+- `DELETE /users/me/history` -> implemented
+- `GET /users/me/stats` -> implemented
+- `GET /users/me/lessons/progress` -> implemented
+- `GET /users/me/hearts` -> implemented
+- `GET /users/me/achievements` -> missing
+
+### Content
+- `POST /content/media/start` -> implemented
+- `POST /content/media/start-link` -> implemented
+- `GET /content/{id}/media` -> implemented
+- `PATCH /content/{id}` -> implemented
+- `POST /content/{id}/submit` -> implemented
+- `GET /content/{id}/quiz` -> missing
+- `POST /content/{id}/view` -> implemented
+- `POST /content/{id}/vote` -> missing
+- `POST /content/{id}/save` -> missing
+- `POST /content/{id}/flag` -> missing
+
+### Lessons learner flow
+- `GET /lessons` -> implemented
+- `GET /lessons/feed` -> implemented
+- `GET /lessons/hub` -> implemented
+- `GET /lessons/search` -> implemented
+- `GET /lessons/{id}` -> implemented
+- `GET /lessons/{id}/sections` -> implemented
+- `GET /lessons/{id}/progress` -> implemented
+- `POST /lessons/{id}/sections/{sectionId}/complete` -> implemented
+- `GET /lessons/{id}/quiz/state` -> implemented
+- `POST /lessons/{id}/quiz/answer` -> implemented
+- `POST /lessons/{id}/quiz/restart` -> implemented
+- `POST /lessons/{id}/enroll` -> implemented
+- `POST /lessons/{id}/save` -> implemented
+- `PUT /lessons/{id}/progress` -> implemented (legacy)
+
+### Auth
+- `POST /auth/login` -> implemented
+- `POST /auth/register` -> implemented
+- `POST /auth/logout` -> implemented
+- `POST /auth/forgot-password` -> implemented
+- `POST /auth/reset-password` -> implemented
+- `GET /auth/login/google` -> implemented
+- `GET /auth/username-available` -> implemented
+- `GET /auth/me` -> implemented
+
+### Admin
+- `GET /admin/stats` -> implemented
+- `GET /admin/moderation-queue` -> implemented
+- `GET /admin/flags` -> implemented
+- `PUT /admin/content/{id}/approve` -> implemented
+- `PUT /admin/content/{id}` -> implemented
+- `PUT /admin/content/{id}/reject` -> implemented
+- `PUT /admin/flags/{id}/resolve` -> implemented
+- `GET /admin/lessons` -> implemented
+- `GET /admin/lessons/{id}` -> implemented
+- `POST /admin/lessons/draft` -> implemented
+- `PUT /admin/lessons/{id}/draft/step/{step}` -> implemented
+- `POST /admin/lessons/{id}/publish` -> implemented
+- `POST /admin/lessons` -> implemented
+- `PUT /admin/lessons/{id}` -> implemented
+- `DELETE /admin/lessons/{id}` -> implemented
+- `GET /admin/lessons/{id}/quiz` -> implemented
+- `GET /admin/quiz/question-types` -> implemented
+- `POST /admin/lessons/{id}/quiz` -> implemented
+- `PUT /admin/lessons/{id}/quiz` -> implemented
+
+## Missing Endpoints (Required for Full Frontend Parity)
+
 - `GET /trending`
 - `GET /recommendations`
 - `GET /content/{id}/quiz`
-- `POST /content/{id}/view`
 - `POST /content/{id}/vote`
 - `POST /content/{id}/save`
 - `POST /content/{id}/flag`
-
-Lessons
-
-User data
 - `GET /users/me/achievements`
 
-Admin
-- `GET /admin/stats`
-- `GET /admin/moderation-queue`
-- `GET /admin/flags`
-- `PUT /admin/content/{id}/approve`
-- `PUT /admin/content/{id}/reject`
-- `PUT /admin/flags/{id}/resolve`
+## Compatibility Notes
 
-## Notes for Developers
-- All authenticated endpoints require `Authorization: Bearer <accessToken>`.
-- Frontend mocks can mask missing endpoints. To force real backend calls: set `VITE_USE_MOCKS=false`.
-
+- `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
+  Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.
+- Learner quiz endpoints do not expose `correct_answer`; grading is server-side.
+- `PUT /lessons/{lessonId}/progress` exists for backward compatibility; section completion + quiz flow is the primary path.

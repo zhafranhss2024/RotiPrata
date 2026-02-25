@@ -1,4 +1,4 @@
-﻿import type { Lesson } from "@/types";
+﻿import type { Lesson, LessonHubResponse, LessonProgressDetail } from "@/types";
 
 /**
  * DUMMY DATA: Used when VITE_USE_MOCKS=true or when API calls fail in auto mode.
@@ -183,6 +183,60 @@ export const mockLessonProgressByLessonId: Record<string, number> = {
   "3": 0,
 };
 
+export const mockLessonProgressDetailByLessonId: Record<string, LessonProgressDetail> = {
+  "1": {
+    status: "in_progress",
+    progressPercentage: 57,
+    currentSection: "lore",
+    completedSections: 4,
+    totalSections: 6,
+    nextSectionId: "evolution",
+    isEnrolled: true,
+    totalStops: 7,
+    completedStops: 4,
+    currentStopId: "lore",
+    remainingStops: 3,
+    quizStatus: "locked",
+    heartsRemaining: 5,
+    heartsRefillAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    nextStopType: "section",
+  },
+  "2": {
+    status: "not_started",
+    progressPercentage: 0,
+    currentSection: null,
+    completedSections: 0,
+    totalSections: 6,
+    nextSectionId: "intro",
+    isEnrolled: false,
+    totalStops: 7,
+    completedStops: 0,
+    currentStopId: null,
+    remainingStops: 7,
+    quizStatus: "locked",
+    heartsRemaining: 5,
+    heartsRefillAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    nextStopType: "section",
+  },
+  "3": {
+    status: "not_started",
+    progressPercentage: 0,
+    currentSection: null,
+    completedSections: 0,
+    totalSections: 6,
+    nextSectionId: "intro",
+    isEnrolled: false,
+    totalStops: 7,
+    completedStops: 0,
+    currentStopId: null,
+    remainingStops: 7,
+    quizStatus: "locked",
+    heartsRemaining: 5,
+    heartsRefillAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    nextStopType: "section",
+  },
+};
+
 export const mockLessonStats = {
   lessonsEnrolled: 3,
   lessonsCompleted: 1,
@@ -191,4 +245,38 @@ export const mockLessonStats = {
   hoursLearned: 2.5,
   quizzesTaken: 8,
   averageScore: 85,
+};
+
+
+
+
+export const mockLessonHub: LessonHubResponse = {
+  units: [
+    {
+      unitId: "unit-1",
+      title: "Unit 1",
+      orderIndex: 1,
+      accentColor: "green",
+      lessons: mockLessons.map((lesson, index) => {
+        const progress = mockLessonProgressByLessonId[lesson.id] ?? 0;
+        return {
+          lessonId: lesson.id,
+          title: lesson.title,
+          difficultyLevel: lesson.difficulty_level,
+          estimatedMinutes: lesson.estimated_minutes,
+          xpReward: lesson.xp_reward,
+          completionCount: lesson.completion_count,
+          progressPercentage: progress,
+          completed: progress >= 100,
+          current: index === 0,
+          visuallyLocked: index > 0 && progress < 100,
+        };
+      }),
+    },
+  ],
+  summary: {
+    totalLessons: mockLessons.length,
+    completedLessons: Object.values(mockLessonProgressByLessonId).filter((pct) => pct >= 100).length,
+    currentStreak: 5,
+  },
 };

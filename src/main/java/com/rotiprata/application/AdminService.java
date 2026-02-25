@@ -44,7 +44,7 @@ public class AdminService {
         return supabaseAdminRestClient.getList(
             "moderation_queue",
             buildQuery(Map.of(
-                "select", "*,content:content_id!inner(*)",
+                "select", "*,content:content_id!inner(*,content_tags(tag))",
                 "content.status", "eq.pending",
                 "content.is_submitted", "eq.true",
                 "order", "submitted_at.asc"

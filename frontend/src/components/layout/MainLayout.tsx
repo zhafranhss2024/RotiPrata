@@ -1,7 +1,8 @@
-import React, { ReactNode } from 'react';
-import { BottomNav } from './BottomNav';
-import { DesktopNav } from './DesktopNav';
-import { cn } from '@/lib/utils';
+import React, { ReactNode } from "react";
+import { BottomNav } from "./BottomNav";
+import { DesktopNav } from "./DesktopNav";
+import { MobileTopBar } from "./MobileTopBar";
+import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -10,26 +11,34 @@ interface MainLayoutProps {
   fullScreen?: boolean;
 }
 
-export function MainLayout({ 
-  children, 
+export function MainLayout({
+  children,
   className,
   hideNav = false,
   fullScreen = false,
 }: MainLayoutProps) {
+  if (hideNav) {
+    return (
+      <div className={cn("min-h-screen bg-mainDark text-white", className)}>
+        {children}
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      {!hideNav && <DesktopNav />}
-      
-      <main 
+    <div className="min-h-screen h-dvh bg-mainDark text-white">
+      <DesktopNav />
+      <MobileTopBar />
+      <main
         className={cn(
-          !fullScreen && "md:pt-16",
+          "h-dvh overflow-y-auto duo-scrollbar pt-16 lg:pt-16",
+          !fullScreen && "pb-safe lg:pb-0",
           className
         )}
       >
         {children}
       </main>
-      
-      {!hideNav && <BottomNav />}
+      <BottomNav />
     </div>
   );
 }

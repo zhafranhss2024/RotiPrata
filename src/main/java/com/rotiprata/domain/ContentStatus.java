@@ -14,6 +14,14 @@ public enum ContentStatus {
 
     @com.fasterxml.jackson.annotation.JsonCreator
     public static ContentStatus fromJson(String value) {
-        return value == null ? null : ContentStatus.valueOf(value.toUpperCase());
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase();
+        if ("ACCEPTED".equals(normalized)) {
+            // Backward compatibility with older status value used in some rows.
+            return APPROVED;
+        }
+        return ContentStatus.valueOf(normalized);
     }
 }

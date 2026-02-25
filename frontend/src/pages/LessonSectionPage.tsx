@@ -1,61 +1,61 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import type { Lesson, LessonSection } from '@/types';
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Button } from "@/components/ui/button";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Star } from "lucide-react";
+import type { Lesson, LessonProgressDetail, LessonSection } from "@/types";
 import {
-  enrollLesson,
+  completeLessonSection,
   fetchLessonById,
-  fetchLessonProgress,
+  fetchLessonProgressDetail,
   fetchLessonSections,
-  updateLessonProgress,
-} from '@/lib/api';
+} from "@/lib/api";
+import { ApiError } from "@/lib/apiClient";
+import { cn } from "@/lib/utils";
+
+const STEP_GAP = 70;
+const MAX_VISIBLE_DISTANCE = 3;
 
 const LessonSectionPage = () => {
   const { id, sectionId } = useParams<{ id: string; sectionId: string }>();
   const navigate = useNavigate();
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [sections, setSections] = useState<LessonSection[]>([]);
-  const [progress, setProgress] = useState(0);
-  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [progressDetail, setProgressDetail] = useState<LessonProgressDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [animatingCompleteIndex, setAnimatingCompleteIndex] = useState<number | null>(null);
+  const [nextPulseIndex, setNextPulseIndex] = useState<number | null>(null);
+  const advanceTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
     let active = true;
-    setIsLoading(true);
-    setError(null);
 
-    Promise.all([fetchLessonById(id), fetchLessonSections(id), fetchLessonProgress()])
-      .then(([lessonData, sectionData, progressMap]) => {
+    Promise.all([fetchLessonById(id), fetchLessonSections(id), fetchLessonProgressDetail(id)])
+      .then(([lessonData, sectionData, progress]) => {
         if (!active) return;
         const sortedSections = [...sectionData].sort((a, b) => a.order_index - b.order_index);
         setLesson(lessonData);
         setSections(sortedSections);
-        setProgress(progressMap[id] ?? 0);
-        setIsEnrolled(Object.prototype.hasOwnProperty.call(progressMap, id));
+        setProgressDetail(progress);
       })
       .catch((loadError) => {
         if (!active) return;
-        console.warn('Failed to load lesson section', loadError);
-        setError('Failed to load lesson content. Please try again.');
+        console.warn("Failed to load lesson section", loadError);
+        setError("Failed to load lesson content. Please try again.");
       })
       .finally(() => {
-        if (active) {
-          setIsLoading(false);
-        }
+        if (active) setIsLoading(false);
       });
 
     return () => {
       active = false;
+      if (advanceTimeoutRef.current) {
+        window.clearTimeout(advanceTimeoutRef.current);
+      }
     };
   }, [id]);
 
@@ -70,68 +70,101 @@ const LessonSectionPage = () => {
   }, [id, sectionId, sections, currentIndex, navigate]);
 
   const totalSections = sections.length;
-  const hasValidCurrentSection = currentIndex >= 0 && currentIndex < totalSections;
-  const currentSection = hasValidCurrentSection ? sections[currentIndex] : null;
-  const completedCount =
-    totalSections > 0 ? Math.min(totalSections, Math.floor((Math.max(progress, 0) / 100) * totalSections)) : 0;
-  const viewedCount = hasValidCurrentSection ? Math.max(completedCount, currentIndex + 1) : completedCount;
-  const displayProgress = totalSections > 0 ? Math.round((viewedCount / totalSections) * 100) : progress;
+  const currentSection =
+    currentIndex >= 0 && currentIndex < totalSections ? sections[currentIndex] : null;
+  const completedSections = progressDetail?.completedSections ?? 0;
   const hasPrevious = currentIndex > 0;
-  const hasNext = hasValidCurrentSection && currentIndex < totalSections - 1;
+  const hasNext = currentIndex >= 0 && currentIndex < totalSections - 1;
 
-  const persistProgress = async (targetProgress: number) => {
-    if (!id) return;
-    if (!isEnrolled) {
-      await enrollLesson(id);
-      setIsEnrolled(true);
-    }
-    await updateLessonProgress(id, targetProgress);
-    setProgress(targetProgress);
+  const goToRelative = (delta: number) => {
+    if (!id || currentIndex < 0) return;
+    const nextIndex = currentIndex + delta;
+    if (nextIndex < 0 || nextIndex >= sections.length) return;
+    navigate(`/lessons/${id}/${sections[nextIndex].id}`);
   };
 
   const handleCompleteSection = async () => {
-    if (!id || !hasValidCurrentSection) return;
+    if (!id || !currentSection || currentIndex < 0) return;
     setIsSaving(true);
     setSaveError(null);
     try {
-      const targetProgress = totalSections > 0 ? Math.round((viewedCount / totalSections) * 100) : progress;
-      await persistProgress(Math.max(progress, targetProgress));
+      const updated = await completeLessonSection(id, currentSection.id);
+      setProgressDetail(updated);
 
-      if (hasNext) {
-        navigate(`/lessons/${id}/${sections[currentIndex + 1].id}`);
-      } else {
-        navigate(`/lessons/${id}`);
+      const completedIndex = currentIndex;
+      const nextIndex = updated.nextSectionId
+        ? sections.findIndex((section) => section.id === updated.nextSectionId)
+        : -1;
+
+      setAnimatingCompleteIndex(completedIndex);
+      setNextPulseIndex(nextIndex >= 0 ? nextIndex : null);
+
+      if (advanceTimeoutRef.current) {
+        window.clearTimeout(advanceTimeoutRef.current);
       }
+
+      advanceTimeoutRef.current = window.setTimeout(() => {
+        if (updated.nextStopType === "quiz") {
+          navigate(`/lessons/${id}/quiz`);
+        } else if (updated.nextSectionId) {
+          navigate(`/lessons/${id}/${updated.nextSectionId}`);
+        } else {
+          navigate(`/lessons/${id}`);
+        }
+      }, 650);
     } catch (saveProgressError) {
-      console.warn('Failed to save lesson progress', saveProgressError);
-      setSaveError('Unable to save progress right now. Please try again.');
+      console.warn("Failed to save lesson progress", saveProgressError);
+      if (saveProgressError instanceof ApiError && saveProgressError.status === 409) {
+        setSaveError(saveProgressError.message || "Complete earlier sections before this one.");
+      } else if (saveProgressError instanceof Error) {
+        setSaveError(saveProgressError.message);
+      } else {
+        setSaveError("Unable to save progress right now. Please try again.");
+      }
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleDownAdvance = async () => {
+    if (isSaving || currentIndex < 0) return;
+    if (currentIndex < completedSections) {
+      goToRelative(1);
+      return;
+    }
+    await handleCompleteSection();
+  };
+
+  const relativeOffsetX = (relative: number) => {
+    if (relative === 0) return 0;
+    const distance = Math.abs(relative);
+    const magnitude = 18 + (distance % 3) * 8;
+    if (relative < 0) {
+      return distance % 2 === 1 ? -magnitude : magnitude;
+    }
+    return distance % 2 === 1 ? magnitude : -magnitude;
+  };
+
   if (isLoading) {
     return (
       <MainLayout>
-        <div className="container max-w-3xl mx-auto px-4 py-16 text-center text-muted-foreground">
+        <div className="w-full px-4 lg:px-8 py-16 text-center text-mainAccent">
           Loading lesson...
         </div>
       </MainLayout>
     );
   }
 
-  if (error || !lesson) {
+  if (error || !lesson || !progressDetail) {
     return (
       <MainLayout>
-        <div className="container max-w-3xl mx-auto px-4 py-12">
-          <Card className="border-destructive/30 bg-destructive/10">
-            <CardContent className="p-6 text-center space-y-4">
-              <p className="text-destructive">{error ?? 'Unable to load this lesson.'}</p>
-              <Button asChild variant="outline">
-                <Link to="/lessons">Back to Lesson Hub</Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="w-full px-4 lg:px-8 py-10">
+          <div className="rounded-2xl p-6 text-center space-y-4">
+            <p className="text-red-200">{error ?? "Unable to load this lesson."}</p>
+            <Button asChild className="duo-button-primary">
+              <Link to="/lessons">Back to Lesson Hub</Link>
+            </Button>
+          </div>
         </div>
       </MainLayout>
     );
@@ -140,15 +173,13 @@ const LessonSectionPage = () => {
   if (!currentSection) {
     return (
       <MainLayout>
-        <div className="container max-w-3xl mx-auto px-4 py-12">
-          <Card>
-            <CardContent className="p-6 text-center space-y-4">
-              <p className="text-muted-foreground">This lesson does not have any readable sections yet.</p>
-              <Button asChild variant="outline">
-                <Link to={`/lessons/${id}`}>Back to Lesson</Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="w-full px-4 lg:px-8 py-10">
+          <div className="text-center space-y-4">
+            <p className="text-white/80">This lesson does not have any readable sections yet.</p>
+            <Button asChild className="duo-button-primary">
+              <Link to={`/lessons/${id}`}>Back to Lesson</Link>
+            </Button>
+          </div>
         </div>
       </MainLayout>
     );
@@ -156,106 +187,110 @@ const LessonSectionPage = () => {
 
   return (
     <MainLayout>
-      <div className="container max-w-3xl mx-auto px-4 py-6 md:py-8 pb-safe">
-        <Link to={`/lessons/${id}`} className="inline-flex items-center text-muted-foreground hover:text-foreground mb-4">
+      <div className="w-full px-4 lg:px-8 py-6">
+        <Link
+          to={`/lessons/${id}`}
+          className="inline-flex items-center text-mainAccent hover:text-white"
+        >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Lesson Details
         </Link>
 
-        <Card className="mb-6">
-          <CardContent className="p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h1 className="text-xl font-bold">{lesson.title}</h1>
-              <Badge variant="secondary">
-                Section {currentIndex + 1} of {totalSections}
-              </Badge>
+        <div className="mt-4 mx-auto max-w-[1420px] grid lg:grid-cols-[170px_minmax(0,1fr)] gap-10 items-start">
+          <aside className="hidden lg:flex flex-col items-center pt-4 sticky top-24">
+            <button
+              type="button"
+              aria-label="Previous step"
+              onClick={() => goToRelative(-1)}
+              disabled={!hasPrevious || isSaving}
+              className="h-9 w-9 rounded-full border border-mainAlt bg-main text-mainAccent disabled:opacity-40 mb-3"
+            >
+              <ArrowUp className="h-4 w-4 mx-auto" />
+            </button>
+
+            <div className="relative h-[460px] w-[120px] overflow-hidden">
+              {sections.map((section, index) => {
+                const relative = index - currentIndex;
+                const distance = Math.abs(relative);
+                const isVisible = distance <= MAX_VISIBLE_DISTANCE;
+                const opacity = distance === 0 ? 1 : distance === 1 ? 0.72 : distance === 2 ? 0.42 : 0.2;
+                const scale = distance === 0 ? 1 : distance === 1 ? 0.86 : distance === 2 ? 0.72 : 0.6;
+                const y = relative * STEP_GAP;
+                const x = relativeOffsetX(relative);
+                const isCompleted = index < completedSections;
+                const isCurrent = relative === 0;
+                const isAnimatingComplete = animatingCompleteIndex === index;
+                const isNextPulse = nextPulseIndex === index;
+
+                const baseClasses = isCompleted
+                  ? "bg-duoGreen border-[#b51f3d] text-white shadow-mainCircleShadow"
+                  : isCurrent
+                    ? "bg-mainAccent border-mainAccent text-main shadow-mainCircleShadow"
+                    : "bg-main border-mainAlt text-white/85 shadow-mainCircleShadow";
+
+                return (
+                  <div
+                    key={section.id}
+                    className={cn("absolute left-1/2 top-1/2 transition-all duration-500", !isVisible && "pointer-events-none")}
+                    style={{
+                      transform: `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${scale})`,
+                      opacity: isVisible ? opacity : 0,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/lessons/${id}/${section.id}`)}
+                      disabled={isSaving}
+                      className={cn(
+                        "relative h-16 w-[68px] rounded-full border-2 flex items-center justify-center transition-transform duration-200 active:translate-y-[5px] active:shadow-none",
+                        baseClasses,
+                        isCurrent && "animate-stop-current ring-4 ring-mainAccent/25",
+                        isAnimatingComplete && "animate-stop-fill",
+                        isNextPulse && "animate-stop-next"
+                      )}
+                    >
+                      {isCompleted ? (
+                        <Check className="h-6 w-6" />
+                      ) : isCurrent ? (
+                        <Star className="h-6 w-6 fill-current" />
+                      ) : (
+                        <span className="text-lg">{index + 1}</span>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Clock className="h-4 w-4" />
-                {currentSection.duration_minutes} min
-              </span>
-              <span>{displayProgress}% complete</span>
-            </div>
+            <button
+              type="button"
+              aria-label="Next step"
+              onClick={handleDownAdvance}
+              disabled={isSaving || (currentIndex < completedSections && !hasNext)}
+              className="h-9 w-9 rounded-full border border-mainAlt bg-main text-mainAccent disabled:opacity-40 mt-3"
+            >
+              <ArrowDown className="h-4 w-4 mx-auto" />
+            </button>
+          </aside>
 
-            <Progress value={displayProgress} className="h-2" />
-          </CardContent>
-        </Card>
-
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <h2 className="text-lg font-semibold mb-3">{currentSection.title}</h2>
-            <div className="space-y-3 text-sm leading-6">
+          <section className="min-w-0 max-w-4xl w-full justify-self-center pt-6">
+            <h2 className="text-4xl text-white mb-7">{currentSection.title}</h2>
+            <div className="space-y-4 text-lg leading-9 text-white/95 min-h-[48dvh]">
               {currentSection.content
-                .split('\n')
+                .split("\n")
                 .filter((line) => line.trim().length > 0)
                 .map((line, index) => (
                   <p key={`${currentSection.id}-${index}`}>{line}</p>
                 ))}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="mb-6">
-          <CardContent className="p-0">
-            {sections.map((section, index) => {
-              const isSectionCompleted = index < viewedCount;
-              return (
-                <React.Fragment key={section.id}>
-                  <Link
-                    to={`/lessons/${id}/${section.id}`}
-                    className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                        isSectionCompleted ? 'bg-success text-white' : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {isSectionCompleted ? <CheckCircle className="h-4 w-4" /> : <span>{index + 1}</span>}
-                    </div>
-                    <span className="flex-1 text-sm font-medium">{section.title}</span>
-                    {section.id === currentSection.id && <Badge variant="outline">Current</Badge>}
-                  </Link>
-                  {index < sections.length - 1 && <Separator />}
-                </React.Fragment>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        {saveError && (
-          <Card className="mb-4 border-destructive/30 bg-destructive/10">
-            <CardContent className="p-3 text-sm text-destructive">{saveError}</CardContent>
-          </Card>
-        )}
-
-        <div className="sticky bottom-nav-height md:bottom-4 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t md:border md:rounded-xl flex gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1"
-            disabled={!hasPrevious || isSaving}
-            onClick={() => {
-              if (!hasPrevious) return;
-              navigate(`/lessons/${id}/${sections[currentIndex - 1].id}`);
-            }}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Previous
-          </Button>
-
-          <Button type="button" className="flex-1 gradient-primary border-0" onClick={handleCompleteSection} disabled={isSaving}>
-            {hasNext ? (
-              <>
-                Mark Complete & Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </>
-            ) : (
-              'Finish Lesson'
-            )}
-          </Button>
+          </section>
         </div>
+
+        {saveError ? (
+          <div className="rounded-xl p-3 text-sm text-red-200 mt-4">
+            {saveError}
+          </div>
+        ) : null}
       </div>
     </MainLayout>
   );
