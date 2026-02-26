@@ -139,8 +139,12 @@ const ExplorePage = () => {
   const recentHistory = useMemo(
     () =>
       [...browsingHistory]
-        .sort((a, b) => new Date(b.searched_at).getTime() - new Date(a.searched_at).getTime())
-        .slice(0, 4),
+        .sort((a, b) => {
+          const dateA = new Date(a.searched_at.replace(' ', 'T')).getTime();
+          const dateB = new Date(b.searched_at.replace(' ', 'T')).getTime();
+          return dateB - dateA;
+        })
+        .slice(0, 5),
     [browsingHistory]
   );
 
@@ -153,6 +157,15 @@ const ExplorePage = () => {
     () => searchResults.filter((result) => result.kind === 'lesson'),
     [searchResults]
   );
+
+  const loadBrowsingHistory = async () => {
+    try {
+      const history = await fetchBrowsingHistory();
+      setBrowsingHistory(history);
+    } catch (error) {
+      console.warn('Failed to load browsing history', error);
+    }
+  };
 
   const searchFeedContents = useMemo<Content[]>(() => {
     const now = new Date().toISOString();
@@ -251,7 +264,8 @@ const ExplorePage = () => {
                   if (!next.trim()) {
                     setShowHistory(true);      
                     setSubmittedQuery('');     
-                    setSearchResults([]);    
+                    setSearchResults([]);   
+                    loadBrowsingHistory();
                   }
                 }}
                 className="pl-10 pr-4 h-12 rounded-xl"
@@ -262,7 +276,7 @@ const ExplorePage = () => {
           { showHistory && !submittedQuery && (
             <Card className="mt-3 bg-mainDark/70 border border-mainAlt/60">
               <CardContent className="p-3 space-y-2">
-                <p className="text-xs uppercase tracking-wide text-mainAccent">Recent</p>
+                <p className="text-xs uppercase tracking-wide text-mainAccent">Recent (Top 5)</p>
                 {recentHistory.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No recent history yet.</p>
                 ) : (
@@ -275,9 +289,6 @@ const ExplorePage = () => {
                         className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-mainAlt/30 transition-colors"
                       >
                         <span className="text-sm text-white truncate pr-3">{item.query ?? 'Untitled'}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(item.searched_at).toLocaleDateString()}
-                        </span>
                       </button>
                     );
                   })
