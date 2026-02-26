@@ -70,16 +70,16 @@ const ExplorePage = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!searchWrapRef.current) return;
-      if (!searchWrapRef.current.contains(event.target as Node)) {
-        setShowHistory(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
+  // useEffect(() => {
+  //   const handleOutsideClick = (event: MouseEvent) => {
+  //     if (!searchWrapRef.current) return;
+  //     if (!searchWrapRef.current.contains(event.target as Node)) {
+  //       setShowHistory(false);
+  //     }
+  //   };
+  //   document.addEventListener('mousedown', handleOutsideClick);
+  //   return () => document.removeEventListener('mousedown', handleOutsideClick);
+  // }, []);
 
   useEffect(() => {
     if (!submittedQuery.trim()) {
