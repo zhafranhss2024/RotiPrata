@@ -149,6 +149,17 @@ export type ContentMediaStatusResponse = {
   errorMessage?: string | null;
 };
 
+export type ContentComment = {
+  id: string;
+  contentId: string;
+  userId: string;
+  parentId?: string | null;
+  body: string;
+  author: string;
+  createdAt: string;
+  updatedAt?: string | null;
+};
+
 const withMockFallback = async <T>(
   label: string,
   fallback: () => T,
@@ -601,13 +612,28 @@ export const fetchContentQuiz = (contentId: string) =>
 
 export const trackContentView = (contentId: string) => apiPost<void>(`/content/${contentId}/view`);
 
-export const voteContent = (contentId: string, voteType: string) =>
-  apiPost<void>(`/content/${contentId}/vote`, { vote_type: voteType });
+export const likeContent = (contentId: string) => apiPost<void>(`/content/${contentId}/like`);
+
+export const unlikeContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/like`);
+
+// Deprecated compatibility wrapper while older components still call voteContent.
+export const voteContent = (contentId: string, _voteType: string) =>
+  apiPost<void>(`/content/${contentId}/like`);
 
 export const saveContent = (contentId: string) => apiPost<void>(`/content/${contentId}/save`);
 
+export const unsaveContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/save`);
+
+export const shareContent = (contentId: string) => apiPost<void>(`/content/${contentId}/share`);
+
 export const flagContent = (contentId: string, reason: string, description?: string) =>
   apiPost<void>(`/content/${contentId}/flag`, { reason, description });
+
+export const fetchContentComments = (contentId: string, limit = 50, offset = 0) =>
+  apiGet<ContentComment[]>(`/content/${contentId}/comments?limit=${limit}&offset=${offset}`);
+
+export const postContentComment = (contentId: string, body: string, parentId?: string | null) =>
+  apiPost<ContentComment>(`/content/${contentId}/comments`, { body, parentId: parentId ?? null });
 
 export const fetchProfile = () =>
   withMockFallback("profile", () => mockProfile, () => apiGet<Profile>(`/users/me`));

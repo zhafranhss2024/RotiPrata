@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:8080/api`
 
-Last audited: 2026-02-25  
+Last audited: 2026-02-26  
 Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controller.java` and frontend calls in `frontend/src/lib/api.ts`.
 
 ## Security and Error Contract
@@ -59,6 +59,16 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /content/{contentId}/submit`
 - `GET /content/{contentId}/media`
 - `POST /content/{contentId}/view`
+- `POST /content/{contentId}/like`
+- `DELETE /content/{contentId}/like`
+- `POST /content/{contentId}/vote` (deprecated alias)
+- `DELETE /content/{contentId}/vote` (deprecated alias)
+- `POST /content/{contentId}/save`
+- `DELETE /content/{contentId}/save`
+- `POST /content/{contentId}/share`
+- `GET /content/{contentId}/comments`
+- `POST /content/{contentId}/comments`
+- `POST /content/{contentId}/flag`
 
 ### Lessons Learner Flow (`LessonController`)
 - `GET /lessons`
@@ -128,9 +138,16 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /content/{id}/submit` -> implemented
 - `GET /content/{id}/quiz` -> missing
 - `POST /content/{id}/view` -> implemented
-- `POST /content/{id}/vote` -> missing
-- `POST /content/{id}/save` -> missing
-- `POST /content/{id}/flag` -> missing
+- `POST /content/{id}/like` -> implemented
+- `DELETE /content/{id}/like` -> implemented
+- `POST /content/{id}/vote` -> implemented (deprecated alias)
+- `DELETE /content/{id}/vote` -> implemented (deprecated alias)
+- `POST /content/{id}/save` -> implemented
+- `DELETE /content/{id}/save` -> implemented
+- `POST /content/{id}/share` -> implemented
+- `GET /content/{id}/comments` -> implemented
+- `POST /content/{id}/comments` -> implemented
+- `POST /content/{id}/flag` -> implemented
 
 ### Lessons learner flow
 - `GET /lessons` -> implemented
@@ -184,9 +201,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /trending`
 - `GET /recommendations`
 - `GET /content/{id}/quiz`
-- `POST /content/{id}/vote`
-- `POST /content/{id}/save`
-- `POST /content/{id}/flag`
 - `GET /users/me/achievements`
 
 ## Compatibility Notes

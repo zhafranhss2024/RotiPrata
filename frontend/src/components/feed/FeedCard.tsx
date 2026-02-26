@@ -18,9 +18,14 @@ interface FeedCardProps {
   content: Content;
   isActive?: boolean;
   isSaved?: boolean;
+  isLikePending?: boolean;
+  isSavePending?: boolean;
+  isLiked?: boolean;
+  likeCount?: number;
   commentCount: number;
+  onLearnMoreClick?: () => void;
   onCommentClick?: () => void;
-  onVote?: (type: 'educational') => void;
+  onLikeToggle?: (nextLiked: boolean) => void;
   onSave?: () => void;
   onShare?: () => void;
   onFlag?: () => void;
@@ -41,19 +46,18 @@ type FloatingHeart = {
   driftX: number;
 };
 
-// TODO: Replace with Java backend API calls
-// POST /api/content/{id}/vote - Vote on content
-// POST /api/content/{id}/save - Save/bookmark content
-// POST /api/content/{id}/view - Track view
-// POST /api/content/{id}/flag - Flag content
-
 export function FeedCard({
   content,
   isActive = false,
   isSaved = false,
+  isLikePending = false,
+  isSavePending = false,
+  isLiked = false,
+  likeCount = 0,
   commentCount,
+  onLearnMoreClick,
   onCommentClick,
-  onVote,
+  onLikeToggle,
   onSave,
   onShare,
   onFlag,
@@ -64,8 +68,6 @@ export function FeedCard({
   onTakeDown,
   isTakingDown = false,
 }: FeedCardProps) {
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(content.educational_value_votes);
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
   const lastTapRef = useRef(0);
 
@@ -88,30 +90,24 @@ export function FeedCard({
     }, 850);
   };
 
-  const likeContent = () => {
-    setIsLiked(true);
-    setLikeCount((prev) => prev + 1);
-    onVote?.('educational');
-  };
-
   const handleLike = () => {
-    if (isLiked) {
-      setIsLiked(false);
-      setLikeCount((prev) => Math.max(0, prev - 1));
+    if (isLikePending) {
       return;
     }
-
-    likeContent();
+    if (isLiked) {
+      onLikeToggle?.(false);
+      return;
+    }
+    onLikeToggle?.(true);
   };
 
   const handleDoubleTapLike = (x: number, y: number) => {
     addFloatingHearts(x, y);
 
-    if (isLiked) {
+    if (isLiked || isLikePending) {
       return;
     }
-
-    likeContent();
+    onLikeToggle?.(true);
   };
 
   const handleCardDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -210,10 +206,10 @@ export function FeedCard({
 
       {/* Swipe left indicator */}
       <button
-        onClick={onCommentClick}
+        onClick={onLearnMoreClick}
         className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-white/70 hover:text-white transition-colors touch-target"
       >
-        <span className="text-sm font-medium">Comments</span>
+        <span className="text-sm font-medium">Learn more</span>
         <ChevronLeft className="h-5 w-5 rotate-180" />
       </button>
 
@@ -294,7 +290,11 @@ export function FeedCard({
         )}
 
         {/* Educational value vote */}
-        <button onClick={handleLike} className="flex flex-col items-center gap-1 text-white touch-target">
+        <button
+          onClick={handleLike}
+          disabled={isLikePending}
+          className="flex flex-col items-center gap-1 text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
+        >
           <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
             <Heart className={cn('h-6 w-6 transition-colors', isLiked && 'fill-red-500 text-red-500')} />
           </div>
@@ -313,7 +313,11 @@ export function FeedCard({
         </button>
 
         {/* Save/Bookmark */}
-        <button onClick={onSave} className="flex flex-col items-center gap-1 text-white touch-target">
+        <button
+          onClick={onSave}
+          disabled={isSavePending}
+          className="flex flex-col items-center gap-1 text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
+        >
           <div
             className={cn(
               'w-12 h-12 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors',

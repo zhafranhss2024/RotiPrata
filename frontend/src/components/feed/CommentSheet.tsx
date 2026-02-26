@@ -14,14 +14,18 @@ interface CommentSheetProps {
   content: Content | null;
   open: boolean;
   comments: FeedComment[];
+  isLoading?: boolean;
+  isPosting?: boolean;
   onOpenChange: (open: boolean) => void;
-  onPostComment: (contentId: string, commentText: string) => void;
+  onPostComment: (contentId: string, commentText: string) => Promise<boolean>;
 }
 
 export function CommentSheet({
   content,
   open,
   comments,
+  isLoading = false,
+  isPosting = false,
   onOpenChange,
   onPostComment,
 }: CommentSheetProps) {
@@ -34,12 +38,14 @@ export function CommentSheet({
 
   if (!content) return null;
 
-  const handlePostComment = () => {
+  const handlePostComment = async () => {
     const trimmedComment = newComment.trim();
     if (!trimmedComment) return;
 
-    onPostComment(content.id, trimmedComment);
-    setNewComment('');
+    const success = await onPostComment(content.id, trimmedComment);
+    if (success) {
+      setNewComment('');
+    }
   };
 
   return (
@@ -51,12 +57,18 @@ export function CommentSheet({
 
         <div className="mt-6 flex h-[calc(100%-3rem)] flex-col">
           <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-            {comments.map((comment) => (
-              <div key={comment.id} className="rounded-lg bg-muted p-3">
-                <p className="text-xs font-semibold text-muted-foreground">@{comment.author}</p>
-                <p className="mt-1 text-sm">{comment.text}</p>
-              </div>
-            ))}
+            {isLoading ? (
+              <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">Loading comments...</div>
+            ) : comments.length === 0 ? (
+              <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">No comments yet.</div>
+            ) : (
+              comments.map((comment) => (
+                <div key={comment.id} className="rounded-lg bg-muted p-3">
+                  <p className="text-xs font-semibold text-muted-foreground">@{comment.author}</p>
+                  <p className="mt-1 text-sm">{comment.text}</p>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="mt-4 space-y-2 border-t pt-4">
@@ -65,9 +77,16 @@ export function CommentSheet({
               value={newComment}
               onChange={(event) => setNewComment(event.target.value)}
               rows={3}
+              disabled={isPosting}
             />
-            <Button className="w-full" onClick={handlePostComment} disabled={!newComment.trim()}>
-              Post comment
+            <Button
+              className="w-full"
+              onClick={() => {
+                void handlePostComment();
+              }}
+              disabled={!newComment.trim() || isPosting}
+            >
+              {isPosting ? 'Posting...' : 'Post comment'}
             </Button>
           </div>
         </div>
