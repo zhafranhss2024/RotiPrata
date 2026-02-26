@@ -41,6 +41,8 @@ public class Profile {
 
     private LocalDate lastActivityDate;
 
+    private String timezone;
+
     private Double totalHoursLearned = 0.0;
 
     private OffsetDateTime createdAt = OffsetDateTime.now();

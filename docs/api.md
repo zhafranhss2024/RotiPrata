@@ -28,6 +28,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /auth/forgot-password`
 - `POST /auth/reset-password`
 - `POST /auth/logout`
+- `POST /auth/streak/touch`
 - `GET /auth/login/google`
 - `GET /auth/username-available`
 
@@ -128,6 +129,19 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Error behavior:
   - Invalid cursor returns `400` with API error envelope (`code=validation_error`)
 
+## Login Streak Contract
+
+- Endpoint: `POST /auth/streak/touch`
+- Auth: required (`Authorization: Bearer <accessToken>`)
+- Request body (optional):
+  - `{ "timezone": "Asia/Singapore" }`
+- Response:
+  - `{ currentStreak, longestStreak, lastActivityDate, touchedToday }`
+- Behavior:
+  - Updates login streak once per day per user.
+  - Day boundary uses valid request timezone first, then stored profile timezone, then UTC fallback.
+  - This endpoint is idempotent for same-day repeated calls (`touchedToday=true`).
+
 ## Frontend Parity Checklist (`frontend/src/lib/api.ts`)
 
 ### Feed / Explore
@@ -226,6 +240,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Feed items and `GET /content/{contentId}` now include creator enrichment when profile exists:
   - `creator: { user_id, display_name, avatar_url }`
   - UI should keep fallback `@anonymous` when creator/display name is missing
+- `/users/me` may include `timezone` for login streak day-boundary preference.
 - `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.
 - Learner quiz endpoints do not expose `correct_answer`; grading is server-side.

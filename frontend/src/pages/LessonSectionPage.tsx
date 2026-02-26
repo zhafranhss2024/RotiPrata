@@ -15,6 +15,11 @@ import { cn } from "@/lib/utils";
 
 const STEP_GAP = 70;
 const MAX_VISIBLE_DISTANCE = 3;
+const STEP_HORIZONTAL_OFFSET = 26;
+const NAV_GESTURE_LOCK_MS = 420;
+const WHEEL_DELTA_THRESHOLD = 20;
+const SWIPE_DELTA_THRESHOLD = 45;
+const ADVANCE_NAV_DELAY_MS = 120;
 
 const LessonSectionPage = () => {
   const { id, sectionId } = useParams<{ id: string; sectionId: string }>();
@@ -29,6 +34,8 @@ const LessonSectionPage = () => {
   const [animatingCompleteIndex, setAnimatingCompleteIndex] = useState<number | null>(null);
   const [nextPulseIndex, setNextPulseIndex] = useState<number | null>(null);
   const advanceTimeoutRef = useRef<number | null>(null);
+  const gestureLockRef = useRef(false);
+  const touchStartYRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -75,6 +82,10 @@ const LessonSectionPage = () => {
   const completedSections = progressDetail?.completedSections ?? 0;
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < totalSections - 1;
+  const quizReady =
+    progressDetail?.nextStopType === "quiz" &&
+    progressDetail?.quizStatus !== "blocked_hearts";
+  const showTakeQuizButton = Boolean(quizReady && currentIndex === totalSections - 1);
 
   const goToRelative = (delta: number) => {
     if (!id || currentIndex < 0) return;
@@ -83,35 +94,46 @@ const LessonSectionPage = () => {
     navigate(`/lessons/${id}/${sections[nextIndex].id}`);
   };
 
-  const handleCompleteSection = async () => {
-    if (!id || !currentSection || currentIndex < 0) return;
+  const scheduleAdvanceNavigation = (updated: LessonProgressDetail, requestedSectionId?: string | null) => {
+    if (!id) return;
+    if (advanceTimeoutRef.current) {
+      window.clearTimeout(advanceTimeoutRef.current);
+    }
+
+    advanceTimeoutRef.current = window.setTimeout(() => {
+      if (requestedSectionId) {
+        const requestedIndex = sections.findIndex((section) => section.id === requestedSectionId);
+        // Allow jump only to stops that are unlocked after this completion.
+        if (requestedIndex >= 0 && requestedIndex <= updated.completedSections) {
+          navigate(`/lessons/${id}/${requestedSectionId}`);
+          return;
+        }
+      }
+
+      if (updated.nextSectionId) {
+        navigate(`/lessons/${id}/${updated.nextSectionId}`);
+      }
+    }, ADVANCE_NAV_DELAY_MS);
+  };
+
+  const completeCurrentSection = async (): Promise<LessonProgressDetail | null> => {
+    if (!id || !currentSection || currentIndex < 0) return null;
+    const completedIndex = currentIndex;
+    const optimisticNextIndex = completedIndex + 1 < sections.length ? completedIndex + 1 : -1;
+    setAnimatingCompleteIndex(completedIndex);
+    setNextPulseIndex(optimisticNextIndex >= 0 ? optimisticNextIndex : null);
     setIsSaving(true);
     setSaveError(null);
     try {
       const updated = await completeLessonSection(id, currentSection.id);
       setProgressDetail(updated);
-
-      const completedIndex = currentIndex;
       const nextIndex = updated.nextSectionId
         ? sections.findIndex((section) => section.id === updated.nextSectionId)
         : -1;
-
-      setAnimatingCompleteIndex(completedIndex);
-      setNextPulseIndex(nextIndex >= 0 ? nextIndex : null);
-
-      if (advanceTimeoutRef.current) {
-        window.clearTimeout(advanceTimeoutRef.current);
+      if (nextIndex >= 0) {
+        setNextPulseIndex(nextIndex);
       }
-
-      advanceTimeoutRef.current = window.setTimeout(() => {
-        if (updated.nextStopType === "quiz") {
-          navigate(`/lessons/${id}/quiz`);
-        } else if (updated.nextSectionId) {
-          navigate(`/lessons/${id}/${updated.nextSectionId}`);
-        } else {
-          navigate(`/lessons/${id}`);
-        }
-      }, 650);
+      return updated;
     } catch (saveProgressError) {
       console.warn("Failed to save lesson progress", saveProgressError);
       if (saveProgressError instanceof ApiError && saveProgressError.status === 409) {
@@ -121,6 +143,7 @@ const LessonSectionPage = () => {
       } else {
         setSaveError("Unable to save progress right now. Please try again.");
       }
+      return null;
     } finally {
       setIsSaving(false);
     }
@@ -132,22 +155,88 @@ const LessonSectionPage = () => {
       goToRelative(1);
       return;
     }
-    await handleCompleteSection();
+    const updated = await completeCurrentSection();
+    if (!updated) return;
+    scheduleAdvanceNavigation(updated);
   };
 
-  const relativeOffsetX = (relative: number) => {
-    if (relative === 0) return 0;
-    const distance = Math.abs(relative);
-    const magnitude = 18 + (distance % 3) * 8;
-    if (relative < 0) {
-      return distance % 2 === 1 ? -magnitude : magnitude;
-    }
-    return distance % 2 === 1 ? magnitude : -magnitude;
+  const lockNavigationGesture = () => {
+    gestureLockRef.current = true;
+    window.setTimeout(() => {
+      gestureLockRef.current = false;
+    }, NAV_GESTURE_LOCK_MS);
   };
+
+  const handleSnapNavigate = (direction: 1 | -1) => {
+    if (gestureLockRef.current || isSaving || currentIndex < 0) {
+      return;
+    }
+    lockNavigationGesture();
+    if (direction > 0) {
+      void handleDownAdvance();
+      return;
+    }
+    goToRelative(-1);
+  };
+
+  const handleRailWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (Math.abs(event.deltaY) < WHEEL_DELTA_THRESHOLD) {
+      return;
+    }
+    event.preventDefault();
+    handleSnapNavigate(event.deltaY > 0 ? 1 : -1);
+  };
+
+  const handleRailTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    touchStartYRef.current = event.touches[0]?.clientY ?? null;
+  };
+
+  const handleRailTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const startY = touchStartYRef.current;
+    const endY = event.changedTouches[0]?.clientY ?? null;
+    touchStartYRef.current = null;
+    if (startY == null || endY == null) {
+      return;
+    }
+    const delta = startY - endY;
+    if (Math.abs(delta) < SWIPE_DELTA_THRESHOLD) {
+      return;
+    }
+    handleSnapNavigate(delta > 0 ? 1 : -1);
+  };
+
+  const handleStopSelect = async (targetIndex: number) => {
+    if (!id || isSaving || targetIndex < 0 || targetIndex >= sections.length) {
+      return;
+    }
+
+    const targetSectionId = sections[targetIndex].id;
+    if (targetIndex <= completedSections) {
+      navigate(`/lessons/${id}/${targetSectionId}`);
+      return;
+    }
+
+    // If user is on an already completed section, move to the current unlocked stop.
+    if (currentIndex < completedSections) {
+      const unlocked = sections[completedSections];
+      if (unlocked) {
+        navigate(`/lessons/${id}/${unlocked.id}`);
+      }
+      return;
+    }
+
+    // Mirror down-button behavior: save current progress first, then navigate.
+    const updated = await completeCurrentSection();
+    if (!updated) return;
+    scheduleAdvanceNavigation(updated, targetSectionId);
+  };
+
+  const railOffsetX = (index: number) =>
+    index % 2 === 0 ? -STEP_HORIZONTAL_OFFSET : STEP_HORIZONTAL_OFFSET;
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <MainLayout className="overflow-hidden">
         <div className="w-full px-4 lg:px-8 py-16 text-center text-mainAccent">
           Loading lesson...
         </div>
@@ -157,7 +246,7 @@ const LessonSectionPage = () => {
 
   if (error || !lesson || !progressDetail) {
     return (
-      <MainLayout>
+      <MainLayout className="overflow-hidden">
         <div className="w-full px-4 lg:px-8 py-10">
           <div className="rounded-2xl p-6 text-center space-y-4">
             <p className="text-red-200">{error ?? "Unable to load this lesson."}</p>
@@ -172,7 +261,7 @@ const LessonSectionPage = () => {
 
   if (!currentSection) {
     return (
-      <MainLayout>
+      <MainLayout className="overflow-hidden">
         <div className="w-full px-4 lg:px-8 py-10">
           <div className="text-center space-y-4">
             <p className="text-white/80">This lesson does not have any readable sections yet.</p>
@@ -186,8 +275,8 @@ const LessonSectionPage = () => {
   }
 
   return (
-    <MainLayout>
-      <div className="w-full px-4 lg:px-8 py-6">
+    <MainLayout className="overflow-hidden">
+      <div className="w-full h-full overflow-hidden px-4 lg:px-8 py-6 pb-28 lg:pb-10">
         <Link
           to={`/lessons/${id}`}
           className="inline-flex items-center text-mainAccent hover:text-white"
@@ -196,7 +285,12 @@ const LessonSectionPage = () => {
           Back to Lesson Details
         </Link>
 
-        <div className="mt-4 mx-auto max-w-[1420px] grid lg:grid-cols-[170px_minmax(0,1fr)] gap-10 items-start">
+        <div
+          className="mt-4 mx-auto max-w-[1420px] grid lg:grid-cols-[170px_minmax(0,1fr)] gap-10 items-start lg:h-[calc(100dvh-8.5rem)]"
+          onWheel={handleRailWheel}
+          onTouchStart={handleRailTouchStart}
+          onTouchEnd={handleRailTouchEnd}
+        >
           <aside className="hidden lg:flex flex-col items-center pt-4 sticky top-24">
             <button
               type="button"
@@ -216,7 +310,7 @@ const LessonSectionPage = () => {
                 const opacity = distance === 0 ? 1 : distance === 1 ? 0.72 : distance === 2 ? 0.42 : 0.2;
                 const scale = distance === 0 ? 1 : distance === 1 ? 0.86 : distance === 2 ? 0.72 : 0.6;
                 const y = relative * STEP_GAP;
-                const x = relativeOffsetX(relative);
+                const x = railOffsetX(index);
                 const isCompleted = index < completedSections;
                 const isCurrent = relative === 0;
                 const isAnimatingComplete = animatingCompleteIndex === index;
@@ -239,7 +333,9 @@ const LessonSectionPage = () => {
                   >
                     <button
                       type="button"
-                      onClick={() => navigate(`/lessons/${id}/${section.id}`)}
+                      onClick={() => {
+                        void handleStopSelect(index);
+                      }}
                       disabled={isSaving}
                       className={cn(
                         "relative h-16 w-[68px] rounded-full border-2 flex items-center justify-center transition-transform duration-200 active:translate-y-[5px] active:shadow-none",
@@ -273,9 +369,9 @@ const LessonSectionPage = () => {
             </button>
           </aside>
 
-          <section className="min-w-0 max-w-4xl w-full justify-self-center pt-6">
-            <h2 className="text-4xl text-white mb-7">{currentSection.title}</h2>
-            <div className="space-y-4 text-lg leading-9 text-white/95 min-h-[48dvh]">
+          <section className="min-w-0 max-w-4xl w-full justify-self-center pt-6 lg:h-full lg:flex lg:flex-col overflow-hidden">
+            <h2 className="text-4xl text-white mb-7 flex-none">{currentSection.title}</h2>
+            <div className="space-y-4 text-lg leading-9 text-white/95 min-h-[48dvh] lg:min-h-0 lg:flex-1 lg:pr-2">
               {currentSection.content
                 .split("\n")
                 .filter((line) => line.trim().length > 0)
@@ -289,6 +385,18 @@ const LessonSectionPage = () => {
         {saveError ? (
           <div className="rounded-xl p-3 text-sm text-red-200 mt-4">
             {saveError}
+          </div>
+        ) : null}
+
+        {showTakeQuizButton ? (
+          <div className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+0.75rem)] lg:bottom-6 z-30 flex justify-center px-4 pointer-events-none">
+            <Button
+              type="button"
+              onClick={() => navigate(`/lessons/${id}/quiz`)}
+              className="duo-button-primary h-12 px-8 w-full max-w-sm pointer-events-auto"
+            >
+              Take Quiz
+            </Button>
           </div>
         ) : null}
       </div>

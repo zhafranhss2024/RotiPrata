@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type {
   Lesson,
+  LessonHeartsStatus,
   LessonProgressDetail,
   LessonQuizAnswerResult,
   LessonQuizQuestion,
@@ -26,6 +27,7 @@ import {
   restartLessonQuiz,
   submitLessonQuizAnswer,
 } from "@/lib/api";
+import { emitHeartsUpdated } from "@/lib/heartsEvents";
 import { cn } from "@/lib/utils";
 import { MatchPairsBoard } from "@/components/quiz/MatchPairsBoard";
 import { ConversationBoard } from "@/components/quiz/ConversationBoard";
@@ -43,6 +45,7 @@ type ClozeBankOption = {
 const CLOZE_TOKEN_REGEX = /\{\{([a-zA-Z0-9_-]+)\}\}/g;
 const STEP_GAP = 70;
 const MAX_VISIBLE_DISTANCE = 3;
+const STEP_HORIZONTAL_OFFSET = 26;
 
 const formatRefill = (value?: string | null) => {
   if (!value) return null;
@@ -136,14 +139,24 @@ const normalizeQuestionResponse = (
   }
 };
 
-const relativeOffsetX = (relative: number) => {
-  if (relative === 0) return 0;
-  const distance = Math.abs(relative);
-  const magnitude = 18 + (distance % 3) * 8;
-  if (relative < 0) {
-    return distance % 2 === 1 ? -magnitude : magnitude;
+const railOffsetX = (index: number) =>
+  index % 2 === 0 ? -STEP_HORIZONTAL_OFFSET : STEP_HORIZONTAL_OFFSET;
+
+const resolveHeartsAfterSubmit = (
+  previousHearts: LessonHeartsStatus,
+  submitResult: LessonQuizAnswerResult
+): LessonHeartsStatus => {
+  const serverHearts = submitResult.hearts;
+  if (submitResult.correct) {
+    return serverHearts;
   }
-  return distance % 2 === 1 ? magnitude : -magnitude;
+  if (serverHearts.heartsRemaining < previousHearts.heartsRemaining) {
+    return serverHearts;
+  }
+  return {
+    ...serverHearts,
+    heartsRemaining: Math.max(0, previousHearts.heartsRemaining - 1),
+  };
 };
 
 const DuoChoiceButton = ({
@@ -560,7 +573,13 @@ const LessonQuizPage = () => {
     const clip = feedback.correct ? "/audio/correct.mp3" : "/audio/incorrect.mp3";
     const audio = new Audio(clip);
     void audio.play().catch(() => undefined);
-  }, [feedback?.correct, feedback?.questionIndex]);
+  }, [feedback]);
+
+  const quizHearts = quizState?.hearts;
+  useEffect(() => {
+    if (!quizHearts) return;
+    emitHeartsUpdated(quizHearts);
+  }, [quizHearts]);
 
   const currentQuestion = quizState?.currentQuestion ?? null;
   const normalizedResponse = currentQuestion
@@ -586,6 +605,8 @@ const LessonQuizPage = () => {
         questionId: currentQuestion.questionId,
         response: normalizedResponse,
       });
+      const resolvedHearts = resolveHeartsAfterSubmit(quizState.hearts, submitResult);
+      emitHeartsUpdated(resolvedHearts);
       if (submitResult.quizCompleted) {
         setFeedback(null);
         setPendingState(null);
@@ -600,7 +621,7 @@ const LessonQuizPage = () => {
                 correctCount: submitResult.correctCount,
                 earnedScore: submitResult.earnedScore,
                 maxScore: submitResult.maxScore,
-                hearts: submitResult.hearts,
+                hearts: resolvedHearts,
                 canAnswer: false,
                 canRestart: !submitResult.passed,
                 currentQuestion: null,
@@ -625,30 +646,41 @@ const LessonQuizPage = () => {
 
       setFeedback(submitResult);
 
+      // Update hearts and aggregate counters immediately from submit response.
+      setQuizState((previous) =>
+        previous
+          ? {
+              ...previous,
+              status: submitResult.status,
+              correctCount: submitResult.correctCount,
+              earnedScore: submitResult.earnedScore,
+              maxScore: submitResult.maxScore,
+              hearts: resolvedHearts,
+              canAnswer: false,
+              wrongQuestionIds: submitResult.wrongQuestionIds ?? previous.wrongQuestionIds ?? [],
+            }
+          : previous
+      );
+
       if (submitResult.correct) {
         setRailCompleteIndex(currentIndex);
         setRailNextIndex(currentIndex + 1 < totalQuestions ? currentIndex + 1 : null);
       }
 
-      if (submitResult.status === "in_progress" && submitResult.nextQuestion) {
-        setPendingState({
-          attemptId: submitResult.attemptId,
-          status: "in_progress",
-          questionIndex: submitResult.questionIndex,
-          totalQuestions: submitResult.totalQuestions,
-          correctCount: submitResult.correctCount,
-          earnedScore: submitResult.earnedScore,
-          maxScore: submitResult.maxScore,
-          currentQuestion: submitResult.nextQuestion,
-          hearts: submitResult.hearts,
-          canAnswer: true,
-          canRestart: false,
-          wrongQuestionIds: submitResult.wrongQuestionIds ?? [],
-        });
-      } else {
-        const nextState = await fetchLessonQuizState(id);
-        setQuizState(nextState);
-      }
+      setPendingState({
+        attemptId: submitResult.attemptId,
+        status: submitResult.status,
+        questionIndex: submitResult.questionIndex,
+        totalQuestions: submitResult.totalQuestions,
+        correctCount: submitResult.correctCount,
+        earnedScore: submitResult.earnedScore,
+        maxScore: submitResult.maxScore,
+        currentQuestion: submitResult.nextQuestion,
+        hearts: resolvedHearts,
+        canAnswer: submitResult.status === "in_progress" && Boolean(submitResult.nextQuestion),
+        canRestart: submitResult.status === "failed",
+        wrongQuestionIds: submitResult.wrongQuestionIds ?? [],
+      });
     } catch (submitError) {
       console.warn("Quiz answer failed", submitError);
       setError("Unable to submit answer right now.");
@@ -658,7 +690,6 @@ const LessonQuizPage = () => {
   };
 
   const handleContinue = async () => {
-    if (!id) return;
     if (pendingState) {
       setQuizState(pendingState);
       setPendingState(null);
@@ -666,15 +697,8 @@ const LessonQuizPage = () => {
       setResponseDraft(null);
       return;
     }
-    try {
-      const nextState = await fetchLessonQuizState(id);
-      setQuizState(nextState);
-      setFeedback(null);
-      setResponseDraft(null);
-    } catch (refreshError) {
-      console.warn("Failed to refresh quiz state", refreshError);
-      setError("Unable to refresh quiz state.");
-    }
+    setFeedback(null);
+    setResponseDraft(null);
   };
 
   const handleRestart = async () => {
@@ -684,6 +708,7 @@ const LessonQuizPage = () => {
     try {
       const restarted = await restartLessonQuiz(id, "full");
       setQuizState(restarted);
+      emitHeartsUpdated(restarted.hearts);
       setFeedback(null);
       setQuizSummary(null);
       setPendingState(null);
@@ -703,6 +728,7 @@ const LessonQuizPage = () => {
     try {
       const restarted = await restartLessonQuiz(id, "wrong_only");
       setQuizState(restarted);
+      emitHeartsUpdated(restarted.hearts);
       setFeedback(null);
       setQuizSummary(null);
       setPendingState(null);
@@ -730,7 +756,7 @@ const LessonQuizPage = () => {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <MainLayout className="overflow-hidden">
         <div className="w-full px-4 lg:px-8 py-16 text-center text-mainAccent">Loading quiz...</div>
       </MainLayout>
     );
@@ -738,7 +764,7 @@ const LessonQuizPage = () => {
 
   if (error || !lesson || !quizState) {
     return (
-      <MainLayout>
+      <MainLayout className="overflow-hidden">
         <div className="w-full px-4 lg:px-8 py-10">
           <div className="rounded-2xl p-6 text-center space-y-4">
             <p className="text-red-200">{error ?? "Unable to load quiz."}</p>
@@ -754,7 +780,7 @@ const LessonQuizPage = () => {
   const refillText = formatRefill(quizState.hearts.heartsRefillAt);
 
   return (
-    <MainLayout>
+    <MainLayout className="overflow-hidden">
       <div className="w-full px-4 lg:px-8 py-6">
         <div className="flex items-center justify-between">
           <Link to={`/lessons/${id}`} className="inline-flex items-center text-mainAccent hover:text-white">
@@ -892,7 +918,7 @@ const LessonQuizPage = () => {
                   const scale =
                     distance === 0 ? 1 : distance === 1 ? 0.86 : distance === 2 ? 0.72 : 0.6;
                   const y = relative * STEP_GAP;
-                  const x = relativeOffsetX(relative);
+                  const x = railOffsetX(index);
                   const isCompleted = index < completedCount;
                   const isCurrent = relative === 0;
                   const isAnimatingComplete = railCompleteIndex === index;

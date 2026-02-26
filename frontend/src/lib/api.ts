@@ -139,6 +139,13 @@ export type AuthSessionResponse = {
   message?: string;
 };
 
+export type LoginStreakTouchResponse = {
+  currentStreak: number;
+  longestStreak: number;
+  lastActivityDate: string;
+  touchedToday: boolean;
+};
+
 export type DisplayNameAvailabilityResponse = {
   available: boolean;
   normalized: string;
@@ -724,6 +731,9 @@ export const registerUser = (
   );
 
 export const logoutUser = () => apiPost<void>(`/auth/logout`);
+
+export const touchLoginStreak = (timezone?: string | null) =>
+  apiPost<LoginStreakTouchResponse>(`/auth/streak/touch`, timezone ? { timezone } : {});
 
 export const requestPasswordReset = (email: string, redirectTo?: string) =>
   withMockFallback(

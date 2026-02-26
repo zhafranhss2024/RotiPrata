@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { fetchUserHearts } from '@/lib/api';
+import { subscribeToHeartsUpdated } from '@/lib/heartsEvents';
 import type { LessonHeartsStatus } from '@/types';
 
 interface HeartsIndicatorProps {
@@ -34,23 +35,26 @@ export function HeartsIndicator({ className }: HeartsIndicatorProps) {
     };
 
     load();
-    let intervalId: number | null = null;
     const handleFocus = () => load();
-    if (isQuizRoute) {
-      intervalId = window.setInterval(load, 5_000);
+    if (!isQuizRoute) {
       window.addEventListener('focus', handleFocus);
     }
 
     return () => {
       active = false;
-      if (intervalId != null) {
-        window.clearInterval(intervalId);
-      }
-      if (isQuizRoute) {
+      if (!isQuizRoute) {
         window.removeEventListener('focus', handleFocus);
       }
     };
   }, [isQuizRoute]);
+
+  useEffect(() => {
+    return subscribeToHeartsUpdated((nextHearts) => {
+      setHearts(nextHearts);
+      setHasError(false);
+      setIsLoading(false);
+    });
+  }, []);
 
   return (
     <div

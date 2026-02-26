@@ -11,7 +11,6 @@ import com.rotiprata.application.quiz.LessonQuizGraderRegistry;
 import com.rotiprata.application.quiz.LessonQuizQuestionGrader;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -19,8 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
@@ -32,7 +29,6 @@ public class LessonQuizService {
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
     private static final String ATTEMPT_META_WRONG_QUESTION_IDS = "__wrong_question_ids";
     private static final String ATTEMPT_META_QUESTION_IDS = "__question_ids";
-    private static final Logger log = LoggerFactory.getLogger(LessonQuizService.class);
 
     private final SupabaseRestClient supabaseRestClient;
     private final SupabaseAdminRestClient supabaseAdminRestClient;
@@ -842,7 +838,6 @@ public class LessonQuizService {
             return;
         }
         incrementProfileXp(userId, xpReward, token);
-        updateProfileStreak(userId, token);
         if (badgeName != null) {
             insertBadgeAchievement(userId, badgeName, token);
         }
@@ -902,58 +897,6 @@ public class LessonQuizService {
             token,
             MAP_LIST
         );
-    }
-
-    private void updateProfileStreak(UUID userId, String token) {
-        List<Map<String, Object>> profiles = supabaseRestClient.getList(
-            "profiles",
-            buildQuery(Map.of("select", "id,current_streak,longest_streak,last_activity_date", "user_id", "eq." + userId, "limit", "1")),
-            token,
-            MAP_LIST
-        );
-        if (profiles.isEmpty()) {
-            return;
-        }
-
-        Map<String, Object> profile = profiles.get(0);
-        String profileId = stringValue(profile.get("id"));
-        if (profileId == null) {
-            return;
-        }
-
-        LocalDate today = LocalDate.now();
-        LocalDate lastActivityDate = parseLocalDate(profile.get("last_activity_date"));
-        int currentStreak = parseInteger(profile.get("current_streak")) == null ? 0 : parseInteger(profile.get("current_streak"));
-        int longestStreak = parseInteger(profile.get("longest_streak")) == null ? 0 : parseInteger(profile.get("longest_streak"));
-
-        if (lastActivityDate != null && lastActivityDate.equals(today)) {
-            return;
-        }
-
-        int nextCurrentStreak;
-        if (lastActivityDate != null && lastActivityDate.plusDays(1).equals(today)) {
-            nextCurrentStreak = Math.max(1, currentStreak + 1);
-        } else {
-            nextCurrentStreak = 1;
-        }
-        int nextLongestStreak = Math.max(longestStreak, nextCurrentStreak);
-
-        try {
-            supabaseRestClient.patchList(
-                "profiles",
-                buildQuery(Map.of("id", "eq." + profileId)),
-                Map.of(
-                    "current_streak", nextCurrentStreak,
-                    "longest_streak", nextLongestStreak,
-                    "last_activity_date", today.toString(),
-                    "updated_at", OffsetDateTime.now()
-                ),
-                token,
-                MAP_LIST
-            );
-        } catch (ResponseStatusException ex) {
-            log.warn("Unable to update streak for user {}", userId, ex);
-        }
     }
 
     private void insertBadgeAchievement(UUID userId, String badgeName, String token) {
@@ -1316,20 +1259,6 @@ public class LessonQuizService {
         }
         try {
             return OffsetDateTime.parse(value.toString());
-        } catch (RuntimeException ex) {
-            return null;
-        }
-    }
-
-    private LocalDate parseLocalDate(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof LocalDate localDate) {
-            return localDate;
-        }
-        try {
-            return LocalDate.parse(value.toString());
         } catch (RuntimeException ex) {
             return null;
         }

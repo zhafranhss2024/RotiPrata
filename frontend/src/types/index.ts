@@ -21,6 +21,7 @@ export interface Profile {
   current_streak: number;
   longest_streak: number;
   last_activity_date: string | null;
+  timezone?: string | null;
   total_hours_learned: number;
   created_at: string;
   updated_at: string;

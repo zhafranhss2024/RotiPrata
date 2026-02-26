@@ -56,12 +56,13 @@ public class ContentQuizService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
         }
 
-        Map<String, Object> quiz = findActiveContentQuiz(contentId, token);
+        ensureApprovedContentExists(contentId);
+        Map<String, Object> quiz = findActiveContentQuizAdmin(contentId);
         if (quiz == null) {
             return null;
         }
         String quizId = stringValue(quiz.get("id"));
-        List<Map<String, Object>> questions = fetchQuizQuestions(quizId, token);
+        List<Map<String, Object>> questions = fetchQuizQuestionsAdmin(quizId);
         return toQuizResponse(quiz, questions);
     }
 
@@ -79,12 +80,13 @@ public class ContentQuizService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
         }
 
-        Map<String, Object> quiz = findActiveContentQuiz(contentId, token);
+        ensureApprovedContentExists(contentId);
+        Map<String, Object> quiz = findActiveContentQuizAdmin(contentId);
         if (quiz == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Quiz not found");
         }
         String quizId = stringValue(quiz.get("id"));
-        List<Map<String, Object>> questions = fetchQuizQuestions(quizId, token);
+        List<Map<String, Object>> questions = fetchQuizQuestionsAdmin(quizId);
         if (questions.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quiz has no questions");
         }
@@ -121,7 +123,7 @@ public class ContentQuizService {
         insert.put("time_taken_seconds", request == null ? null : request.timeTakenSeconds());
         insert.put("attempted_at", OffsetDateTime.now());
 
-        supabaseRestClient.postList("user_quiz_results", insert, token, MAP_LIST);
+        supabaseAdminRestClient.postList("user_quiz_results", insert, MAP_LIST);
 
         return new ContentQuizSubmitResponse(earnedScore, maxScore, percentage, passed);
     }
@@ -220,6 +222,22 @@ public class ContentQuizService {
             MAP_LIST
         );
         return quizzes.isEmpty() ? null : quizzes.get(0);
+    }
+
+    private void ensureApprovedContentExists(UUID contentId) {
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content",
+            buildQuery(Map.of(
+                "select", "id",
+                "id", "eq." + contentId,
+                "status", "eq.approved",
+                "limit", "1"
+            )),
+            MAP_LIST
+        );
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
+        }
     }
 
     private Map<String, Object> findActiveContentQuizAdmin(UUID contentId) {

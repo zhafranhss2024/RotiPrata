@@ -1,9 +1,10 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { setTokens } from '@/lib/tokenStorage';
+import { touchLoginStreak } from '@/lib/api';
 import { useAuthContext } from '@/contexts/AuthContext';
 
 const parseAuthParams = () => {
@@ -24,18 +25,28 @@ const parseAuthParams = () => {
 const AuthCallbackPage = () => {
   const navigate = useNavigate();
   const { checkAuth } = useAuthContext();
-  const [error, setError] = useState('');
+  const authParams = useMemo(() => parseAuthParams(), []);
+  const [error, setError] = useState(() => {
+    if (authParams.error) {
+      return authParams.error;
+    }
+    if (!authParams.accessToken) {
+      return 'Missing access token. Please try signing in again.';
+    }
+    return '';
+  });
+
+  const resolveClientTimezone = () => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+    } catch (_error) {
+      return null;
+    }
+  };
 
   useEffect(() => {
-    const { accessToken, refreshToken, tokenType, expiresIn, type, error: authError } = parseAuthParams();
-
-    if (authError) {
-      setError(authError);
-      return;
-    }
-
-    if (!accessToken) {
-      setError('Missing access token. Please try signing in again.');
+    const { accessToken, refreshToken, tokenType, type } = authParams;
+    if (error) {
       return;
     }
 
@@ -48,13 +59,24 @@ const AuthCallbackPage = () => {
     setTokens(accessToken, refreshToken, tokenType);
     window.history.replaceState({}, document.title, '/auth/callback');
 
-    checkAuth()
-      .then(() => navigate('/'))
-      .catch((err) => {
+    const completeSignIn = async () => {
+      try {
+        await touchLoginStreak(resolveClientTimezone());
+      } catch (streakError) {
+        console.warn('Login streak touch failed', streakError);
+      }
+
+      try {
+        await checkAuth();
+        navigate('/');
+      } catch (err) {
         console.error('Auth callback failed', err);
         setError('Unable to complete sign-in.');
-      });
-  }, [checkAuth, navigate]);
+      }
+    };
+
+    void completeSignIn();
+  }, [authParams, checkAuth, error, navigate]);
 
   return (
     <MainLayout hideNav>
