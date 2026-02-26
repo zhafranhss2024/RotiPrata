@@ -1,6 +1,6 @@
 package com.rotiprata.api.dto;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -8,35 +8,18 @@ public class GetHistoryDTO {
 
     private String id;
 
-    @JsonProperty("item_id")
-    private String itemId; 
+    private String query;
 
-    private String title;
-
-    @JsonProperty("content_id")
-    private String contentId;
-
-    @JsonProperty("lesson_id")
-    private String lessonId;
-
-    @JsonProperty("viewed_at")
-    private Instant viewedAt;
+    @JsonProperty("searched_at")
+    private LocalDateTime  searchedAt;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
 
-    public String getItemId() { return itemId; }
-    public void setItemId(String itemId) { this.itemId = itemId; }
+    public String getQuery() { return query; }
+    public void setQuery(String query) { this.query = query; }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-
-    public String getContentId() { return contentId; }
-    public void setContentId(String contentId) { this.contentId = contentId; }
-
-    public String getLessonId() { return lessonId; }
-    public void setLessonId(String lessonId) { this.lessonId = lessonId; }
-
-    public Instant getViewedAt() { return viewedAt; }
-    public void setViewedAt(Instant viewedAt) { this.viewedAt = viewedAt; }
+    public LocalDateTime  getSearchedAt() { return searchedAt; }
+    public void setSearchedAt(LocalDateTime  searchedAt) { this.searchedAt = searchedAt; }
+    
 }

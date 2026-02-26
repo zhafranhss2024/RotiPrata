@@ -36,16 +36,18 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET,
                     "/api/auth/login/google",
                     "/api/auth/username-available",
-                    "/api/categories",
-                    "/v3/api-docs/**",
-                    "/swagger-ui/**",
-                    "/swagger-ui.html"
+                    "/api/categories"
                 ).permitAll()
                 .requestMatchers(HttpMethod.POST,
                     "/api/auth/login",
                     "/api/auth/register",
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password"
+                ).permitAll()
+                .requestMatchers(
+                    "/v3/api-docs/**",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

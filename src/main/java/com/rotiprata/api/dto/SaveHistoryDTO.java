@@ -1,37 +1,25 @@
 package com.rotiprata.api.dto;
 
 import java.time.Instant;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class SaveHistoryDTO {
 
-    @JsonProperty("item_id")
-    private String itemId; 
+    @JsonProperty("user_id")
+    private String userId;
 
-    private String title;
+    private String query;
 
-    @JsonProperty("content_id")
-    private String contentId;
+    @JsonProperty("searched_at")
+    private Instant searchedAt;
 
-    @JsonProperty("lesson_id")
-    private String lessonId;
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
 
-    @JsonProperty("viewed_at")
-    private Instant viewedAt;
+    public String getQuery() { return query; }
+    public void setQuery(String query) { this.query = query; }
 
-    public String getItemId() { return itemId; }
-    public void setItemId(String itemId) { this.itemId = itemId; }
+    public Instant getSearchedAt() { return searchedAt; }
+    public void setSearchedAt(Instant searchedAt) { this.searchedAt = searchedAt; }
 
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-
-    public String getContentId() { return contentId; }
-    public void setContentId(String contentId) { this.contentId = contentId; }
-
-    public String getLessonId() { return lessonId; }
-    public void setLessonId(String lessonId) { this.lessonId = lessonId; }
-
-    public Instant getViewedAt() { return viewedAt; }
-    public void setViewedAt(Instant viewedAt) { this.viewedAt = viewedAt; }
 }

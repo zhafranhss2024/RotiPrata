@@ -4,13 +4,15 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
+
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.rotiprata.api.dto.SaveHistoryDTO;
 
 @Service
 public class BrowsingService {
@@ -65,31 +67,26 @@ public class BrowsingService {
 
     public void saveHistory(
             String userId,
-            String contentId,
-            String lessonId,
-            String title,
+            String query,
+            Instant searchedAt,
             String accessToken
     ) {
-        if (contentId == null && lessonId == null) {
+        String normalizedQuery = query == null ? "" : query.trim();
+        if (normalizedQuery.isEmpty()) {
             return;
         }
 
-        String itemId = contentId != null ? contentId : lessonId;
+        SaveHistoryDTO dto = new SaveHistoryDTO();
+        dto.setUserId(userId);
+        dto.setQuery(normalizedQuery);
+        dto.setSearchedAt(searchedAt != null ? searchedAt : Instant.now());
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("user_id", userId);
-        payload.put("item_id", itemId);
-        payload.put("content_id", contentId);
-        payload.put("lesson_id", lessonId);
-        payload.put("title", title);
-        payload.put("viewed_at", Instant.now());
-
-        String query = "on_conflict=user_id,item_id";
+        String conflict = "on_conflict=user_id,query";
 
         supabaseRestClient.upsertList(
-                "browsing_history",
-                query,
-                payload,
+                "search_history",
+                conflict,
+                dto,
                 accessToken,
                 new TypeReference<List<Map<String, Object>>>() {}
         );
@@ -98,48 +95,34 @@ public class BrowsingService {
     // ================= FETCH HISTORY =================
 
     public List<GetHistoryDTO> fetchHistory(
-            String userId,
-            String accessToken
+        String userId, String accessToken
     ) {
-        String query = "user_id=eq." + userId + "&order=viewed_at.desc&limit=20";
+        String query = "user_id=eq." + userId + "&order=searched_at.desc&limit=5";
 
-        List<Map<String, Object>> rows = supabaseRestClient.getList(
-                "browsing_history",
+        return supabaseRestClient.getList(
+                "search_history",
                 query,
                 accessToken,
-                new TypeReference<List<Map<String, Object>>>() {}
+                new TypeReference<List<GetHistoryDTO>>() {}
         );
-
-        List<GetHistoryDTO> history = new ArrayList<>();
-
-        for (Map<String, Object> row : rows) {
-            GetHistoryDTO item = new GetHistoryDTO();
-            item.setId(toStringValue(row.get("id")));
-            item.setItemId(toStringValue(row.get("item_id")));
-            item.setTitle(toStringValue(row.get("title")));
-            item.setContentId(toStringValue(row.get("content_id")));
-            item.setLessonId(toStringValue(row.get("lesson_id")));
-
-            Object viewedAt = row.get("viewed_at");
-            if (viewedAt != null) {
-                item.setViewedAt(Instant.parse(viewedAt.toString()));
-            }
-
-            history.add(item);
-        }
-
-        return history;
     }
 
     // ================= CLEAR HISTORY =================
 
-    public void purgeHistory(
+    public void deleteHistoryById(
+            String id,
             String userId,
             String accessToken
     ) {
+        if (id == null || id.isBlank()) {
+            return;
+        }
+
+        String query = "id=eq." + id + "&user_id=eq." + userId;
+
         supabaseRestClient.deleteList(
-                "browsing_history",
-                "user_id=eq." + userId,
+                "search_history",
+                query,
                 accessToken,
                 new TypeReference<List<Map<String, Object>>>() {}
         );

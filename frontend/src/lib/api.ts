@@ -111,11 +111,8 @@ export type SearchResult = {
 
 export type GetHistoryDTO = {
   id: string;
-  item_id: string;
-  title?: string | null;
-  content_id?: string | null;
-  lesson_id?: string | null;
-  viewed_at: string;
+  query: string;
+  searched_at: string;
 }
 
 export type UserStats = {
@@ -329,13 +326,12 @@ export const fetchTrendingContent = () =>
 export const searchContent = (query: string, filter?: string | null) =>
   withMockFallback(
     "search",
-    // () => mockSearchResults,
     () => [],
     () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
 
-export const saveBrowsingHistory = (contentId?: string, lessonId?: string, title?: string) => {
-  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null, title: title ?? null };
+export const saveBrowsingHistory = (query: string) => {
+  const body = { query, searched_at: new Date().toISOString() }
   apiPost<void>(`/users/me/history`, body);
 };
 
@@ -343,10 +339,9 @@ export const fetchRecommendations = () =>
   withMockFallback("recommendations", () => mockAiSuggestions, () => apiGet(`/recommendations`));
 
 export const fetchBrowsingHistory = () =>
-  // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
   apiGet<GetHistoryDTO[]>(`/users/me/history`);
 
-export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
+export const clearBrowsingHistory = (id: string) => apiDelete<void>(`/users/me/history/${id}`);
 
 export const fetchLessonFeed = (params: LessonFeedParams = {}) =>
   withMockFallback(
