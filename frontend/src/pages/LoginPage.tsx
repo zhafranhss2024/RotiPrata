@@ -10,9 +10,6 @@ import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { buildGoogleOAuthUrl } from '@/lib/api';
 
-// Backend: /api/auth/login
-// OAuth (Google) is not wired yet.
-
 const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();

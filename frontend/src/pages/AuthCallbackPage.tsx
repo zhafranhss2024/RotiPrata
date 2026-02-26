@@ -48,8 +48,16 @@ const AuthCallbackPage = () => {
     setTokens(accessToken, refreshToken, tokenType);
     window.history.replaceState({}, document.title, '/auth/callback');
 
+    const isNewOAuthUser = type === 'signup';
+
     checkAuth()
-      .then(() => navigate('/'))
+      .then(() => {
+        if (isNewOAuthUser) {
+          navigate('/auth/setup-profile', { replace: true });
+        } else {
+          navigate('/');
+        }
+      })
       .catch((err) => {
         console.error('Auth callback failed', err);
         setError('Unable to complete sign-in.');

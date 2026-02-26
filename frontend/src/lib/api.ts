@@ -712,6 +712,9 @@ export const buildGoogleOAuthUrl = (redirectTo: string) => {
   return target;
 };
 
+export const setupOAuthProfile = (displayName: string) =>
+  apiPatch<void>(`/users/me/profile`, { displayName });
+
 export const checkDisplayNameAvailability = (displayName: string) =>
   withMockFallback(
     "auth-display-name-available",

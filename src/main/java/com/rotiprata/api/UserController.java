@@ -1,6 +1,7 @@
 package com.rotiprata.api;
 
 import com.rotiprata.api.dto.SaveHistoryRequestDTO;
+import com.rotiprata.api.dto.SetupProfileRequest;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.application.BrowsingService;
@@ -16,9 +17,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/users")
@@ -79,6 +82,23 @@ public class UserController {
                 preference,
                 SecurityUtils.getAccessToken()
         );
+    }
+
+    @PatchMapping("/me/profile")
+    public Profile setupProfile(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody SetupProfileRequest request
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        if (!userService.isDisplayNameFormatValid(request.displayName())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Display name must be 3-30 characters and use letters, numbers, dot, underscore, or hyphen.");
+        }
+        String normalized = userService.normalizeDisplayName(request.displayName());
+        if (userService.isDisplayNameTaken(normalized)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Display name already taken");
+        }
+        return userService.updateDisplayName(userId, normalized, SecurityUtils.getAccessToken());
     }
 
     // 🔥 SINGLE clean history endpoint

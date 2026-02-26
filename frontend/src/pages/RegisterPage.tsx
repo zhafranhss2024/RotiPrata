@@ -17,9 +17,6 @@ import {
   DISPLAY_NAME_POLICY_MESSAGE,
 } from '@/lib/displayNamePolicy';
 
-// Backend: /api/auth/register
-// OAuth (Google) is not wired yet.
-
 const RegisterPage = () => {
   const navigate = useNavigate();
   const location = useLocation();

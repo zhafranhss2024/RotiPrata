@@ -21,6 +21,7 @@ import RegisterPage from "./pages/RegisterPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import AuthCallbackPage from "./pages/AuthCallbackPage";
+import SetupProfilePage from "./pages/SetupProfilePage";
 import CreateContentPage from "./pages/CreateContentPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateLessonPage from "./pages/admin/CreateLessonPage";
@@ -111,6 +112,7 @@ const App = () => (
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/auth/callback" element={<AuthCallbackPage />} />
+              <Route path="/auth/setup-profile" element={<SetupProfilePage />} />
               
               {/* Admin routes */}
               <Route

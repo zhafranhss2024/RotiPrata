@@ -174,6 +174,25 @@ public class UserService {
         return roles.stream().map(UserRole::getRole).toList();
     }
 
+    public Profile updateDisplayName(UUID userId, String displayName, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        String normalized = normalizeDisplayName(displayName);
+        Map<String, Object> patch = new HashMap<>();
+        patch.put("display_name", normalized);
+        patch.put("updated_at", java.time.OffsetDateTime.now());
+        List<Profile> updated = supabaseRestClient.patchList(
+            "profiles",
+            buildQuery(Map.of("user_id", "eq." + userId)),
+            patch,
+            token,
+            PROFILE_LIST
+        );
+        if (updated.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Profile not found");
+        }
+        return updated.get(0);
+    }
+
     public Profile updateThemePreference(UUID userId, ThemePreference preference, String accessToken) {
         String token = requireAccessToken(accessToken);
         Map<String, Object> patch = new HashMap<>();
@@ -266,6 +285,16 @@ public class UserService {
         base = base.replaceAll("[^a-zA-Z0-9._-]", "").toLowerCase();
         if (base.isBlank()) {
             base = "user";
+        }
+
+        // Enforce minimum length of 3 characters
+        while (base.length() < 3) {
+            base = base + "0";
+        }
+
+        // Enforce maximum length of 30 characters
+        if (base.length() > 30) {
+            base = base.substring(0, 30);
         }
 
         return base;
