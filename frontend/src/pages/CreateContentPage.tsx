@@ -22,11 +22,15 @@ import {
   X,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import type { ContentType, Category, Content } from '@/types';
+import type { ContentType, Category, Content, QuizQuestion } from '@/types';
+import { useAuthContext } from '@/contexts/AuthContext';
 import {
   fetchCategories,
+  fetchContentById,
+  fetchAdminContentQuiz,
   fetchContentMediaStatus,
   fetchTags,
+  saveAdminContentQuiz,
   startContentMediaLink,
   startContentMediaUpload,
   submitContent,
@@ -72,6 +76,50 @@ const isValidMediaLink = (value: string) => {
   return lower.includes('tiktok.com') || lower.includes('instagram.com/reel') || lower.includes('instagram.com/reels');
 };
 
+type ContentQuizDraftQuestion = {
+  id: string;
+  question_text: string;
+  options: Record<string, string>;
+  correct_answer: string;
+  explanation: string;
+  points: number;
+  order_index: number;
+};
+
+const createBlankQuizQuestion = (index: number): ContentQuizDraftQuestion => ({
+  id: `draft-${Date.now()}-${index}`,
+  question_text: '',
+  options: { A: '', B: '', C: '', D: '' },
+  correct_answer: 'A',
+  explanation: '',
+  points: 10,
+  order_index: index,
+});
+
+const normalizeQuizOptions = (options?: Record<string, unknown> | null) => {
+  const normalized: Record<string, string> = { A: '', B: '', C: '', D: '' };
+  if (!options) {
+    return normalized;
+  }
+  Object.entries(options).forEach(([key, value]) => {
+    const trimmedKey = key.trim().toUpperCase();
+    if (trimmedKey in normalized) {
+      normalized[trimmedKey] = String(value ?? '');
+    }
+  });
+  return normalized;
+};
+
+const mapQuizQuestionToDraft = (question: QuizQuestion, index: number): ContentQuizDraftQuestion => ({
+  id: question.id ?? `draft-${Date.now()}-${index}`,
+  question_text: question.question_text ?? '',
+  options: normalizeQuizOptions(question.options as Record<string, unknown> | null),
+  correct_answer: (question.correct_answer ?? 'A').toUpperCase(),
+  explanation: question.explanation ?? '',
+  points: question.points ?? 10,
+  order_index: question.order_index ?? index,
+});
+
 type CreateContentLocationState = {
   editContent?: Content;
   returnTo?: string;
@@ -80,9 +128,11 @@ type CreateContentLocationState = {
 const CreateContentPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin } = useAuthContext();
   const locationState = (location.state as CreateContentLocationState | null) ?? null;
   const editingContent = locationState?.editContent ?? null;
   const isEditingContent = Boolean(editingContent?.id);
+  const isAdminUser = isAdmin();
   const returnTo = locationState?.returnTo ?? '/';
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -114,12 +164,20 @@ const CreateContentPage = () => {
   const [tagQuery, setTagQuery] = useState('');
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [isTagLoading, setIsTagLoading] = useState(false);
+  const [hasAttemptedTags, setHasAttemptedTags] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState({
     title: '',
     description: '',
     category_id: '',
   });
+
+  const [quizQuestions, setQuizQuestions] = useState<ContentQuizDraftQuestion[]>([]);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizSaving, setQuizSaving] = useState(false);
+  const [quizDirty, setQuizDirty] = useState(false);
+  const [quizError, setQuizError] = useState<string | null>(null);
+  const [hasAttemptedQuizSave, setHasAttemptedQuizSave] = useState(false);
 
   const lastDraftRef = useRef<string>('');
 
@@ -152,6 +210,67 @@ const CreateContentPage = () => {
     setLinkError(null);
     setCurrentStep(editingContent.media_url ? 1 : 0);
   }, [editingContent?.id]);
+
+  useEffect(() => {
+    if (!editingContent?.id) {
+      return;
+    }
+    let active = true;
+    fetchContentById(editingContent.id)
+      .then((content) => {
+        if (!active) {
+          return;
+        }
+        if (content.tags && content.tags.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            tags: content.tags ?? prev.tags,
+          }));
+        }
+      })
+      .catch((error) => console.warn('Failed to load content tags', error));
+    return () => {
+      active = false;
+    };
+  }, [editingContent?.id]);
+
+  useEffect(() => {
+    if (!isAdminUser || !contentId) {
+      setQuizQuestions([]);
+      setQuizDirty(false);
+      setQuizError(null);
+      setHasAttemptedQuizSave(false);
+      return;
+    }
+    let active = true;
+    setQuizLoading(true);
+    setQuizError(null);
+    setQuizDirty(false);
+    setHasAttemptedQuizSave(false);
+
+    fetchAdminContentQuiz(contentId)
+      .then((questions) => {
+        if (!active) return;
+        const normalized = (questions ?? []).map(mapQuizQuestionToDraft);
+        setQuizQuestions(normalized);
+      })
+      .catch((error) => {
+        console.warn('Failed to load content quiz', error);
+        if (active) {
+          setQuizError('Failed to load quiz.');
+          setQuizQuestions([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setQuizLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [contentId, isAdminUser]);
 
   useEffect(() => {
     if (!contentId || mediaStatus !== 'processing') return;
@@ -265,6 +384,35 @@ const CreateContentPage = () => {
   const isMediaReady = Boolean(contentId) && mediaStatus === 'ready';
   const isBasicsValid = Boolean(formData.title.trim()) && Boolean(formData.description.trim()) && Boolean(formData.category_id);
   const linkIsValid = !mediaLink.trim() || isValidMediaLink(mediaLink);
+  const tagsError = formData.tags.length > 0 ? '' : 'At least one tag is required.';
+  const isTagsValid = formData.tags.length > 0;
+  const quizValidationError = useMemo(() => {
+    if (!quizQuestions.length) {
+      return null;
+    }
+    for (let index = 0; index < quizQuestions.length; index += 1) {
+      const question = quizQuestions[index];
+      if (!normalizeText(question.question_text, MAX_LONG_TEXT)) {
+        return `Question ${index + 1}: question text is required.`;
+      }
+      const optionEntries = Object.entries(question.options ?? {}).filter(([, value]) =>
+        normalizeText(String(value ?? ''), MAX_LONG_TEXT)
+      );
+      if (optionEntries.length < 2) {
+        return `Question ${index + 1}: at least two options are required.`;
+      }
+      const correctKey = question.correct_answer?.trim().toUpperCase();
+      if (!correctKey) {
+        return `Question ${index + 1}: choose the correct answer.`;
+      }
+      const correctValue = question.options?.[correctKey];
+      if (!normalizeText(String(correctValue ?? ''), MAX_LONG_TEXT)) {
+        return `Question ${index + 1}: correct answer must have text.`;
+      }
+    }
+    return null;
+  }, [quizQuestions]);
+  const isQuizValid = !quizValidationError;
 
   const mediaPreviewUrl = useMemo(() => {
     if (mediaPreview) return mediaPreview;
@@ -387,6 +535,50 @@ const CreateContentPage = () => {
     setFormData((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }));
   };
 
+  const markQuizDirty = () => {
+    setQuizDirty(true);
+    setHasAttemptedQuizSave(false);
+  };
+
+  const handleAddQuizQuestion = () => {
+    setQuizQuestions((prev) => [...prev, createBlankQuizQuestion(prev.length)]);
+    markQuizDirty();
+  };
+
+  const handleRemoveQuizQuestion = (questionId: string) => {
+    setQuizQuestions((prev) =>
+      prev
+        .filter((question) => question.id !== questionId)
+        .map((question, index) => ({ ...question, order_index: index }))
+    );
+    markQuizDirty();
+  };
+
+  const updateQuizQuestion = (questionId: string, updates: Partial<ContentQuizDraftQuestion>) => {
+    setQuizQuestions((prev) =>
+      prev.map((question) => (question.id === questionId ? { ...question, ...updates } : question))
+    );
+    markQuizDirty();
+  };
+
+  const updateQuizOption = (questionId: string, optionKey: string, value: string) => {
+    setQuizQuestions((prev) =>
+      prev.map((question) => {
+        if (question.id !== questionId) {
+          return question;
+        }
+        return {
+          ...question,
+          options: {
+            ...question.options,
+            [optionKey]: value,
+          },
+        };
+      })
+    );
+    markQuizDirty();
+  };
+
   const validateBasics = () => {
     const nextErrors = {
       title: formData.title.trim() ? '' : 'Title is required.',
@@ -405,6 +597,10 @@ const CreateContentPage = () => {
     if (currentStep === 1 && !validateBasics()) {
       return;
     }
+    if (currentStep === 3 && !isTagsValid) {
+      setHasAttemptedTags(true);
+      return;
+    }
     setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
@@ -414,6 +610,7 @@ const CreateContentPage = () => {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setHasAttemptedQuizSave(true);
     try {
       if (!contentId) {
         setMediaError('Please upload a video or image before submitting.');
@@ -427,6 +624,17 @@ const CreateContentPage = () => {
       }
       if (!validateBasics()) {
         setCurrentStep(1);
+        setIsSubmitting(false);
+        return;
+      }
+      if (!isTagsValid) {
+        setCurrentStep(3);
+        setHasAttemptedTags(true);
+        setIsSubmitting(false);
+        return;
+      }
+      if (isAdminUser && quizValidationError) {
+        setQuizError(quizValidationError);
         setIsSubmitting(false);
         return;
       }
@@ -451,15 +659,56 @@ const CreateContentPage = () => {
 
       if (isEditingContent) {
         await updateAdminContent(contentId, payload);
+        if (isAdminUser && quizDirty) {
+          setQuizSaving(true);
+          const quizPayload = quizQuestions.map((question, index) => ({
+            question_text: normalizeText(question.question_text, MAX_LONG_TEXT),
+            options: Object.fromEntries(
+              Object.entries(question.options).map(([key, value]) => [
+                key,
+                normalizeText(String(value ?? ''), MAX_LONG_TEXT),
+              ])
+            ),
+            correct_answer: question.correct_answer?.trim().toUpperCase() ?? 'A',
+            explanation: normalizeText(question.explanation, MAX_LONG_TEXT),
+            points: question.points,
+            order_index: index,
+          }));
+          await saveAdminContentQuiz(contentId, quizPayload);
+          setQuizDirty(false);
+          setQuizError(null);
+          setQuizSaving(false);
+        }
         navigate(returnTo);
         return;
       }
 
       await submitContent(contentId, payload);
+      if (isAdminUser && quizDirty) {
+        setQuizSaving(true);
+        const quizPayload = quizQuestions.map((question, index) => ({
+          question_text: normalizeText(question.question_text, MAX_LONG_TEXT),
+          options: Object.fromEntries(
+            Object.entries(question.options).map(([key, value]) => [
+              key,
+              normalizeText(String(value ?? ''), MAX_LONG_TEXT),
+            ])
+          ),
+          correct_answer: question.correct_answer?.trim().toUpperCase() ?? 'A',
+          explanation: normalizeText(question.explanation, MAX_LONG_TEXT),
+          points: question.points,
+          order_index: index,
+        }));
+        await saveAdminContentQuiz(contentId, quizPayload);
+        setQuizDirty(false);
+        setQuizError(null);
+        setQuizSaving(false);
+      }
 
       navigate('/');
     } catch (error) {
       console.warn('Content creation failed', error);
+      setQuizSaving(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -818,7 +1067,7 @@ const CreateContentPage = () => {
         {currentStep === 3 && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Tags (Optional)</CardTitle>
+              <CardTitle className="text-lg">Tags (Required)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2">
@@ -876,6 +1125,142 @@ const CreateContentPage = () => {
                   </Badge>
                 ))}
               </div>
+              {hasAttemptedTags && tagsError && (
+                <p className="text-sm text-destructive">{tagsError}</p>
+              )}
+
+              {isAdminUser && (
+                <div className="pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold">Quick Quiz (Optional)</p>
+                      <p className="text-xs text-muted-foreground">
+                        Add a short multiple choice quiz for this video.
+                      </p>
+                    </div>
+                    <Button type="button" variant="outline" onClick={handleAddQuizQuestion} disabled={quizLoading}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add question
+                    </Button>
+                  </div>
+
+                  {quizLoading && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading quiz...
+                    </div>
+                  )}
+                  {quizError && <p className="text-sm text-destructive">{quizError}</p>}
+
+                  {quizQuestions.map((question, index) => (
+                    <div key={question.id} className="rounded-lg border border-muted p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold">Question {index + 1}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveQuizQuestion(question.id)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Question text</Label>
+                        <Textarea
+                          value={question.question_text}
+                          maxLength={MAX_LONG_TEXT}
+                          rows={2}
+                          onChange={(e) =>
+                            updateQuizQuestion(question.id, {
+                              question_text: sanitizeInputValue(e.target.value, MAX_LONG_TEXT),
+                            })
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Options</Label>
+                        <div className="space-y-2">
+                          {Object.entries(question.options).map(([key, value]) => (
+                            <div key={key} className="flex items-center gap-2">
+                              <Badge variant="secondary" className="w-8 justify-center">
+                                {key}
+                              </Badge>
+                              <Input
+                                value={value}
+                                maxLength={MAX_LONG_TEXT}
+                                onChange={(e) =>
+                                  updateQuizOption(
+                                    question.id,
+                                    key,
+                                    sanitizeInputValue(e.target.value, MAX_LONG_TEXT)
+                                  )
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Correct answer</Label>
+                          <Select
+                            value={question.correct_answer}
+                            onValueChange={(value) =>
+                              updateQuizQuestion(question.id, { correct_answer: value })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select correct option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.keys(question.options).map((optionKey) => (
+                                <SelectItem key={optionKey} value={optionKey}>
+                                  {optionKey}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Points</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={question.points}
+                            onChange={(e) =>
+                              updateQuizQuestion(question.id, {
+                                points: Math.max(1, Number(e.target.value) || 1),
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Explanation (Optional)</Label>
+                        <Textarea
+                          value={question.explanation}
+                          maxLength={MAX_LONG_TEXT}
+                          rows={2}
+                          onChange={(e) =>
+                            updateQuizQuestion(question.id, {
+                              explanation: sanitizeInputValue(e.target.value, MAX_LONG_TEXT),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {hasAttemptedQuizSave && quizValidationError && (
+                    <p className="text-sm text-destructive">{quizValidationError}</p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -981,7 +1366,7 @@ const CreateContentPage = () => {
             <Button
               type="button"
               className="gradient-primary border-0"
-              disabled={isSubmitting || !isMediaReady || !isBasicsValid}
+              disabled={isSubmitting || quizSaving || !isMediaReady || !isBasicsValid || (isAdminUser && quizDirty && !isQuizValid)}
               onClick={handleSubmit}
             >
               {isSubmitting ? (isEditingContent ? 'Saving...' : 'Submitting...') : (isEditingContent ? 'Save Changes' : 'Submit for Review')}

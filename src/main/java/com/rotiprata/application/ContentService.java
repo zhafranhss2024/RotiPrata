@@ -34,10 +34,82 @@ public class ContentService {
 
     private final SupabaseRestClient supabaseRestClient;
     private final SupabaseAdminRestClient supabaseAdminRestClient;
+    private final ContentEngagementService contentEngagementService;
 
-    public ContentService(SupabaseRestClient supabaseRestClient, SupabaseAdminRestClient supabaseAdminRestClient) {
+    public ContentService(
+        SupabaseRestClient supabaseRestClient,
+        SupabaseAdminRestClient supabaseAdminRestClient,
+        ContentEngagementService contentEngagementService
+    ) {
         this.supabaseRestClient = supabaseRestClient;
         this.supabaseAdminRestClient = supabaseAdminRestClient;
+        this.contentEngagementService = contentEngagementService;
+    }
+
+    public Map<String, Object> getContentById(UUID userId, UUID contentId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+
+        List<Map<String, Object>> rows = supabaseRestClient.getList(
+            "content",
+            buildQuery(Map.of(
+                "select", "*",
+                "id", "eq." + contentId,
+                "status", "eq.approved",
+                "limit", "1"
+            )),
+            token,
+            MAP_LIST
+        );
+        if (rows.isEmpty()) {
+            rows = supabaseAdminRestClient.getList(
+                "content",
+                buildQuery(Map.of(
+                    "select", "*",
+                    "id", "eq." + contentId,
+                    "creator_id", "eq." + userId,
+                    "limit", "1"
+                )),
+                MAP_LIST
+            );
+        }
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
+        }
+        List<Map<String, Object>> decorated = contentEngagementService.decorateItemsWithUserEngagement(rows, userId, token);
+        Map<String, Object> item = decorated.get(0);
+        item.put("tags", fetchTagsForContent(contentId));
+        return item;
+    }
+
+    private List<String> fetchTagsForContent(UUID contentId) {
+        if (contentId == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content_tags",
+            buildQuery(Map.of(
+                "select", "tag",
+                "content_id", "eq." + contentId
+            )),
+            MAP_LIST
+        );
+        List<String> tags = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Object tag = row.get("tag");
+            if (tag != null) {
+                String value = tag.toString().trim();
+                if (!value.isBlank()) {
+                    tags.add(value);
+                }
+            }
+        }
+        return tags;
     }
 
     public List<ContentSearchDTO> getFilteredContent(String query, String filter, String accessToken) {

@@ -62,6 +62,8 @@ export interface Content {
   educational_value_votes: number;
   view_count: number;
   is_featured: boolean;
+  is_liked?: boolean;
+  is_saved?: boolean;
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_feedback: string | null;

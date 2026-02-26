@@ -57,7 +57,10 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /content/media/start-link`
 - `PATCH /content/{contentId}`
 - `POST /content/{contentId}/submit`
+- `GET /content/{contentId}`
 - `GET /content/{contentId}/media`
+- `GET /content/{contentId}/quiz`
+- `POST /content/{contentId}/quiz/submit`
 - `POST /content/{contentId}/view`
 - `POST /content/{contentId}/like`
 - `DELETE /content/{contentId}/like`
@@ -91,6 +94,8 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /admin/moderation-queue`
 - `PUT /admin/content/{contentId}/approve`
 - `PUT /admin/content/{contentId}`
+- `GET /admin/content/{contentId}/quiz`
+- `PUT /admin/content/{contentId}/quiz`
 - `PUT /admin/content/{contentId}/reject`
 - `GET /admin/flags`
 - `PUT /admin/flags/{flagId}/resolve`
@@ -133,10 +138,12 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### Content
 - `POST /content/media/start` -> implemented
 - `POST /content/media/start-link` -> implemented
+- `GET /content/{id}` -> implemented
 - `GET /content/{id}/media` -> implemented
 - `PATCH /content/{id}` -> implemented
 - `POST /content/{id}/submit` -> implemented
-- `GET /content/{id}/quiz` -> missing
+- `GET /content/{id}/quiz` -> implemented
+- `POST /content/{id}/quiz/submit` -> implemented
 - `POST /content/{id}/view` -> implemented
 - `POST /content/{id}/like` -> implemented
 - `DELETE /content/{id}/like` -> implemented
@@ -200,11 +207,11 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 
 - `GET /trending`
 - `GET /recommendations`
-- `GET /content/{id}/quiz`
 - `GET /users/me/achievements`
 
 ## Compatibility Notes
 
+- Feed items now include `is_liked` and `is_saved` flags per user session.
 - `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.
 - Learner quiz endpoints do not expose `correct_answer`; grading is server-side.

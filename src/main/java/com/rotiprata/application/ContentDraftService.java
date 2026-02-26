@@ -124,7 +124,7 @@ public class ContentDraftService {
         }
 
         if (tagsProvided) {
-            replaceTags(contentId, request.tags());
+            replaceTags(contentId, request.tags(), false);
         }
 
         return existing;
@@ -140,6 +140,9 @@ public class ContentDraftService {
         String mediaStatus = media.getStatus();
         if (mediaStatus == null || !"ready".equalsIgnoreCase(mediaStatus)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Media processing is not complete");
+        }
+        if (request.tags() == null || request.tags().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tags are required");
         }
 
         Map<String, Object> patch = new HashMap<>();
@@ -169,7 +172,7 @@ public class ContentDraftService {
 
         ensureModerationQueueEntry(contentId);
 
-        replaceTags(contentId, request.tags());
+        replaceTags(contentId, request.tags(), true);
         return result;
     }
 
@@ -245,8 +248,11 @@ public class ContentDraftService {
         return media.get(0);
     }
 
-    private void replaceTags(UUID contentId, List<String> tags) {
+    private void replaceTags(UUID contentId, List<String> tags, boolean required) {
         if (tags == null) {
+            if (required) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tags are required");
+            }
             return;
         }
         try {
@@ -256,7 +262,9 @@ public class ContentDraftService {
                 TAG_LIST
             );
         } catch (ResponseStatusException ex) {
-            // Tags are optional; don't block submission.
+            if (required) {
+                throw ex;
+            }
         }
         Set<String> normalized = new LinkedHashSet<>();
         for (String tag : tags) {
@@ -269,6 +277,9 @@ public class ContentDraftService {
             }
         }
         if (normalized.isEmpty()) {
+            if (required) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tags are required");
+            }
             return;
         }
         List<Map<String, Object>> rows = normalized.stream()
@@ -282,7 +293,9 @@ public class ContentDraftService {
         try {
             adminRestClient.postList("content_tags", rows, TAG_LIST);
         } catch (ResponseStatusException ex) {
-            // Tags are optional; log in server logs if needed, but don't block submission.
+            if (required) {
+                throw ex;
+            }
         }
     }
 

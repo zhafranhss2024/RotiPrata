@@ -73,6 +73,30 @@ export function FeedContainer({
     [contents, hiddenContentIds]
   );
 
+  useEffect(() => {
+    if (!contents.length) {
+      return;
+    }
+    setLikedByContent((prev) => {
+      const next = { ...prev };
+      contents.forEach((content) => {
+        if (next[content.id] === undefined && content.is_liked !== undefined) {
+          next[content.id] = Boolean(content.is_liked);
+        }
+      });
+      return next;
+    });
+    setSavedByContent((prev) => {
+      const next = { ...prev };
+      contents.forEach((content) => {
+        if (next[content.id] === undefined && content.is_saved !== undefined) {
+          next[content.id] = Boolean(content.is_saved);
+        }
+      });
+      return next;
+    });
+  }, [contents]);
+
   const getCommentsForContent = useCallback(
     (contentId: string) => commentsByContent[contentId] ?? [],
     [commentsByContent]
@@ -177,6 +201,7 @@ export function FeedContainer({
   }, []);
 
   const handleQuizClick = (content: Content) => {
+    setActiveQuiz(null);
     fetchContentQuiz(content.id)
       .then((quiz) => {
         setActiveQuiz(quiz);
@@ -257,7 +282,7 @@ export function FeedContainer({
 
   const handleShare = async (content: Content) => {
     let shareSucceeded = false;
-    const shareUrl = window.location.href;
+    const shareUrl = `${window.location.origin}/content/${content.id}`;
 
     if (navigator.share) {
       try {

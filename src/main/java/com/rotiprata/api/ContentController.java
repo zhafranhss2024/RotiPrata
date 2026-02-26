@@ -9,15 +9,21 @@ import com.rotiprata.api.dto.ContentCommentCreateRequest;
 import com.rotiprata.api.dto.ContentCommentResponse;
 import com.rotiprata.api.dto.ContentSubmitRequest;
 import com.rotiprata.api.dto.ContentUpdateRequest;
+import com.rotiprata.api.dto.ContentQuizResponse;
+import com.rotiprata.api.dto.ContentQuizSubmitRequest;
+import com.rotiprata.api.dto.ContentQuizSubmitResponse;
 import com.rotiprata.application.ContentService;
 import com.rotiprata.application.ContentDraftService;
+import com.rotiprata.application.ContentQuizService;
 import com.rotiprata.domain.Content;
 import com.rotiprata.domain.ContentType;
 import com.rotiprata.security.SecurityUtils;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -38,10 +44,16 @@ import org.springframework.web.multipart.MultipartFile;
 public class ContentController {
     private final ContentDraftService contentDraftService;
     private final ContentService contentService;
+    private final ContentQuizService contentQuizService;
 
-    public ContentController(ContentDraftService contentDraftService, ContentService contentService) {
+    public ContentController(
+        ContentDraftService contentDraftService,
+        ContentService contentService,
+        ContentQuizService contentQuizService
+    ) {
         this.contentDraftService = contentDraftService;
         this.contentService = contentService;
+        this.contentQuizService = contentQuizService;
     }
 
     @PostMapping("/media/start")
@@ -98,6 +110,15 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return contentDraftService.getMediaStatus(userId, contentId);
+    }
+
+    @GetMapping("/{contentId}")
+    public Map<String, Object> getContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return contentService.getContentById(userId, contentId, SecurityUtils.getAccessToken());
     }
 
     @PostMapping("/{contentId}/view")
@@ -188,6 +209,29 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         contentService.shareContent(userId, contentId, SecurityUtils.getAccessToken());
+    }
+
+    @GetMapping("/{contentId}/quiz")
+    public ResponseEntity<ContentQuizResponse> contentQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        ContentQuizResponse quiz = contentQuizService.getContentQuiz(userId, contentId, SecurityUtils.getAccessToken());
+        if (quiz == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(quiz);
+    }
+
+    @PostMapping("/{contentId}/quiz/submit")
+    public ContentQuizSubmitResponse submitContentQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @RequestBody ContentQuizSubmitRequest request
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return contentQuizService.submitContentQuiz(userId, contentId, request, SecurityUtils.getAccessToken());
     }
 
     @GetMapping("/{contentId}/comments")

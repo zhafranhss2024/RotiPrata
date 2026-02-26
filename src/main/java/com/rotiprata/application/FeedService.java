@@ -16,12 +16,14 @@ public class FeedService {
     private static final int PAGE_SIZE = 20;
 
     private final SupabaseRestClient supabaseRestClient;
+    private final ContentEngagementService contentEngagementService;
 
-    public FeedService(SupabaseRestClient supabaseRestClient) {
+    public FeedService(SupabaseRestClient supabaseRestClient, ContentEngagementService contentEngagementService) {
         this.supabaseRestClient = supabaseRestClient;
+        this.contentEngagementService = contentEngagementService;
     }
 
-    public FeedResponse getFeed(String accessToken, int page) {
+    public FeedResponse getFeed(java.util.UUID userId, String accessToken, int page) {
         String token = requireAccessToken(accessToken);
         int pageNumber = Math.max(1, page);
         int offset = (pageNumber - 1) * PAGE_SIZE;
@@ -39,7 +41,12 @@ public class FeedService {
         );
         boolean hasMore = rows.size() > PAGE_SIZE;
         List<Map<String, Object>> items = hasMore ? rows.subList(0, PAGE_SIZE) : rows;
-        return new FeedResponse(items, hasMore);
+        List<Map<String, Object>> decorated = contentEngagementService.decorateItemsWithUserEngagement(
+            new java.util.ArrayList<>(items),
+            userId,
+            token
+        );
+        return new FeedResponse(decorated, hasMore);
     }
 
     private String requireAccessToken(String accessToken) {

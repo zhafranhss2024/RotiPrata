@@ -58,6 +58,13 @@ export type FeedResponse = {
   hasMore: boolean;
 };
 
+export type ContentQuizSubmitResult = {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean;
+};
+
 export type LessonFeedDifficultyFilter = "all" | "beginner" | "intermediate" | "advanced";
 export type LessonFeedDurationFilter = "all" | "short" | "medium" | "long";
 export type LessonFeedSort = "popular" | "newest" | "shortest" | "highest_xp";
@@ -601,6 +608,13 @@ export const startContentMediaLink = (sourceUrl: string) =>
 export const fetchContentMediaStatus = (contentId: string) =>
   apiGet<ContentMediaStatusResponse>(`/content/${contentId}/media`);
 
+export const fetchContentById = (contentId: string) =>
+  withMockFallback(
+    "content-by-id",
+    () => mockContents[0],
+    () => apiGet<Content>(`/content/${contentId}`)
+  );
+
 export const updateDraftContent = (contentId: string, payload: Record<string, unknown>) =>
   apiPatch<Content>(`/content/${contentId}`, payload);
 
@@ -609,6 +623,23 @@ export const submitContent = (contentId: string, payload: Record<string, unknown
 
 export const fetchContentQuiz = (contentId: string) =>
   withMockFallback("content-quiz", () => null, () => apiGet<Quiz>(`/content/${contentId}/quiz`));
+
+export const submitContentQuiz = (
+  contentId: string,
+  payload: { answers: Record<string, string>; timeTakenSeconds?: number | null }
+) =>
+  apiPost<ContentQuizSubmitResult>(`/content/${contentId}/quiz/submit`, payload);
+
+export const fetchAdminContentQuiz = (contentId: string) =>
+  withMockFallback(
+    "admin-content-quiz",
+    () => [],
+    () => apiGet<QuizQuestion[]>(`/admin/content/${contentId}/quiz`),
+    { allowAutoFallback: false }
+  );
+
+export const saveAdminContentQuiz = (contentId: string, questions: Partial<QuizQuestion>[]) =>
+  apiPut<QuizQuestion[]>(`/admin/content/${contentId}/quiz`, { questions });
 
 export const trackContentView = (contentId: string) => apiPost<void>(`/content/${contentId}/view`);
 

@@ -2,8 +2,11 @@ package com.rotiprata.api;
 
 import com.rotiprata.api.dto.AdminStatsResponse;
 import com.rotiprata.api.dto.AdminContentUpdateRequest;
+import com.rotiprata.api.dto.AdminContentQuizRequest;
+import com.rotiprata.api.dto.ContentQuizQuestionResponse;
 import com.rotiprata.api.dto.RejectContentRequest;
 import com.rotiprata.application.AdminService;
+import com.rotiprata.application.ContentQuizService;
 import com.rotiprata.domain.Content;
 import com.rotiprata.security.SecurityUtils;
 import jakarta.validation.Valid;
@@ -24,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin")
 public class AdminController {
     private final AdminService adminService;
+    private final ContentQuizService contentQuizService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, ContentQuizService contentQuizService) {
         this.adminService = adminService;
+        this.contentQuizService = contentQuizService;
     }
 
     @GetMapping("/stats")
@@ -70,6 +75,25 @@ public class AdminController {
         UUID adminUserId = SecurityUtils.getUserId(jwt);
         adminService.rejectContent(adminUserId, contentId, request.feedback(), SecurityUtils.getAccessToken());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/content/{contentId}/quiz")
+    public List<ContentQuizQuestionResponse> contentQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        return contentQuizService.getAdminContentQuiz(adminUserId, contentId, SecurityUtils.getAccessToken());
+    }
+
+    @PutMapping("/content/{contentId}/quiz")
+    public List<ContentQuizQuestionResponse> updateContentQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @Valid @RequestBody AdminContentQuizRequest request
+    ) {
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        return contentQuizService.replaceAdminContentQuiz(adminUserId, contentId, request, SecurityUtils.getAccessToken());
     }
 
     @GetMapping("/flags")

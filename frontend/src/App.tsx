@@ -10,6 +10,7 @@ import RequireAdmin from "@/components/auth/RequireAdmin";
 
 // Pages
 import FeedPage from "./pages/FeedPage";
+import ContentFeedPage from "./pages/ContentFeedPage";
 import ExplorePage from "./pages/ExplorePage";
 import LessonsPage from "./pages/LessonsPage";
 import LessonDetailPage from "./pages/LessonDetailPage";
@@ -45,6 +46,14 @@ const App = () => (
                 element={
                   <RequireAuth>
                     <FeedPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/content/:id"
+                element={
+                  <RequireAuth>
+                    <ContentFeedPage />
                   </RequireAuth>
                 }
               />

@@ -27,6 +27,6 @@ public class FeedController {
         if (jwt == null) {
             return new FeedResponse(java.util.List.of(), false);
         }
-        return feedService.getFeed(SecurityUtils.getAccessToken(), page);
+        return feedService.getFeed(SecurityUtils.getUserId(jwt), SecurityUtils.getAccessToken(), page);
     }
 }
