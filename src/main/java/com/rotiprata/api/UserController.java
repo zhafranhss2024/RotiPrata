@@ -81,20 +81,17 @@ public class UserController {
         );
     }
 
-    // 🔥 SINGLE clean history endpoint
-
     @PostMapping("/me/history")
     public void saveBrowsingHistory(
             @RequestBody SaveHistoryRequestDTO request,
             @AuthenticationPrincipal Jwt jwt
     ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
+        String userId = jwt.getSubject();
 
         browsingService.saveHistory(
-                userId.toString(),
-                request.getContentId(),
-                request.getLessonId(),
-                request.getTitle(),
+                userId,
+                request.getQuery(),
+                request.getSearchedAt(),
                 SecurityUtils.getAccessToken()
         );
     }
@@ -103,20 +100,23 @@ public class UserController {
     public List<GetHistoryDTO> browsingHistory(
             @AuthenticationPrincipal Jwt jwt
     ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
+        String userId = jwt.getSubject();
+
         return browsingService.fetchHistory(
-                userId.toString(),
+                userId,
                 SecurityUtils.getAccessToken()
         );
     }
 
-    @DeleteMapping("/me/history")
+    @DeleteMapping("/me/history/{id}")
     public void clearBrowsingHistory(
+            @PathVariable("id") String id,
             @AuthenticationPrincipal Jwt jwt
     ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        browsingService.purgeHistory(
-                userId.toString(),
+        String userId = jwt.getSubject();
+        browsingService.deleteHistoryById(
+                id,
+                userId,
                 SecurityUtils.getAccessToken()
         );
     }

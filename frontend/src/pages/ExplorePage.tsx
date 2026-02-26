@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, BookOpen, History, Search, Video } from 'lucide-react';
+import { ArrowLeft, BookOpen, Search, Video } from 'lucide-react';
 import type { Content } from '@/types';
-import { fetchBrowsingHistory, fetchFeed, saveBrowsingHistory, searchContent } from '@/lib/api';
+import { clearBrowsingHistory, fetchBrowsingHistory, fetchFeed, saveBrowsingHistory, searchContent } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 type SearchKind = 'video' | 'lesson' | 'profile' | 'unknown';
@@ -25,16 +25,16 @@ type SearchResultItem = {
 
 const ExplorePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searchTab, setSearchTab] = useState<'videos' | 'lessons'>('videos');
   const [isSearching, setIsSearching] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [videoViewerStartIndex, setVideoViewerStartIndex] = useState<number | null>(null);
   const [contentLookup, setContentLookup] = useState<Record<string, Content>>({});
-  const [browsingHistory, setBrowsingHistory] = useState<
-    { id: string; item_id: string; title?: string | null; content_id?: string | null; lesson_id?: string | null; viewed_at: string }[]
-  >([]);
-  const searchWrapRef = useRef<HTMLDivElement | null>(null);
+  const [browsingHistory, setBrowsingHistory] = useState<{ id: string; query: string; searched_at: string }[]>([]);
+  const searchRequestVersionRef = useRef(0);
+  const contentLookupRef = useRef<Record<string, Content>>({});
 
   useEffect(() => {
     fetchBrowsingHistory()
@@ -72,76 +72,99 @@ const ExplorePage = () => {
   }, []);
 
   useEffect(() => {
-    const handleOutsideClick = (event: MouseEvent) => {
-      if (!searchWrapRef.current) return;
-      if (!searchWrapRef.current.contains(event.target as Node)) {
-        setShowHistory(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
+    contentLookupRef.current = contentLookup;
+  }, [contentLookup]);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
+    const normalizedQuery = searchQuery.trim();
+    searchRequestVersionRef.current += 1;
+
+    if (!normalizedQuery) {
+      setDebouncedQuery('');
       return;
     }
 
     setIsSearching(true);
     const debounceTimeout = setTimeout(() => {
-      searchContent(searchQuery, null)
-        .then((results) => {
-          const normalized = (results as Array<Record<string, unknown>>).map((result) => {
-            const rawType = String(result.type ?? result.content_type ?? '').toLowerCase();
-            const kind: SearchKind =
-              rawType === 'lesson'
-                ? 'lesson'
-                : rawType === 'content' || rawType === 'video'
-                  ? 'video'
-                  : rawType === 'profile'
-                    ? 'profile'
-                    : 'unknown';
-
-            const lookup = typeof result.id === 'string' ? contentLookup[result.id] : undefined;
-            const mediaUrl =
-              (typeof result.media_url === 'string' ? result.media_url : undefined) ??
-              (typeof result.mediaUrl === 'string' ? result.mediaUrl : undefined) ??
-              lookup?.media_url ??
-              undefined;
-            const thumbnailUrl =
-              (typeof result.thumbnail_url === 'string' ? result.thumbnail_url : undefined) ??
-              (typeof result.thumbnailUrl === 'string' ? result.thumbnailUrl : undefined) ??
-              lookup?.thumbnail_url ??
-              mediaUrl;
-
-            return {
-              id: String(result.id ?? ''),
-              title: String(result.title ?? lookup?.title ?? 'Untitled'),
-              snippet:
-                (typeof result.snippet === 'string' ? result.snippet : undefined) ??
-                lookup?.description ??
-                undefined,
-              kind,
-              thumbnailUrl,
-              mediaUrl,
-            } as SearchResultItem;
-          });
-          setSearchResults(normalized);
-        })
-        .catch((error) => console.warn('Search failed', error))
-        .finally(() => setIsSearching(false));
-    }, 300);
+      setDebouncedQuery(normalizedQuery);
+    }, 350);
 
     return () => clearTimeout(debounceTimeout);
-  }, [searchQuery, contentLookup]);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!debouncedQuery) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const requestVersion = searchRequestVersionRef.current;
+    saveBrowsingHistory(debouncedQuery);
+
+    searchContent(debouncedQuery, null)
+      .then((results) => {
+        if (requestVersion !== searchRequestVersionRef.current) return;
+
+        const normalized = (results as Array<Record<string, unknown>>).map((result) => {
+          const rawType = String(result.type ?? result.content_type ?? '').toLowerCase();
+          const kind: SearchKind =
+            rawType === 'lesson'
+              ? 'lesson'
+              : rawType === 'content' || rawType === 'video'
+                ? 'video'
+                : rawType === 'profile'
+                  ? 'profile'
+                  : 'unknown';
+
+          const lookup = typeof result.id === 'string' ? contentLookupRef.current[result.id] : undefined;
+          const mediaUrl =
+            (typeof result.media_url === 'string' ? result.media_url : undefined) ??
+            (typeof result.mediaUrl === 'string' ? result.mediaUrl : undefined) ??
+            lookup?.media_url ??
+            undefined;
+          const thumbnailUrl =
+            (typeof result.thumbnail_url === 'string' ? result.thumbnail_url : undefined) ??
+            (typeof result.thumbnailUrl === 'string' ? result.thumbnailUrl : undefined) ??
+            lookup?.thumbnail_url ??
+            mediaUrl;
+
+          return {
+            id: String(result.id ?? ''),
+            title: String(result.title ?? lookup?.title ?? 'Untitled'),
+            snippet:
+              (typeof result.snippet === 'string' ? result.snippet : undefined) ??
+              lookup?.description ??
+              undefined,
+            kind,
+            thumbnailUrl,
+            mediaUrl,
+          } as SearchResultItem;
+        });
+
+        setSearchResults(normalized);
+      })
+      .catch((error) => {
+        if (requestVersion !== searchRequestVersionRef.current) return;
+        console.warn('Search failed', error);
+        setSearchResults([]);
+      })
+      .finally(() => {
+        if (requestVersion === searchRequestVersionRef.current) {
+          setIsSearching(false);
+        }
+      });
+  }, [debouncedQuery]);
 
   const recentHistory = useMemo(
     () =>
       [...browsingHistory]
-        .sort((a, b) => new Date(b.viewed_at).getTime() - new Date(a.viewed_at).getTime())
-        .slice(0, 4),
+        .sort((a, b) => {
+          const dateA = new Date(a.searched_at.replace(' ', 'T')).getTime();
+          const dateB = new Date(b.searched_at.replace(' ', 'T')).getTime();
+          return dateB - dateA;
+        })
+        .slice(0, 5),
     [browsingHistory]
   );
 
@@ -154,6 +177,15 @@ const ExplorePage = () => {
     () => searchResults.filter((result) => result.kind === 'lesson'),
     [searchResults]
   );
+
+  const loadBrowsingHistory = async () => {
+    try {
+      const history = await fetchBrowsingHistory();
+      setBrowsingHistory(history);
+    } catch (error) {
+      console.warn('Failed to load browsing history', error);
+    }
+  };
 
   const searchFeedContents = useMemo<Content[]>(() => {
     const now = new Date().toISOString();
@@ -199,25 +231,35 @@ const ExplorePage = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+    searchRequestVersionRef.current += 1;
+    setIsSearching(true);
+    setShowHistory(false);
+    setDebouncedQuery(query);
+  };
+
+  const applyHistorySearch = (query: string) => {
+    const text = query.trim();
+    if (!text) return;
+    searchRequestVersionRef.current += 1;
+    setIsSearching(true);
+    setSearchQuery(text);
+    setDebouncedQuery(text);
+    setShowHistory(false);
+  };
+
+  const removeHistoryItem = async (id: string) => {
+    try {
+      await clearBrowsingHistory(id);
+      setBrowsingHistory((prev) => prev.filter((item) => item.id !== id));
+    } catch (error) {
+      console.warn('Failed to delete history item', error);
+    }
   };
 
   const openVideoViewer = (index: number) => {
-    const result = videoResults[index];
-    if (result) {
-      saveBrowsingHistory(result.id, undefined, result.title);
-    }
     setVideoViewerStartIndex(index);
-  };
-
-  const applyHistorySearch = (item: {
-    title?: string | null;
-    lesson_id?: string | null;
-  }) => {
-    const text = (item.title ?? '').trim();
-    if (!text) return;
-    setSearchQuery(text);
-    setShowHistory(false);
-    setSearchTab(item.lesson_id ? 'lessons' : 'videos');
   };
 
   if (videoViewerStartIndex !== null) {
@@ -246,7 +288,7 @@ const ExplorePage = () => {
   return (
     <MainLayout>
       <div className="container max-w-4xl mx-auto px-4 py-6 md:py-8 pb-safe">
-        <div className="mb-6" ref={searchWrapRef}>
+        <div className="mb-6">
           <h1 className="text-2xl font-bold mb-4">Explore</h1>
 
           <div className="flex items-center gap-2">
@@ -256,50 +298,54 @@ const ExplorePage = () => {
                 type="search"
                 placeholder="Search videos and lessons..."
                 value={searchQuery}
-                onFocus={() => {
-                  if (!searchQuery.trim()) setShowHistory(true);
-                }}
                 onChange={(e) => {
                   const next = e.target.value;
                   setSearchQuery(next);
+                  searchRequestVersionRef.current += 1;
+                  setSearchResults([]);
+
                   if (!next.trim()) {
                     setShowHistory(true);
+                    setDebouncedQuery('');
+                    setIsSearching(false);
+                    loadBrowsingHistory();
+                    return;
                   }
+
+                  setShowHistory(false);
+                  setIsSearching(true);
                 }}
                 className="pl-10 pr-4 h-12 rounded-xl"
               />
             </form>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 w-12 p-0"
-              onClick={() => setShowHistory((prev) => !prev)}
-              aria-label="Recent history"
-            >
-              <History className="h-5 w-5" />
-            </Button>
           </div>
 
           {showHistory && !searchQuery.trim() && (
             <Card className="mt-3 bg-mainDark/70 border border-mainAlt/60">
               <CardContent className="p-3 space-y-2">
-                <p className="text-xs uppercase tracking-wide text-mainAccent">Recent (Top 4)</p>
+                <p className="text-xs uppercase tracking-wide text-mainAccent">Recent (Top 5)</p>
                 {recentHistory.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No recent history yet.</p>
                 ) : (
                   recentHistory.map((item) => {
                     return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => applyHistorySearch(item)}
-                        className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-mainAlt/30 transition-colors"
-                      >
-                        <span className="text-sm text-mainAccent dark:text-white truncate pr-3">{item.title ?? 'Untitled'}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(item.viewed_at).toLocaleDateString()}
-                        </span>
-                      </button>
+                      <div key={item.id} className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-mainAlt/30 transition-colors">
+                        <button
+                          type="button"
+                          className="text-sm text-mainAccent dark:text-white truncate pr-3 flex-1 text-left"
+                          onClick={() => applyHistorySearch(item.query)}
+                        >
+                          {item.query ?? 'Untitled'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeHistoryItem(item.id)}
+                          aria-label={`Delete ${item.query ?? 'history item'}`}
+                          className="text-red-400 hover:text-red-600 ml-2"
+                        >
+                          x
+                        </button>
+                      </div>
                     );
                   })
                 )}
@@ -381,9 +427,6 @@ const ExplorePage = () => {
                     <Link
                       key={`lesson-${result.id}`}
                       to={`/lessons/${result.id}`}
-                      onClick={() => {
-                        saveBrowsingHistory(undefined, result.id, result.title || 'Untitled');
-                      }}
                     >
                       <Card className={cn('transition-colors hover:bg-mainAlt/25')}>
                         <CardContent className="p-4 flex items-start gap-3">
