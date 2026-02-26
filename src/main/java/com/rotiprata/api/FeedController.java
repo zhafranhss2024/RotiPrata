@@ -22,11 +22,12 @@ public class FeedController {
     @GetMapping("/feed")
     public FeedResponse feed(
         @AuthenticationPrincipal Jwt jwt,
-        @RequestParam(value = "page", defaultValue = "1") int page
+        @RequestParam(value = "cursor", required = false) String cursor,
+        @RequestParam(value = "limit", required = false) Integer limit
     ) {
         if (jwt == null) {
-            return new FeedResponse(java.util.List.of(), false);
+            return new FeedResponse(java.util.List.of(), false, null);
         }
-        return feedService.getFeed(SecurityUtils.getUserId(jwt), SecurityUtils.getAccessToken(), page);
+        return feedService.getFeed(SecurityUtils.getUserId(jwt), SecurityUtils.getAccessToken(), cursor, limit);
     }
 }

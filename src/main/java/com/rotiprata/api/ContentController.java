@@ -3,7 +3,6 @@ package com.rotiprata.api;
 import com.rotiprata.api.dto.ContentMediaStartLinkRequest;
 import com.rotiprata.api.dto.ContentMediaStartResponse;
 import com.rotiprata.api.dto.ContentMediaStatusResponse;
-import com.rotiprata.api.dto.ContentVoteRequest;
 import com.rotiprata.api.dto.ContentFlagRequest;
 import com.rotiprata.api.dto.ContentCommentCreateRequest;
 import com.rotiprata.api.dto.ContentCommentResponse;
@@ -144,36 +143,6 @@ public class ContentController {
     @DeleteMapping("/{contentId}/like")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unlike(
-        @AuthenticationPrincipal Jwt jwt,
-        @PathVariable UUID contentId
-    ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        contentService.unlikeContent(userId, contentId, SecurityUtils.getAccessToken());
-    }
-
-    // Deprecated alias kept for backward compatibility with older frontend calls.
-    @PostMapping("/{contentId}/vote")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void vote(
-        @AuthenticationPrincipal Jwt jwt,
-        @PathVariable UUID contentId,
-        @RequestBody(required = false) ContentVoteRequest request
-    ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        String voteType = request != null ? request.voteType() : null;
-        if (voteType != null && !voteType.isBlank() && !"educational".equalsIgnoreCase(voteType)) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Unsupported vote type"
-            );
-        }
-        contentService.likeContent(userId, contentId, SecurityUtils.getAccessToken());
-    }
-
-    // Deprecated alias kept for backward compatibility with older frontend calls.
-    @DeleteMapping("/{contentId}/vote")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void unvote(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID contentId
     ) {

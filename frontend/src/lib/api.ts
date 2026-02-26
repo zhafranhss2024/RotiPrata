@@ -56,6 +56,7 @@ import { mockAuthUser, mockRoles } from "@/mocks/auth";
 export type FeedResponse = {
   items: Content[];
   hasMore: boolean;
+  nextCursor?: string | null;
 };
 
 export type ContentQuizSubmitResult = {
@@ -301,11 +302,18 @@ const buildLessonFeedPath = (params: LessonFeedParams = {}) => {
   return queryString ? `/lessons/feed?${queryString}` : "/lessons/feed";
 };
 
-export const fetchFeed = (page = 1) =>
+export const fetchFeed = (cursor: string | null = null, limit = 20) =>
   withMockFallback(
     "feed",
-    () => ({ items: mockContents, hasMore: false }),
-    () => apiGet<FeedResponse>(`/feed?page=${page}`)
+    () => ({ items: mockContents, hasMore: false, nextCursor: null }),
+    () => {
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      if (cursor) {
+        params.set("cursor", cursor);
+      }
+      return apiGet<FeedResponse>(`/feed?${params.toString()}`);
+    }
   );
 
 export const fetchTrendingContent = () =>
@@ -647,10 +655,6 @@ export const likeContent = (contentId: string) => apiPost<void>(`/content/${cont
 
 export const unlikeContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/like`);
 
-// Deprecated compatibility wrapper while older components still call voteContent.
-export const voteContent = (contentId: string, _voteType: string) =>
-  apiPost<void>(`/content/${contentId}/like`);
-
 export const saveContent = (contentId: string) => apiPost<void>(`/content/${contentId}/save`);
 
 export const unsaveContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/save`);
@@ -752,7 +756,7 @@ export const checkDisplayNameAvailability = (displayName: string) =>
   );
 
 export const fetchCurrentUser = () =>
-  withMockFallback("auth-me", () => mockAuthUser, () => apiGet<Profile>(`/auth/me`));
+  withMockFallback("auth-me", () => mockAuthUser, () => apiGet<Profile>(`/users/me`));
 
 export const fetchUserRoles = () =>
   withMockFallback("auth-roles", () => mockRoles, () => apiGet<AppRole[]>(`/users/me/roles`));

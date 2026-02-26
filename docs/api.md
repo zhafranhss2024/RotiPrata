@@ -30,7 +30,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /auth/logout`
 - `GET /auth/login/google`
 - `GET /auth/username-available`
-- `GET /auth/me`
 
 ### Users (`UserController`)
 - `GET /users/me`
@@ -45,7 +44,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /users/me/hearts`
 
 ### Feed and Search (`FeedController`, `BrowsingController`)
-- `GET /feed`
+- `GET /feed` (cursor-based pagination: `cursor`, `limit`)
 - `GET /search`
 
 ### Categories and Tags (`CategoryController`, `TagController`)
@@ -64,8 +63,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /content/{contentId}/view`
 - `POST /content/{contentId}/like`
 - `DELETE /content/{contentId}/like`
-- `POST /content/{contentId}/vote` (deprecated alias)
-- `DELETE /content/{contentId}/vote` (deprecated alias)
 - `POST /content/{contentId}/save`
 - `DELETE /content/{contentId}/save`
 - `POST /content/{contentId}/share`
@@ -114,10 +111,27 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /admin/lessons/{lessonId}/quiz`
 - `PUT /admin/lessons/{lessonId}/quiz`
 
+## Feed Contract (Cursor-Based)
+
+- Endpoint: `GET /feed`
+- Query params:
+  - `cursor` (optional): opaque base64url token from previous response `nextCursor`
+  - `limit` (optional): default `20`, max `50`
+- Response:
+  - `{ items: Content[], hasMore: boolean, nextCursor: string | null }`
+- Ordering:
+  - Stable descending sort on `(created_at desc, id desc)`
+- Pagination behavior:
+  - First request uses no cursor
+  - Next request uses the returned `nextCursor`
+  - `page` parameter is no longer supported
+- Error behavior:
+  - Invalid cursor returns `400` with API error envelope (`code=validation_error`)
+
 ## Frontend Parity Checklist (`frontend/src/lib/api.ts`)
 
 ### Feed / Explore
-- `GET /feed?page=...` -> implemented
+- `GET /feed?cursor=...&limit=...` -> implemented (cursor-only contract)
 - `GET /trending` -> missing
 - `GET /search?query=...&filter=...` -> implemented
 - `GET /recommendations` -> missing
@@ -147,8 +161,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /content/{id}/view` -> implemented
 - `POST /content/{id}/like` -> implemented
 - `DELETE /content/{id}/like` -> implemented
-- `POST /content/{id}/vote` -> implemented (deprecated alias)
-- `DELETE /content/{id}/vote` -> implemented (deprecated alias)
 - `POST /content/{id}/save` -> implemented
 - `DELETE /content/{id}/save` -> implemented
 - `POST /content/{id}/share` -> implemented
@@ -180,7 +192,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /auth/reset-password` -> implemented
 - `GET /auth/login/google` -> implemented
 - `GET /auth/username-available` -> implemented
-- `GET /auth/me` -> implemented
 
 ### Admin
 - `GET /admin/stats` -> implemented
@@ -212,6 +223,9 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ## Compatibility Notes
 
 - Feed items now include `is_liked` and `is_saved` flags per user session.
+- Feed items and `GET /content/{contentId}` now include creator enrichment when profile exists:
+  - `creator: { user_id, display_name, avatar_url }`
+  - UI should keep fallback `@anonymous` when creator/display name is missing
 - `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.
 - Learner quiz endpoints do not expose `correct_answer`; grading is server-side.

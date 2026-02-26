@@ -19,6 +19,7 @@ import {
   type ContentComment,
 } from '@/lib/api';
 import { toast } from '@/components/ui/sonner';
+import { Button } from '@/components/ui/button';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -59,6 +60,7 @@ export function FeedContainer({
   const [showQuiz, setShowQuiz] = useState(false);
   const [activeQuiz, setActiveQuiz] = useState<Quiz | null>(null);
   const [commentsByContent, setCommentsByContent] = useState<Record<string, FeedComment[]>>({});
+  const [commentCountsByContent, setCommentCountsByContent] = useState<Record<string, number>>({});
   const [commentsLoadingByContent, setCommentsLoadingByContent] = useState<Record<string, boolean>>({});
   const [postingCommentByContent, setPostingCommentByContent] = useState<Record<string, boolean>>({});
   const [savedByContent, setSavedByContent] = useState<Record<string, boolean>>({});
@@ -66,12 +68,40 @@ export function FeedContainer({
   const [likedByContent, setLikedByContent] = useState<Record<string, boolean>>({});
   const [likeCountsByContent, setLikeCountsByContent] = useState<Record<string, number>>({});
   const [likePendingByContent, setLikePendingByContent] = useState<Record<string, boolean>>({});
+  const [pausedByContent, setPausedByContent] = useState<Record<string, boolean>>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const visibilityRatiosRef = useRef<Record<string, number>>({});
+  const trackedViewsRef = useRef<Set<string>>(new Set());
+  const viewTimerRef = useRef<number | null>(null);
+  const prefetchLengthRef = useRef<number | null>(null);
+  const activeIndexRef = useRef(activeIndex);
+  const previousActiveContentIdRef = useRef<string | null>(null);
   const isAdminUser = isAdmin();
   const visibleContents = useMemo(
     () => contents.filter((content) => !hiddenContentIds.has(content.id)),
     [contents, hiddenContentIds]
   );
+
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+
+  useEffect(() => {
+    const currentActiveId = visibleContents[activeIndex]?.id ?? null;
+    const previousActiveId = previousActiveContentIdRef.current;
+    if (previousActiveId && previousActiveId !== currentActiveId) {
+      setPausedByContent((prev) => {
+        if (prev[previousActiveId] === undefined) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[previousActiveId];
+        return next;
+      });
+    }
+    previousActiveContentIdRef.current = currentActiveId;
+  }, [activeIndex, visibleContents]);
 
   useEffect(() => {
     if (!contents.length) {
@@ -95,16 +125,46 @@ export function FeedContainer({
       });
       return next;
     });
+    setCommentCountsByContent((prev) => {
+      const next = { ...prev };
+      contents.forEach((content) => {
+        const parsedCount =
+          typeof content.comments_count === 'number'
+            ? content.comments_count
+            : Number(content.comments_count);
+        const initialCount = Number.isFinite(parsedCount) ? Math.max(0, parsedCount) : 0;
+        next[content.id] = Math.max(next[content.id] ?? 0, initialCount);
+      });
+      return next;
+    });
   }, [contents]);
+
+  useEffect(() => {
+    if (activeIndex >= visibleContents.length && visibleContents.length > 0) {
+      setActiveIndex(visibleContents.length - 1);
+    }
+  }, [activeIndex, visibleContents.length]);
 
   const getCommentsForContent = useCallback(
     (contentId: string) => commentsByContent[contentId] ?? [],
     [commentsByContent]
   );
 
+  const getCommentCountForContent = useCallback(
+    (content: Content) => commentCountsByContent[content.id] ?? getCommentsForContent(content.id).length,
+    [commentCountsByContent, getCommentsForContent]
+  );
+
   const getLikeCountForContent = useCallback(
     (content: Content) => likeCountsByContent[content.id] ?? content.educational_value_votes,
     [likeCountsByContent]
+  );
+
+  const setCardRef = useCallback(
+    (contentId: string) => (node: HTMLDivElement | null) => {
+      cardRefs.current[contentId] = node;
+    },
+    []
   );
 
   useEffect(() => {
@@ -117,48 +177,117 @@ export function FeedContainer({
     });
   }, [initialIndex, visibleContents.length]);
 
-  // Track active content on scroll
-  const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
-
-    const container = containerRef.current;
-    const scrollTop = container.scrollTop;
-    const itemHeight = container.clientHeight;
-    const newIndex = Math.round(scrollTop / itemHeight);
-
-    if (newIndex !== activeIndex) {
-      setActiveIndex(newIndex);
-
-      // Fire-and-forget view tracking. Safe to ignore errors.
-      const contentId = visibleContents[newIndex]?.id;
-      if (contentId) {
-        trackContentView(contentId).catch((error) => {
-          console.warn('Failed to track view', error);
-        });
-      }
-    }
-
-    // Load more when near bottom
-    if (hasMore && !isLoading && scrollTop + itemHeight * 2 >= container.scrollHeight) {
-      onLoadMore?.();
-    }
-  }, [activeIndex, hasMore, isLoading, onLoadMore, visibleContents]);
-
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || visibleContents.length === 0) {
+      return;
+    }
 
-    container.addEventListener('scroll', handleScroll);
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const contentId = entry.target.getAttribute('data-content-id');
+          if (!contentId) {
+            return;
+          }
+          visibilityRatiosRef.current[contentId] = entry.isIntersecting ? entry.intersectionRatio : 0;
+        });
+
+        let bestIndex = -1;
+        let bestRatio = -1;
+
+        visibleContents.forEach((content, index) => {
+          const ratio = visibilityRatiosRef.current[content.id] ?? 0;
+          if (ratio >= 0.6 && ratio > bestRatio) {
+            bestRatio = ratio;
+            bestIndex = index;
+          }
+        });
+
+        if (bestIndex >= 0) {
+          if (bestIndex !== activeIndexRef.current) {
+            setActiveIndex(bestIndex);
+          }
+        } else if (activeIndexRef.current !== -1) {
+          // No feed card is >= 60% visible (e.g. end-of-feed card), so pause all media.
+          setActiveIndex(-1);
+        }
+      },
+      {
+        root: container,
+        threshold: [0, 0.25, 0.5, 0.6, 0.75, 1],
+      }
+    );
+
+    visibleContents.forEach((content) => {
+      const node = cardRefs.current[content.id];
+      if (node) {
+        observer.observe(node);
+      }
+    });
+
+    return () => observer.disconnect();
+  }, [visibleContents]);
+
+  useEffect(() => {
+    if (viewTimerRef.current) {
+      window.clearTimeout(viewTimerRef.current);
+      viewTimerRef.current = null;
+    }
+
+    const activeContent = visibleContents[activeIndex];
+    if (!activeContent) {
+      return;
+    }
+
+    const contentId = activeContent.id;
+    viewTimerRef.current = window.setTimeout(() => {
+      const ratio = visibilityRatiosRef.current[contentId] ?? 0;
+      if (ratio < 0.6 || trackedViewsRef.current.has(contentId)) {
+        return;
+      }
+      trackedViewsRef.current.add(contentId);
+      trackContentView(contentId).catch((error) => {
+        console.warn('Failed to track view', error);
+      });
+    }, 800);
+
+    return () => {
+      if (viewTimerRef.current) {
+        window.clearTimeout(viewTimerRef.current);
+        viewTimerRef.current = null;
+      }
+    };
+  }, [activeIndex, visibleContents]);
+
+  useEffect(() => {
+    if (!onLoadMore || !hasMore || isLoading || visibleContents.length === 0) {
+      return;
+    }
+    const triggerIndex = Math.max(0, visibleContents.length - 3);
+    if (activeIndex < triggerIndex) {
+      prefetchLengthRef.current = null;
+      return;
+    }
+    if (prefetchLengthRef.current === visibleContents.length) {
+      return;
+    }
+    prefetchLengthRef.current = visibleContents.length;
+    onLoadMore();
+  }, [activeIndex, hasMore, isLoading, onLoadMore, visibleContents.length]);
 
   const loadComments = useCallback(async (contentId: string) => {
     setCommentsLoadingByContent((prev) => ({ ...prev, [contentId]: true }));
     try {
       const comments = await fetchContentComments(contentId);
+      const mappedComments = comments.map(mapApiComment);
       setCommentsByContent((prev) => ({
         ...prev,
-        [contentId]: comments.map(mapApiComment),
+        [contentId]: mappedComments,
+      }));
+      setCommentCountsByContent((prev) => ({
+        ...prev,
+        [contentId]: Math.max(prev[contentId] ?? 0, mappedComments.length),
       }));
     } catch (error) {
       console.warn('Failed to fetch comments', error);
@@ -190,6 +319,10 @@ export function FeedContainer({
           [contentId]: [...current, mapApiComment(created)],
         };
       });
+      setCommentCountsByContent((prev) => ({
+        ...prev,
+        [contentId]: (prev[contentId] ?? 0) + 1,
+      }));
       return true;
     } catch (error) {
       console.warn('Comment failed', error);
@@ -356,6 +489,25 @@ export function FeedContainer({
     });
   };
 
+  const handleTogglePlayback = useCallback((contentId: string) => {
+    setPausedByContent((prev) => ({
+      ...prev,
+      [contentId]: !Boolean(prev[contentId]),
+    }));
+  }, []);
+
+  const handlePlaybackBlocked = useCallback((contentId: string) => {
+    setPausedByContent((prev) => {
+      if (prev[contentId]) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [contentId]: true,
+      };
+    });
+  }, []);
+
   if (visibleContents.length === 0 && !isLoading) {
     return (
       <div className={`${containerHeightClass} flex items-center justify-center`}>
@@ -375,16 +527,23 @@ export function FeedContainer({
         className={`${containerHeightClass} ${containerClassName ?? ''} overflow-y-auto snap-y snap-mandatory overscroll-y-contain scrollbar-hide`}
       >
         {visibleContents.map((content, index) => (
-          <div key={content.id} className="h-full w-full snap-start snap-always">
+          <div
+            key={content.id}
+            ref={setCardRef(content.id)}
+            data-content-id={content.id}
+            className="h-full w-full snap-start snap-always"
+          >
             <FeedCard
               content={content}
               isActive={index === activeIndex}
+              shouldMountMedia={Math.abs(index - activeIndex) <= 2}
+              isPaused={Boolean(pausedByContent[content.id])}
               isSaved={Boolean(savedByContent[content.id])}
               isSavePending={Boolean(savePendingByContent[content.id])}
               isLiked={Boolean(likedByContent[content.id])}
               likeCount={getLikeCountForContent(content)}
               isLikePending={Boolean(likePendingByContent[content.id])}
-              commentCount={getCommentsForContent(content.id).length}
+              commentCount={getCommentCountForContent(content)}
               onLearnMoreClick={() => handleLearnMoreClick(content)}
               onCommentClick={() => handleCommentClick(content)}
               onLikeToggle={(nextLiked) => void handleLikeToggle(content, nextLiked)}
@@ -392,6 +551,8 @@ export function FeedContainer({
               onShare={() => handleShare(content)}
               onFlag={() => handleFlag(content.id)}
               onQuizClick={() => handleQuizClick(content)}
+              onTogglePlayback={() => handleTogglePlayback(content.id)}
+              onPlaybackBlocked={() => handlePlaybackBlocked(content.id)}
               showEdit={isAdminUser && content.content_type === 'video'}
               onEdit={() => handleEdit(content)}
               showTakeDown={isAdminUser && content.content_type === 'video'}
@@ -401,7 +562,20 @@ export function FeedContainer({
           </div>
         ))}
 
-        {/* Loading indicator */}
+        {!isLoading && !hasMore && visibleContents.length > 0 && (
+          <div className="h-full w-full snap-start snap-always flex items-center justify-center p-6">
+            <div className="w-full max-w-md rounded-2xl border border-border/60 bg-background/95 p-6 text-center shadow-lg">
+              <h3 className="text-xl font-semibold">You reached the end of the feed</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Explore the lessons page to keep learning.
+              </p>
+              <Button className="mt-5 w-full" onClick={() => navigate('/lessons')}>
+                Go to Lessons
+              </Button>
+            </div>
+          </div>
+        )}
+
         {isLoading && (
           <div className="h-full w-full flex items-center justify-center">
             <div className="animate-pulse-soft">
@@ -417,7 +591,6 @@ export function FeedContainer({
         onOpenChange={setShowDetail}
       />
 
-      {/* Comment sheet */}
       <CommentSheet
         content={selectedContent}
         open={showComments}
@@ -428,7 +601,6 @@ export function FeedContainer({
         onPostComment={handlePostComment}
       />
 
-      {/* Quiz sheet */}
       <QuizSheet
         quiz={activeQuiz}
         content={selectedContent}

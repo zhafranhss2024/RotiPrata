@@ -46,15 +46,15 @@ const ExplorePage = () => {
     let active = true;
     const loadContentLookup = async () => {
       const map: Record<string, Content> = {};
-      let page = 1;
+      let cursor: string | null = null;
       for (let i = 0; i < 5; i += 1) {
         try {
-          const response = await fetchFeed(page);
+          const response = await fetchFeed(cursor);
           response.items.forEach((item) => {
             map[item.id] = item;
           });
-          if (!response.hasMore) break;
-          page += 1;
+          if (!response.hasMore || !response.nextCursor) break;
+          cursor = response.nextCursor;
         } catch (error) {
           console.warn('Failed to load feed catalog for search thumbnails', error);
           break;

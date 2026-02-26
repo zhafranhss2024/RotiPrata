@@ -23,6 +23,7 @@ export function QuizSheet({
   onOpenChange,
   onComplete,
 }: QuizSheetProps) {
+  const normalizeAnswerKey = (value: string | null | undefined) => (value ?? '').trim().toUpperCase();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -49,7 +50,7 @@ export function QuizSheet({
     setAnswers(prev => ({ ...prev, [currentQ.id]: selectedAnswer }));
     setShowResult(true);
 
-    if (selectedAnswer === currentQ.correct_answer) {
+    if (normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer)) {
       setScore(prev => prev + (currentQ.points ?? 10));
     }
   };
@@ -187,7 +188,7 @@ export function QuizSheet({
               <div className="space-y-3">
                 {currentQ?.options && Object.entries(currentQ.options).map(([key, value]) => {
                   const isSelected = selectedAnswer === key;
-                  const isCorrect = key === currentQ.correct_answer;
+                  const isCorrect = normalizeAnswerKey(key) === normalizeAnswerKey(currentQ.correct_answer);
                   const showCorrect = showResult && isCorrect;
                   const showIncorrect = showResult && isSelected && !isCorrect;
 
@@ -200,7 +201,7 @@ export function QuizSheet({
                         "w-full p-4 rounded-xl border-2 text-left transition-all",
                         !showResult && isSelected && "border-sky-400 bg-sky-500/10",
                         !showResult && !isSelected && "border-border hover:border-sky-400/60",
-                        showCorrect && "border-success bg-success/10",
+                        showCorrect && "border-emerald-500 bg-emerald-500/10 text-emerald-200",
                         showIncorrect && "border-destructive bg-destructive/10",
                       )}
                     >
@@ -216,10 +217,10 @@ export function QuizSheet({
                   <p
                     className={cn(
                       "font-medium",
-                      selectedAnswer === currentQ.correct_answer ? "text-emerald-400" : "text-rose-400"
+                      normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? "text-emerald-400" : "text-rose-400"
                     )}
                   >
-                    {selectedAnswer === currentQ.correct_answer ? '✅ Correct!' : '❌ Not quite!'}
+                    {normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? '✅ Correct!' : '❌ Not quite!'}
                   </p>
                   <p className="text-sm text-muted-foreground leading-relaxed">{currentQ.explanation}</p>
                 </div>
@@ -260,3 +261,4 @@ export function QuizSheet({
     </Sheet>
   );
 }
+

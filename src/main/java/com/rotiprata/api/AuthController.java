@@ -1,6 +1,5 @@
 package com.rotiprata.api;
 
-import com.rotiprata.domain.Profile;
 import com.rotiprata.application.AuthService;
 import com.rotiprata.application.UserService;
 import com.rotiprata.api.dto.AuthSessionResponse;
@@ -9,14 +8,11 @@ import com.rotiprata.api.dto.LoginRequest;
 import com.rotiprata.api.dto.RegisterRequest;
 import com.rotiprata.api.dto.ResetPasswordRequest;
 import com.rotiprata.api.dto.DisplayNameAvailabilityResponse;
-import com.rotiprata.security.SecurityUtils;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -109,11 +105,6 @@ public class AuthController {
         String normalized = userService.normalizeDisplayName(candidate);
         boolean available = !userService.isDisplayNameTaken(normalized);
         return new DisplayNameAvailabilityResponse(available, normalized);
-    }
-
-    @GetMapping("/me")
-    public Profile me(@AuthenticationPrincipal Jwt jwt) {
-        return userService.getOrCreateProfileFromJwt(jwt, SecurityUtils.getAccessToken());
     }
 
     private String extractBearerToken(String authHeader) {

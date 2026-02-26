@@ -35,15 +35,18 @@ public class ContentService {
     private final SupabaseRestClient supabaseRestClient;
     private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final ContentEngagementService contentEngagementService;
+    private final ContentCreatorEnrichmentService contentCreatorEnrichmentService;
 
     public ContentService(
         SupabaseRestClient supabaseRestClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
-        ContentEngagementService contentEngagementService
+        ContentEngagementService contentEngagementService,
+        ContentCreatorEnrichmentService contentCreatorEnrichmentService
     ) {
         this.supabaseRestClient = supabaseRestClient;
         this.supabaseAdminRestClient = supabaseAdminRestClient;
         this.contentEngagementService = contentEngagementService;
+        this.contentCreatorEnrichmentService = contentCreatorEnrichmentService;
     }
 
     public Map<String, Object> getContentById(UUID userId, UUID contentId, String accessToken) {
@@ -82,7 +85,8 @@ public class ContentService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
         }
         List<Map<String, Object>> decorated = contentEngagementService.decorateItemsWithUserEngagement(rows, userId, token);
-        Map<String, Object> item = decorated.get(0);
+        List<Map<String, Object>> enriched = contentCreatorEnrichmentService.enrichWithCreatorProfiles(decorated);
+        Map<String, Object> item = enriched.get(0);
         item.put("tags", fetchTagsForContent(contentId));
         return item;
     }
