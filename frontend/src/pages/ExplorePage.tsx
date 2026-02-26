@@ -25,9 +25,10 @@ type SearchResultItem = {
 
 const ExplorePage = () => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [submittedQuery, setSubmittedQuery] = useState(''); 
   const [searchTab, setSearchTab] = useState<'videos' | 'lessons'>('videos');
   const [isSearching, setIsSearching] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
+  const [showHistory, setShowHistory] = useState(true);
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [videoViewerStartIndex, setVideoViewerStartIndex] = useState<number | null>(null);
   const [contentLookup, setContentLookup] = useState<Record<string, Content>>({});
@@ -83,7 +84,7 @@ const ExplorePage = () => {
   }, []);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    if (!submittedQuery.trim()) {
       setSearchResults([]);
       setIsSearching(false);
       return;
@@ -135,7 +136,7 @@ const ExplorePage = () => {
     }, 300);
 
     return () => clearTimeout(debounceTimeout);
-  }, [searchQuery, contentLookup]);
+  }, [submittedQuery, contentLookup]);
 
   const recentHistory = useMemo(
     () =>
@@ -199,18 +200,17 @@ const ExplorePage = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      saveBrowsingHistory(searchQuery.trim());
-    }
+    const query = searchQuery.trim();
+    if (!query) return;           
+    saveBrowsingHistory(query);   
+    setSubmittedQuery(query);      
   };
 
-  const applyHistorySearch = (item: {
-    title?: string | null;
-    lesson_id?: string | null;
-  }) => {
+  const applyHistorySearch = (item: { title?: string | null; lesson_id?: string | null }) => {
     const text = (item.title ?? '').trim();
     if (!text) return;
-    setSearchQuery(text);
+    setSearchQuery(text);       
+    setSubmittedQuery(text);  
     setShowHistory(false);
     setSearchTab(item.lesson_id ? 'lessons' : 'videos');
   };
@@ -247,31 +247,22 @@ const ExplorePage = () => {
                 type="search"
                 placeholder="Search videos and lessons..."
                 value={searchQuery}
-                onFocus={() => {
-                  if (!searchQuery.trim()) setShowHistory(true);
-                }}
                 onChange={(e) => {
                   const next = e.target.value;
                   setSearchQuery(next);
+
                   if (!next.trim()) {
-                    setShowHistory(true);
+                    setShowHistory(true);      
+                    setSubmittedQuery('');     
+                    setSearchResults([]);    
                   }
                 }}
                 className="pl-10 pr-4 h-12 rounded-xl"
               />
             </form>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 w-12 p-0"
-              onClick={() => setShowHistory((prev) => !prev)}
-              aria-label="Recent history"
-            >
-              <History className="h-5 w-5" />
-            </Button>
           </div>
 
-          {showHistory && !searchQuery.trim() && (
+          { showHistory && !submittedQuery && (
             <Card className="mt-3 bg-mainDark/70 border border-mainAlt/60">
               <CardContent className="p-3 space-y-2">
                 <p className="text-xs uppercase tracking-wide text-mainAccent">Recent (Top 4)</p>
@@ -299,7 +290,7 @@ const ExplorePage = () => {
           )}
         </div>
 
-        {searchQuery.trim() ? (
+        {submittedQuery ?(
           <div>
             <h2 className="font-semibold text-muted-foreground text-sm mb-3">
               Search Results {isSearching ? '(loading...)' : ''}

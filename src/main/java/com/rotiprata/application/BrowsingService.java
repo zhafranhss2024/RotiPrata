@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
+
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -11,6 +12,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import com.rotiprata.api.dto.SaveHistoryDTO;
 
 @Service
 public class BrowsingService {
@@ -66,7 +69,6 @@ public class BrowsingService {
     public void saveHistory(
             String userId,
             String query,
-            String title,
             Instant searchedAt,
             String accessToken
     ) {
@@ -74,18 +76,17 @@ public class BrowsingService {
             return; 
         }
 
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("user_id", userId);
-        payload.put("query", query);
-        payload.put("title", title);
-        payload.put("searched_at", searchedAt != null ? searchedAt : Instant.now());
+        SaveHistoryDTO dto = new SaveHistoryDTO();
+        dto.setUserId(userId);
+        dto.setQuery(query);
+        dto.setSearchedAt(searchedAt);
 
         String conflict = "on_conflict=user_id,query";
 
         supabaseRestClient.upsertList(
                 "search_history",
                 conflict,
-                payload,
+                dto,
                 accessToken,
                 new TypeReference<List<Map<String, Object>>>() {}
         );

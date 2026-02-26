@@ -3,6 +3,7 @@ package com.rotiprata.api;
 import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import com.rotiprata.api.dto.GetHistoryDTO;
+import com.rotiprata.api.dto.SaveHistoryDTO;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.LessonQuizService;
 import com.rotiprata.application.LessonService;
@@ -86,12 +87,11 @@ public class UserController {
                 @RequestBody SaveHistoryRequestDTO request,
                 @AuthenticationPrincipal Jwt jwt
         ) {
-        String userId = SecurityUtils.getUserId(jwt).toString();
+        String userId = jwt.getSubject();
 
         browsingService.saveHistory(
                 userId,
-                request.getQuery(),      
-                request.getTitle(),      
+                request.getQuery(),           
                 request.getSearchedAt(),  
                 SecurityUtils.getAccessToken()
         );
