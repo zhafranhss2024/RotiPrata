@@ -13,7 +13,7 @@ public class ContentTag {
 
     private UUID id;
 
-    private Content content;
+    private UUID contentId;
 
     private String tag;
 

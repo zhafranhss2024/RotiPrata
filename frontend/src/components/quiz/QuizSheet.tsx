@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Quiz, QuizQuestion, Content } from '@/types';
 
@@ -57,7 +56,6 @@ export function QuizSheet({
 
   const questions = quiz?.questions || mockQuestions;
   const currentQ = questions[currentQuestion];
-  const progress = ((currentQuestion + 1) / questions.length) * 100;
 
   const handleSelectAnswer = (answer: string) => {
     if (showResult) return;
@@ -121,7 +119,6 @@ export function QuizSheet({
               {currentQuestion + 1} / {questions.length}
             </Badge>
           </div>
-          <Progress value={progress} className="mt-2" />
         </SheetHeader>
 
         <div className="mt-6 flex-1 overflow-y-auto">
@@ -199,24 +196,13 @@ export function QuizSheet({
                       disabled={showResult}
                       className={cn(
                         "w-full p-4 rounded-xl border-2 text-left transition-all",
-                        "flex items-center gap-3",
-                        !showResult && isSelected && "border-primary bg-primary/10",
-                        !showResult && !isSelected && "border-border hover:border-primary/50",
+                        !showResult && isSelected && "border-sky-400 bg-sky-500/10",
+                        !showResult && !isSelected && "border-border hover:border-sky-400/60",
                         showCorrect && "border-success bg-success/10",
                         showIncorrect && "border-destructive bg-destructive/10",
                       )}
                     >
-                      <span className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
-                        "border-2",
-                        isSelected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground",
-                        showCorrect && "border-success bg-success text-white",
-                        showIncorrect && "border-destructive bg-destructive text-white",
-                      )}>
-                        {showCorrect ? <CheckCircle className="h-5 w-5" /> :
-                         showIncorrect ? <XCircle className="h-5 w-5" /> : key}
-                      </span>
-                      <span className="flex-1">{value}</span>
+                      <span>{value}</span>
                     </button>
                   );
                 })}
@@ -224,16 +210,16 @@ export function QuizSheet({
 
               {/* Explanation */}
               {showResult && currentQ?.explanation && (
-                <div className={cn(
-                  "p-4 rounded-xl",
-                  selectedAnswer === currentQ.correct_answer
-                    ? "bg-success/10 border border-success"
-                    : "bg-destructive/10 border border-destructive"
-                )}>
-                  <p className="font-medium mb-1">
+                <div className="space-y-1">
+                  <p
+                    className={cn(
+                      "font-medium",
+                      selectedAnswer === currentQ.correct_answer ? "text-emerald-400" : "text-rose-400"
+                    )}
+                  >
                     {selectedAnswer === currentQ.correct_answer ? '✅ Correct!' : '❌ Not quite!'}
                   </p>
-                  <p className="text-sm text-muted-foreground">{currentQ.explanation}</p>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{currentQ.explanation}</p>
                 </div>
               )}
 

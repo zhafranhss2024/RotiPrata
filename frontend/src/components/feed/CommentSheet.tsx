@@ -29,7 +29,7 @@ export function CommentSheet({
 
   const title = useMemo(() => {
     if (!content) return 'Comments';
-    return `${content.title} • Comments`;
+    return `${content.title} - Comments`;
   }, [content]);
 
   if (!content) return null;

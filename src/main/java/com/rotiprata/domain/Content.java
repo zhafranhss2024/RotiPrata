@@ -26,6 +26,10 @@ public class Content {
 
     private String thumbnailUrl;
 
+    private String mediaStatus;
+
+    private java.util.UUID categoryId;
+
     private Category category;
 
     private ContentStatus status = ContentStatus.PENDING;
@@ -52,6 +56,8 @@ public class Content {
     private OffsetDateTime reviewedAt;
 
     private String reviewFeedback;
+
+    private Boolean isSubmitted;
 
     private OffsetDateTime createdAt = OffsetDateTime.now();
 

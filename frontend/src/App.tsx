@@ -13,6 +13,8 @@ import FeedPage from "./pages/FeedPage";
 import ExplorePage from "./pages/ExplorePage";
 import LessonsPage from "./pages/LessonsPage";
 import LessonDetailPage from "./pages/LessonDetailPage";
+import LessonSectionPage from "./pages/LessonSectionPage";
+import LessonQuizPage from "./pages/LessonQuizPage";
 import ProfilePage from "./pages/ProfilePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -22,6 +24,8 @@ import AuthCallbackPage from "./pages/AuthCallbackPage";
 import CreateContentPage from "./pages/CreateContentPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CreateLessonPage from "./pages/admin/CreateLessonPage";
+import AdminLessonsPage from "./pages/admin/AdminLessonsPage";
+import EditLessonPage from "./pages/admin/EditLessonPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -69,6 +73,22 @@ const App = () => (
                 }
               />
               <Route
+                path="/lessons/:id/quiz"
+                element={
+                  <RequireAuth>
+                    <LessonQuizPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/lessons/:id/:sectionId"
+                element={
+                  <RequireAuth>
+                    <LessonSectionPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
                 path="/profile"
                 element={
                   <RequireAuth>
@@ -102,10 +122,26 @@ const App = () => (
                 }
               />
               <Route
+                path="/admin/lessons"
+                element={
+                  <RequireAdmin>
+                    <AdminLessonsPage />
+                  </RequireAdmin>
+                }
+              />
+              <Route
                 path="/admin/lessons/create"
                 element={
                   <RequireAdmin>
                     <CreateLessonPage />
+                  </RequireAdmin>
+                }
+              />
+              <Route
+                path="/admin/lessons/:id/edit"
+                element={
+                  <RequireAdmin>
+                    <EditLessonPage />
                   </RequireAdmin>
                 }
               />

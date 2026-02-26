@@ -2,6 +2,7 @@ package com.rotiprata.infrastructure.supabase;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
@@ -9,6 +10,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.rotiprata.config.SupabaseProperties;
 import java.util.Collections;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatusCode;
@@ -17,8 +20,11 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 @Component
 public class SupabaseRestClient {
+    private static final Logger log = LoggerFactory.getLogger(SupabaseRestClient.class);
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
@@ -37,10 +43,12 @@ public class SupabaseRestClient {
             .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
             .build();
         this.objectMapper = new ObjectMapper()
+            .registerModule(new JavaTimeModule())                     
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
             .configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true)
-            .findAndRegisterModules()
-            .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+            .configure(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE, false)
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false); // optional
     }
 
     public <T> List<T> getList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {
@@ -51,8 +59,16 @@ public class SupabaseRestClient {
         return exchangeList("POST", path, null, body, accessToken, typeRef);
     }
 
+    public <T> List<T> upsertList(String path, String query, Object body, String accessToken, TypeReference<List<T>> typeRef) {
+        return exchangeList("UPSERT", path, query, body, accessToken, typeRef);
+    }
+
     public <T> List<T> patchList(String path, String query, Object body, String accessToken, TypeReference<List<T>> typeRef) {
         return exchangeList("PATCH", path, query, body, accessToken, typeRef);
+    }
+
+    public <T> List<T> deleteList(String path, String query, String accessToken, TypeReference<List<T>> typeRef) {
+        return exchangeList("DELETE", path, query, null, accessToken, typeRef);
     }
 
     private <T> List<T> exchangeList(
@@ -82,6 +98,14 @@ public class SupabaseRestClient {
                     .body(serialize(body))
                     .retrieve()
                     .body(String.class);
+            } else if ("UPSERT".equals(method)) {
+                responseBody = restClient.post()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .header("Prefer", "return=representation,resolution=merge-duplicates")
+                    .body(serialize(body))
+                    .retrieve()
+                    .body(String.class);
             } else if ("PATCH".equals(method)) {
                 var request = restClient.patch().uri(uri);
                 if (accessToken != null && !accessToken.isBlank()) {
@@ -90,6 +114,15 @@ public class SupabaseRestClient {
                 responseBody = request
                     .header("Prefer", "return=representation")
                     .body(serialize(body))
+                    .retrieve()
+                    .body(String.class);
+            } else if ("DELETE".equals(method)) {
+                var request = restClient.delete().uri(uri);
+                if (accessToken != null && !accessToken.isBlank()) {
+                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+                }
+                responseBody = request
+                    .header("Prefer", "return=representation")
                     .retrieve()
                     .body(String.class);
             } else {
@@ -102,11 +135,32 @@ public class SupabaseRestClient {
             return objectMapper.readValue(responseBody, typeRef);
         } catch (RestClientResponseException ex) {
             HttpStatusCode status = ex.getStatusCode();
-            String message = ex.getResponseBodyAsString();
-            throw new ResponseStatusException(status, message == null || message.isBlank() ? "Supabase request failed" : message, ex);
+            String rawBody = ex.getResponseBodyAsString();
+            log.warn("Supabase request failed status={} body={}", status.value(), rawBody);
+            throw new ResponseStatusException(status, sanitizeSupabaseMessage(status), ex);
         } catch (JsonProcessingException ex) {
             throw new ResponseStatusException(HttpStatusCode.valueOf(500), "Failed to parse Supabase response", ex);
         }
+    }
+
+    private String sanitizeSupabaseMessage(HttpStatusCode status) {
+        int code = status.value();
+        if (code == 400) {
+            return "Invalid request";
+        }
+        if (code == 401) {
+            return "Unauthorized request";
+        }
+        if (code == 403) {
+            return "Forbidden request";
+        }
+        if (code == 404) {
+            return "Resource not found";
+        }
+        if (code == 409) {
+            return "Conflict";
+        }
+        return "Supabase request failed";
     }
 
     private String buildUri(String path, String query) {

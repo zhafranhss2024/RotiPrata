@@ -1,234 +1,223 @@
-import React, { useEffect, useState } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Progress } from '@/components/ui/progress';
-import { 
-  Search, 
-  Clock, 
-  Star, 
-  Users, 
-  ChevronRight,
-  Trophy,
-  Flame,
-  BookOpen,
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { Lesson } from '@/types';
-import { fetchLessonProgress, fetchLessons, fetchUserStats, searchLessons } from '@/lib/api';
+import { MainLayout } from '@/components/layout/MainLayout';
+import { Check, Flame, Lock, Star } from 'lucide-react';
+import type { LessonHubLesson, LessonHubResponse } from '@/types';
+import { fetchLessonHub } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
-// Backend: /api/lessons, /api/users/me/lessons/progress, /api/lessons/search
-// Dummy data is returned when mocks are enabled.
+const HORIZONTAL_SWING = 92;
+const NODE_STEP_HEIGHT = 104;
+const PATH_WIDTH = 320;
+const PATH_CENTER_X = PATH_WIDTH / 2;
+const NODE_CONNECTOR_GAP = 42;
+
+const nodeOffsetX = (index: number) => (index % 2 === 0 ? -HORIZONTAL_SWING : HORIZONTAL_SWING);
+
+const DottedPath = ({ lessonCount }: { lessonCount: number }) => {
+  if (lessonCount < 2) return null;
+  const points = Array.from({ length: lessonCount }, (_, index) => ({
+    x: PATH_CENTER_X + nodeOffsetX(index),
+    y: index * NODE_STEP_HEIGHT + NODE_STEP_HEIGHT / 2,
+  }));
+  const segments = points
+    .slice(0, -1)
+    .map((startPoint, index) => {
+      const endPoint = points[index + 1];
+      const dx = endPoint.x - startPoint.x;
+      const dy = endPoint.y - startPoint.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance <= NODE_CONNECTOR_GAP * 2) {
+        return null;
+      }
+      const ux = dx / distance;
+      const uy = dy / distance;
+      return {
+        x1: startPoint.x + ux * NODE_CONNECTOR_GAP,
+        y1: startPoint.y + uy * NODE_CONNECTOR_GAP,
+        x2: endPoint.x - ux * NODE_CONNECTOR_GAP,
+        y2: endPoint.y - uy * NODE_CONNECTOR_GAP,
+      };
+    })
+    .filter(
+      (
+        segment
+      ): segment is {
+        x1: number;
+        y1: number;
+        x2: number;
+        y2: number;
+      } => segment !== null
+    );
+  const height = lessonCount * NODE_STEP_HEIGHT;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0"
+      width={PATH_WIDTH}
+      height={height}
+      viewBox={`0 0 ${PATH_WIDTH} ${height}`}
+    >
+      {segments.map((segment, index) => (
+        <line
+          key={`connector-${index}`}
+          x1={segment.x1}
+          y1={segment.y1}
+          x2={segment.x2}
+          y2={segment.y2}
+          stroke="rgba(98, 157, 255, 0.75)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray="2 10"
+        />
+      ))}
+    </svg>
+  );
+};
+
+const LessonNode = ({ lesson, index }: { lesson: LessonHubLesson; index: number }) => {
+  const isCurrent = lesson.current;
+  const isCompleted = lesson.completed;
+  const isLocked = lesson.visuallyLocked;
+  const ringProgress = Math.max(
+    0,
+    Math.min(100, Math.round(isCompleted ? 100 : lesson.progressPercentage ?? 0))
+  );
+  const ringFillDeg = `${ringProgress * 3.6}deg`;
+
+  const classes = isLocked
+    ? 'border-duoGrayBorder text-white/65'
+    : isCompleted
+      ? 'bg-duoGreen border-[#b51f3d] text-white'
+      : isCurrent
+        ? 'bg-mainAccent border-mainAccent text-main'
+        : 'border-mainAlt text-white';
+
+  return (
+    <div
+      className="absolute left-0 right-0 h-20 flex justify-center"
+      style={{ top: index * NODE_STEP_HEIGHT, transform: `translateX(${nodeOffsetX(index)}px)` }}
+    >
+      <Link to={`/lessons/${lesson.lessonId}`} aria-label={lesson.title} className="relative group focus:outline-none">
+        <div
+          className={cn('h-[74px] w-[76px] rounded-full p-[3px] transition-transform', isLocked ? 'opacity-80' : '')}
+          style={{ background: `conic-gradient(#5a9dff ${ringFillDeg}, rgba(130, 152, 187, 0.35) ${ringFillDeg} 360deg)` }}
+        >
+          <div
+          className={cn(
+            'h-16 w-[68px] rounded-full border-2 flex items-center justify-center transition-transform hover:scale-[1.03] active:translate-y-[5px] active:shadow-none',
+            classes
+          )}
+        >
+          {isCompleted ? (
+            <Check className="h-6 w-6" />
+          ) : isLocked ? (
+            <Lock className="h-5 w-5" />
+          ) : isCurrent ? (
+            <Star className="h-6 w-6 fill-current" />
+          ) : (
+            <span className="text-lg">{index + 1}</span>
+          )}
+        </div>
+        </div>
+        <div className="pointer-events-none absolute z-30 -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-xl bg-mainDark px-3 py-1 text-xs text-mainAccent opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+          {lesson.title}
+        </div>
+      </Link>
+    </div>
+  );
+};
 
 const LessonsPage = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [userProgress, setUserProgress] = useState<Record<string, number>>({});
-  const [userStats, setUserStats] = useState({
-    lessonsEnrolled: 0,
-    lessonsCompleted: 0,
-    currentStreak: 0,
-    conceptsMastered: 0,
-    hoursLearned: 0,
-  });
+  const [hub, setHub] = useState<LessonHubResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchLessons()
-      .then(setLessons)
-      .catch((error) => console.warn('Failed to load lessons', error));
+    let active = true;
+    fetchLessonHub()
+      .then((data) => {
+        if (!active) return;
+        setHub(data);
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        console.warn('Failed to load lesson hub', loadError);
+        setError('Unable to load lesson hub right now.');
+      })
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
 
-    fetchLessonProgress()
-      .then(setUserProgress)
-      .catch((error) => console.warn('Failed to load lesson progress', error));
-
-    fetchUserStats()
-      .then((stats) =>
-        setUserStats({
-          lessonsEnrolled: stats.lessonsEnrolled,
-          lessonsCompleted: stats.lessonsCompleted,
-          currentStreak: stats.currentStreak || 0,
-          conceptsMastered: stats.conceptsMastered,
-          hoursLearned: stats.hoursLearned || 0,
-        })
-      )
-      .catch((error) => console.warn('Failed to load user stats', error));
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const getDifficultyLabel = (level: number) => {
-    switch (level) {
-      case 1: return { label: 'Beginner', color: 'bg-success' };
-      case 2: return { label: 'Intermediate', color: 'bg-warning' };
-      case 3: return { label: 'Advanced', color: 'bg-destructive' };
-      default: return { label: 'Beginner', color: 'bg-success' };
-    }
-  };
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    searchLessons(searchQuery)
-      .then(setLessons)
-      .catch((error) => console.warn('Lesson search failed', error));
-  };
+  const summary = useMemo(
+    () => ({
+      totalLessons: hub?.summary.totalLessons ?? 0,
+      completedLessons: hub?.summary.completedLessons ?? 0,
+      currentStreak: hub?.summary.currentStreak ?? 0,
+    }),
+    [hub]
+  );
 
   return (
     <MainLayout>
-      <div className="container max-w-4xl mx-auto px-4 py-6 md:py-8 pb-safe">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Lesson Hub</h1>
-            <p className="text-muted-foreground">Curated learning paths</p>
+      <div className="mx-auto w-full max-w-4xl px-4 pt-2 pb-24 lg:pt-4 lg:pb-8 space-y-4">
+        <section className="p-2">
+          <p className="text-mainAccent text-xs uppercase tracking-wide">Lesson Path</p>
+          <h1 className="text-3xl text-white leading-tight mt-1">Keep Moving Forward</h1>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-white/90">
+              Lessons {summary.totalLessons}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-white/90">
+              Completed {summary.completedLessons}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-white/90">
+              <Flame className="h-3.5 w-3.5 text-orange-400" />
+              {summary.currentStreak}
+            </span>
           </div>
-          
-          {/* Progress overview button */}
-          <Link to="/profile/progress">
-            <Button variant="outline" className="hidden sm:flex">
-              <Trophy className="h-4 w-4 mr-2" />
-              My Progress
-            </Button>
-          </Link>
-        </div>
+        </section>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-6">
-          <Card>
-            <CardContent className="p-3 text-center">
-              <BookOpen className="h-5 w-5 mx-auto mb-1 text-primary" />
-              <p className="text-lg font-bold">{userStats.lessonsEnrolled}</p>
-              <p className="text-xs text-muted-foreground">Enrolled</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <Trophy className="h-5 w-5 mx-auto mb-1 text-warning" />
-              <p className="text-lg font-bold">{userStats.lessonsCompleted}</p>
-              <p className="text-xs text-muted-foreground">Completed</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <Flame className="h-5 w-5 mx-auto mb-1 text-destructive" />
-              <p className="text-lg font-bold">{userStats.currentStreak}</p>
-              <p className="text-xs text-muted-foreground">Day Streak</p>
-            </CardContent>
-          </Card>
-          <Card className="hidden sm:block">
-            <CardContent className="p-3 text-center">
-              <Star className="h-5 w-5 mx-auto mb-1 text-accent" />
-              <p className="text-lg font-bold">{userStats.conceptsMastered}</p>
-              <p className="text-xs text-muted-foreground">Mastered</p>
-            </CardContent>
-          </Card>
-          <Card className="hidden sm:block">
-            <CardContent className="p-3 text-center">
-              <Clock className="h-5 w-5 mx-auto mb-1 text-secondary" />
-              <p className="text-lg font-bold">{userStats.hoursLearned}h</p>
-              <p className="text-xs text-muted-foreground">Learned</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Search */}
-        <form onSubmit={handleSearch} className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search lessons..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-12 rounded-xl"
-            />
-          </div>
-        </form>
-
-        {/* Continue Learning */}
-        {Object.values(userProgress).some(p => p > 0 && p < 100) && (
-          <div className="mb-8">
-            <h2 className="font-semibold mb-4">Continue Learning</h2>
-            {lessons.filter(l => userProgress[l.id] > 0 && userProgress[l.id] < 100).map((lesson) => (
-              <Link key={lesson.id} to={`/lessons/${lesson.id}`}>
-                <Card className="mb-3 hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-xl gradient-primary flex items-center justify-center text-2xl">
-                        📚
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold truncate">{lesson.title}</h3>
-                        <Progress value={userProgress[lesson.id]} className="h-2 mt-2" />
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {userProgress[lesson.id]}% complete
-                        </p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
+        {isLoading && (
+          <div className="space-y-4">
+            {Array.from({ length: 2 }).map((_, idx) => (
+              <div key={idx} className="rounded-2xl p-5 animate-pulse">
+                <div className="h-5 w-36 rounded bg-mainAlt/70" />
+                <div className="mt-4 h-56 rounded bg-mainAlt/20" />
+              </div>
             ))}
           </div>
         )}
 
-        {/* All Lessons */}
-        <div>
-          <h2 className="font-semibold mb-4">All Lessons</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {lessons.map((lesson) => {
-              const difficulty = getDifficultyLabel(lesson.difficulty_level);
-              
-              return (
-                <Link key={lesson.id} to={`/lessons/${lesson.id}`}>
-                  <Card className="h-full hover:shadow-lg transition-shadow overflow-hidden">
-                    {/* Header Image */}
-                    <div className="h-32 gradient-secondary flex items-center justify-center">
-                      <span className="text-5xl">📖</span>
-                    </div>
-                    
-                    <CardContent className="p-4">
-                      {/* Badges */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <Badge className={`${difficulty.color} text-white text-xs`}>
-                          {difficulty.label}
-                        </Badge>
-                        {lesson.badge_name && (
-                          <Badge variant="outline" className="text-xs">
-                            🏆 {lesson.badge_name}
-                          </Badge>
-                        )}
-                      </div>
-                      
-                      {/* Title & Description */}
-                      <h3 className="font-bold text-lg mb-1">{lesson.title}</h3>
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                        {lesson.description}
-                      </p>
-                      
-                      {/* Meta info */}
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          {lesson.estimated_minutes}m
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Star className="h-4 w-4" />
-                          {lesson.xp_reward} XP
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Users className="h-4 w-4" />
-                          {lesson.completion_count}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
+        {!isLoading && error && (
+          <div className="rounded-2xl p-4 text-sm text-red-200">{error}</div>
+        )}
+
+        {!isLoading && !error && hub && (
+          <div className="space-y-6">
+            {hub.units.map((unit) => (
+              <section key={unit.unitId} className="space-y-3">
+                <div className="py-5 overflow-visible">
+                  <div
+                    className="relative mx-auto"
+                    style={{ width: PATH_WIDTH, height: unit.lessons.length * NODE_STEP_HEIGHT }}
+                  >
+                    <DottedPath lessonCount={unit.lessons.length} />
+                    {unit.lessons.map((lesson, index) => (
+                      <LessonNode key={lesson.lessonId} lesson={lesson} index={index} />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            ))}
           </div>
-        </div>
+        )}
       </div>
     </MainLayout>
   );

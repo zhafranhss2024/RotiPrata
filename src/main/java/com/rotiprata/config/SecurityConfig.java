@@ -35,7 +35,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.GET,
                     "/api/auth/login/google",
-                    "/api/auth/username-available"
+                    "/api/auth/username-available",
+                    "/api/categories"
                 ).permitAll()
                 .requestMatchers(HttpMethod.POST,
                     "/api/auth/login",
@@ -57,7 +58,7 @@ public class SecurityConfig {
             "http://localhost:5173",
             "http://127.0.0.1:5173"
         ));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         configuration.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

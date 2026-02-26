@@ -1,34 +1,38 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Home, 
-  BookOpen, 
-  User,
-  Search,
+import {
+  Compass,
+  Home,
   Plus,
+  Search,
+  Shield,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthContext } from '@/contexts/AuthContext';
 
-const navItems = [
-  { label: 'Feed', href: '/', icon: Home },
+const baseNavItems = [
+  { label: 'Learn', href: '/lessons', icon: Home },
+  { label: 'Feed', href: '/', icon: Compass },
   { label: 'Explore', href: '/explore', icon: Search },
-  { label: 'Lesson Hub', href: '/lessons', icon: BookOpen },
   { label: 'Profile', href: '/profile', icon: User },
 ];
 
 export function BottomNav() {
   const location = useLocation();
+  const { isAdmin } = useAuthContext();
 
-  const createHref = '/create';
-  const CreateIcon = Plus;
+  const navItems = isAdmin()
+    ? [...baseNavItems.slice(0, 3), { label: 'Admin', href: '/admin', icon: Shield }]
+    : baseNavItems;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-border md:hidden">
-      <div className="relative flex items-center h-nav-height px-4 pl-safe-left pr-safe-right pb-safe-bottom">
-        <div className="flex w-full items-center justify-between">
-          <div className="flex items-center gap-6">
-            {navItems.slice(0, 2).map((item) => {
-            const isActive = location.pathname === item.href || 
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-mainAlt bg-mainDark/95 backdrop-blur">
+      <div className="relative h-20 px-6 pb-safe">
+        <div className="h-full grid grid-cols-4 items-center gap-2">
+          {navItems.map((item) => {
+            const isActive =
+              location.pathname === item.href ||
               (item.href !== '/' && location.pathname.startsWith(item.href));
             const Icon = item.icon;
 
@@ -36,56 +40,29 @@ export function BottomNav() {
               <Link
                 key={item.href}
                 to={item.href}
-                aria-label={item.label}
                 className={cn(
-                  "flex items-center justify-center touch-target transition-colors",
-                  isActive 
-                    ? "text-primary" 
-                    : "text-muted-foreground hover:text-foreground"
+                  'inline-flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-xs transition-colors',
+                  isActive
+                    ? 'text-mainAccent bg-main border border-mainAlt'
+                    : 'text-white/80 hover:text-white'
                 )}
               >
-                <Icon className={cn("h-6 w-6", isActive && "animate-bounce-gentle")} />
-                <span className="sr-only">{item.label}</span>
+                <Icon className="h-5 w-5" />
+                <span>{item.label}</span>
               </Link>
             );
-            })}
-          </div>
-          <div className="flex items-center gap-6">
-            {navItems.slice(2).map((item) => {
-            const isActive = location.pathname === item.href || 
-              (item.href !== '/' && location.pathname.startsWith(item.href));
-            const Icon = item.icon;
-
-            return (
-              <Link
-                key={item.href}
-                to={item.href}
-                aria-label={item.label}
-                className={cn(
-                  "flex items-center justify-center touch-target transition-colors",
-                  isActive 
-                    ? "text-primary" 
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Icon className={cn("h-6 w-6", isActive && "animate-bounce-gentle")} />
-                <span className="sr-only">{item.label}</span>
-              </Link>
-            );
-            })}
-          </div>
+          })}
         </div>
 
         <Link
-          to={createHref}
+          to="/create"
           aria-label="Create"
-          className="absolute left-1/2 -translate-x-1/2 -top-4"
+          className="absolute left-1/2 -translate-x-1/2 -top-5 h-12 w-12 rounded-full duo-button-primary flex items-center justify-center"
         >
-          <div className="h-12 w-12 rounded-full gradient-primary shadow-glow flex items-center justify-center">
-            <CreateIcon className="h-6 w-6 text-white" />
-          </div>
+          <Plus className="h-6 w-6" />
         </Link>
       </div>
     </nav>
   );
 }
+
