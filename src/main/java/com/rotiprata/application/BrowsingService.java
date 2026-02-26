@@ -114,10 +114,6 @@ public class BrowsingService {
     ) {
         String query = "id=eq." + id;
 
-        System.out.println("reach delete");
-        System.out.println(id);
-        System.out.println(query);
-
         supabaseRestClient.deleteList(
                 "search_history",
                 query,   
