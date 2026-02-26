@@ -1,14 +1,31 @@
-import React from 'react';
-import { Heart, MessageCircle, Share2, Bookmark, Flag, ChevronLeft, BookOpen, ShieldOff, FilePenLine } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import {
+  Heart,
+  MessageCircle,
+  Share2,
+  Bookmark,
+  Flag,
+  ChevronLeft,
+  BookOpen,
+  ShieldOff,
+  FilePenLine,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import type { Content, Category } from '@/types';
+import type { Content } from '@/types';
 
 interface FeedCardProps {
   content: Content;
   isActive?: boolean;
-  onSwipeLeft?: () => void;
-  onVote?: (type: 'educational') => void;
+  isSaved?: boolean;
+  isLikePending?: boolean;
+  isSavePending?: boolean;
+  isLiked?: boolean;
+  likeCount?: number;
+  commentCount: number;
+  onLearnMoreClick?: () => void;
+  onCommentClick?: () => void;
+  onLikeToggle?: (nextLiked: boolean) => void;
   onSave?: () => void;
   onShare?: () => void;
   onFlag?: () => void;
@@ -20,17 +37,27 @@ interface FeedCardProps {
   isTakingDown?: boolean;
 }
 
-// TODO: Replace with Java backend API calls
-// POST /api/content/{id}/vote - Vote on content
-// POST /api/content/{id}/save - Save/bookmark content
-// POST /api/content/{id}/view - Track view
-// POST /api/content/{id}/flag - Flag content
+type FloatingHeart = {
+  id: number;
+  x: number;
+  y: number;
+  scale: number;
+  rotate: number;
+  driftX: number;
+};
 
 export function FeedCard({
   content,
   isActive = false,
-  onSwipeLeft,
-  onVote,
+  isSaved = false,
+  isLikePending = false,
+  isSavePending = false,
+  isLiked = false,
+  likeCount = 0,
+  commentCount,
+  onLearnMoreClick,
+  onCommentClick,
+  onLikeToggle,
   onSave,
   onShare,
   onFlag,
@@ -41,19 +68,85 @@ export function FeedCard({
   onTakeDown,
   isTakingDown = false,
 }: FeedCardProps) {
+  const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
+  const lastTapRef = useRef(0);
+
+  const addFloatingHearts = (x: number, y: number) => {
+    const hearts = Array.from({ length: 6 }, (_, index) => ({
+      id: Date.now() + index,
+      x,
+      y,
+      scale: 0.85 + Math.random() * 0.7,
+      rotate: -25 + Math.random() * 50,
+      driftX: -42 + Math.random() * 84,
+    }));
+
+    setFloatingHearts((prev) => [...prev, ...hearts]);
+
+    window.setTimeout(() => {
+      setFloatingHearts((prev) =>
+        prev.filter((heart) => !hearts.some((created) => created.id === heart.id))
+      );
+    }, 850);
+  };
+
+  const handleLike = () => {
+    if (isLikePending) {
+      return;
+    }
+    if (isLiked) {
+      onLikeToggle?.(false);
+      return;
+    }
+    onLikeToggle?.(true);
+  };
+
+  const handleDoubleTapLike = (x: number, y: number) => {
+    addFloatingHearts(x, y);
+
+    if (isLiked || isLikePending) {
+      return;
+    }
+    onLikeToggle?.(true);
+  };
+
+  const handleCardDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    handleDoubleTapLike(event.clientX, event.clientY);
+  };
+
+  const handleCardTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      handleDoubleTapLike(touch.clientX, touch.clientY);
+    }
+    lastTapRef.current = now;
+  };
+
   const getCategoryBadgeClass = (type?: string) => {
     switch (type) {
-      case 'slang': return 'badge-slang';
-      case 'meme': return 'badge-meme';
-      case 'dance_trend': return 'badge-dance';
-      case 'social_practice': return 'badge-social';
-      case 'cultural_reference': return 'badge-cultural';
-      default: return 'bg-muted text-muted-foreground';
+      case 'slang':
+        return 'badge-slang';
+      case 'meme':
+        return 'badge-meme';
+      case 'dance_trend':
+        return 'badge-dance';
+      case 'social_practice':
+        return 'badge-social';
+      case 'cultural_reference':
+        return 'badge-cultural';
+      default:
+        return 'bg-muted text-muted-foreground';
     }
   };
 
   return (
-    <div className="relative w-full h-full snap-start">
+    <div
+      className="relative w-full h-full snap-start"
+      onDoubleClick={handleCardDoubleClick}
+      onTouchEnd={handleCardTouchEnd}
+    >
       {/* Background media */}
       <div className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden">
         {content.content_type === 'video' && content.media_url ? (
@@ -66,14 +159,10 @@ export function FeedCard({
             playsInline
           />
         ) : content.content_type === 'image' && content.media_url ? (
-          <img
-            src={content.media_url}
-            alt={content.title}
-            className="w-full h-full object-contain"
-          />
+          <img src={content.media_url} alt={content.title} className="w-full h-full object-contain" />
         ) : (
           <div className="w-full h-full flex items-center justify-center gradient-primary">
-            <span className="text-6xl">🧠</span>
+            <span className="text-6xl">Brain</span>
           </div>
         )}
       </div>
@@ -81,9 +170,43 @@ export function FeedCard({
       {/* Gradient overlay */}
       <div className="absolute inset-0 gradient-feed" />
 
+      {/* Floating hearts on double tap */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {floatingHearts.map((heart) => (
+          <Heart
+            key={heart.id}
+            className="absolute h-8 w-8 text-red-500 fill-red-500"
+            style={{
+              left: heart.x,
+              top: heart.y,
+              opacity: 0,
+              animation: 'feed-heart-float 850ms ease-out forwards',
+              transform: `translate(-50%, -50%) scale(${heart.scale}) rotate(${heart.rotate}deg)`,
+              ['--heart-drift-x' as string]: `${heart.driftX}px`,
+            }}
+          />
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes feed-heart-float {
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.45);
+          }
+          20% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate(calc(-50% + var(--heart-drift-x, 0px)), -180%) scale(1.1);
+          }
+        }
+      `}</style>
+
       {/* Swipe left indicator */}
       <button
-        onClick={onSwipeLeft}
+        onClick={onLearnMoreClick}
         className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-white/70 hover:text-white transition-colors touch-target"
       >
         <span className="text-sm font-medium">Learn more</span>
@@ -94,36 +217,32 @@ export function FeedCard({
       <div className="absolute bottom-0 left-0 right-16 p-4 pb-8">
         {/* Category badge */}
         {content.category && (
-          <Badge className={cn("mb-3", getCategoryBadgeClass(content.category.type))}>
+          <Badge className={cn('mb-3', getCategoryBadgeClass(content.category.type))}>
             {content.category.name}
           </Badge>
         )}
 
         {/* Title */}
-        <h2 className="text-xl font-bold text-white mb-2 line-clamp-2">
-          {content.title}
-        </h2>
+        <h2 className="text-xl font-bold text-white mb-2 line-clamp-2">{content.title}</h2>
 
         {/* Learning objective */}
         {content.learning_objective && (
           <div className="flex items-center gap-2 mb-3">
             <Badge variant="secondary" className="bg-white/20 text-white border-0">
-              🎯 Learn: {content.learning_objective}
+              Learn: {content.learning_objective}
             </Badge>
           </div>
         )}
 
         {/* Description */}
         {content.description && (
-          <p className="text-white/80 text-sm line-clamp-2 mb-3">
-            {content.description}
-          </p>
+          <p className="text-white/80 text-sm line-clamp-2 mb-3">{content.description}</p>
         )}
 
         {/* Creator info */}
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-            <span className="text-sm">👤</span>
+            <span className="text-sm">User</span>
           </div>
           <span className="text-white/80 text-sm font-medium">
             @{content.creator?.display_name || 'anonymous'}
@@ -135,10 +254,7 @@ export function FeedCard({
       <div className="absolute right-4 bottom-24 flex flex-col items-center gap-4">
         {/* Admin edit */}
         {showEdit && onEdit && (
-          <button
-            onClick={onEdit}
-            className="flex flex-col items-center gap-1 text-white touch-target"
-          >
+          <button onClick={onEdit} className="flex flex-col items-center gap-1 text-white touch-target">
             <div className="w-12 h-12 rounded-full bg-sky-500/30 backdrop-blur-sm flex items-center justify-center hover:bg-sky-500/45 transition-colors">
               <FilePenLine className="h-6 w-6" />
             </div>
@@ -172,44 +288,49 @@ export function FeedCard({
             <span className="text-xs font-medium">Quiz</span>
           </button>
         )}
+
         {/* Educational value vote */}
         <button
-          onClick={() => onVote?.('educational')}
-          className="flex flex-col items-center gap-1 text-white touch-target"
+          onClick={handleLike}
+          disabled={isLikePending}
+          className="flex flex-col items-center gap-1 text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
-            <Heart className="h-6 w-6" />
+            <Heart className={cn('h-6 w-6 transition-colors', isLiked && 'fill-red-500 text-red-500')} />
           </div>
-          <span className="text-xs font-medium">{content.educational_value_votes}</span>
+          <span className="text-xs font-medium">{likeCount}</span>
         </button>
 
-        {/* Comments - link to detail */}
+        {/* Comments */}
         <button
-          onClick={onSwipeLeft}
+          onClick={onCommentClick}
           className="flex flex-col items-center gap-1 text-white touch-target"
         >
           <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
             <MessageCircle className="h-6 w-6" />
           </div>
-          <span className="text-xs font-medium">Details</span>
+          <span className="text-xs font-medium">{commentCount}</span>
         </button>
 
         {/* Save/Bookmark */}
         <button
           onClick={onSave}
-          className="flex flex-col items-center gap-1 text-white touch-target"
+          disabled={isSavePending}
+          className="flex flex-col items-center gap-1 text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
-            <Bookmark className="h-6 w-6" />
+          <div
+            className={cn(
+              'w-12 h-12 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors',
+              isSaved ? 'bg-yellow-400/90 text-black hover:bg-yellow-300' : 'bg-white/20 hover:bg-white/30'
+            )}
+          >
+            <Bookmark className={cn('h-6 w-6', isSaved && 'fill-current')} />
           </div>
-          <span className="text-xs font-medium">Save</span>
+          <span className="text-xs font-medium">{isSaved ? 'Saved' : 'Save'}</span>
         </button>
 
         {/* Share */}
-        <button
-          onClick={onShare}
-          className="flex flex-col items-center gap-1 text-white touch-target"
-        >
+        <button onClick={onShare} className="flex flex-col items-center gap-1 text-white touch-target">
           <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors">
             <Share2 className="h-6 w-6" />
           </div>
@@ -229,4 +350,3 @@ export function FeedCard({
     </div>
   );
 }
-
