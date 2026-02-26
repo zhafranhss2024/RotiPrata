@@ -220,6 +220,7 @@ const ExplorePage = () => {
   const applyHistorySearch = (query: string) => {
     const text = query.trim();
     if (!text) return;
+    saveBrowsingHistory(text);
     setSearchQuery(text);       
     setSubmittedQuery(text);  
     setShowHistory(false);
