@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { 
   Settings, 
+  Laptop,
   Moon, 
   Sun, 
   LogOut,
@@ -23,7 +24,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useThemeContext } from '@/contexts/ThemeContext';
-import type { Profile, UserAchievement } from '@/types';
+import type { Profile, ThemePreference, UserAchievement } from '@/types';
 import { fetchAchievements, fetchProfile, fetchUserStats } from '@/lib/api';
 
 // Backend: /api/users/me, /api/users/me/stats, /api/users/me/achievements
@@ -31,7 +32,7 @@ import { fetchAchievements, fetchProfile, fetchUserStats } from '@/lib/api';
 
 const ProfilePage = () => {
   const { isAuthenticated, logout, isAdmin, isContributor } = useAuthContext();
-  const { toggleTheme, isDark } = useThemeContext();
+  const { theme, resolvedTheme, setTheme } = useThemeContext();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [achievements, setAchievements] = useState<UserAchievement[]>([]);
   const [stats, setStats] = useState({
@@ -108,6 +109,11 @@ const ProfilePage = () => {
 
   const displayName = profile.display_name || 'User';
   const displayInitial = displayName ? displayName[0] : 'U';
+  const themeOptions: Array<{ value: ThemePreference; label: string }> = [
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
+    { value: 'system', label: 'System' },
+  ];
 
   return (
     <MainLayout>
@@ -253,17 +259,38 @@ const ProfilePage = () => {
         {/* Settings Menu */}
         <Card>
           <CardContent className="p-0">
-            {/* Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                {isDark ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
-                <span>Theme</span>
+            {/* Theme */}
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {theme === 'system' ? (
+                    <Laptop className="h-5 w-5" />
+                  ) : resolvedTheme === 'dark' ? (
+                    <Moon className="h-5 w-5" />
+                  ) : (
+                    <Sun className="h-5 w-5" />
+                  )}
+                  <span>Theme</span>
+                </div>
+                <Badge variant="secondary">
+                  {theme === 'system' ? `System (${resolvedTheme === 'dark' ? 'Dark' : 'Light'})` : theme === 'dark' ? 'Dark' : 'Light'}
+                </Badge>
               </div>
-              <Badge variant="secondary">{isDark ? 'Dark' : 'Light'}</Badge>
-            </button>
+              <div className="grid grid-cols-3 gap-2">
+                {themeOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={theme === option.value ? 'default' : 'outline'}
+                    onClick={() => setTheme(option.value)}
+                    className="w-full"
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
             
             <Separator />
             
