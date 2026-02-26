@@ -109,13 +109,13 @@ public class UserController {
         );
     }
 
-    @DeleteMapping("/me/history")
+    @DeleteMapping("/me/history/{id}")
     public void clearBrowsingHistory(
+            @PathVariable("id") String id,
             @AuthenticationPrincipal Jwt jwt
     ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        browsingService.purgeHistory(
-                userId.toString(),
+        browsingService.deleteHistoryById(
+                id,
                 SecurityUtils.getAccessToken()
         );
     }

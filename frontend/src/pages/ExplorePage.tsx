@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, BookOpen, History, Search, Video } from 'lucide-react';
 import type { Content } from '@/types';
-import { fetchBrowsingHistory, fetchFeed, saveBrowsingHistory, searchContent } from '@/lib/api';
+import { fetchBrowsingHistory, fetchFeed, saveBrowsingHistory, searchContent, clearBrowsingHistory } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 type SearchKind = 'video' | 'lesson' | 'profile' | 'unknown';
@@ -225,6 +225,15 @@ const ExplorePage = () => {
     setShowHistory(false);
   };
 
+  const removeHistoryItem = async (id: string) => {
+    try {
+      await clearBrowsingHistory(id); 
+      setBrowsingHistory((prev) => prev.filter((item) => item.id !== id));
+    } catch (error) {
+      console.warn('Failed to delete history item', error);
+    }
+  };
+
   if (videoViewerStartIndex !== null) {
     return (
       <MainLayout fullScreen>
@@ -282,14 +291,22 @@ const ExplorePage = () => {
                 ) : (
                   recentHistory.map((item) => {
                     return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => applyHistorySearch(item.query)}
-                        className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-mainAlt/30 transition-colors"
-                      >
-                        <span className="text-sm text-white truncate pr-3">{item.query ?? 'Untitled'}</span>
-                      </button>
+                      <div key={item.id} className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-mainAlt/30 transition-colors">
+                        <button
+                          type="button"
+                          className="text-sm text-white truncate pr-3 flex-1 text-left"
+                          onClick={() => applyHistorySearch(item.query)}
+                        >
+                          {item.query ?? 'Untitled'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeHistoryItem(item.id)}
+                          className="text-red-400 hover:text-red-600 ml-2"
+                        >
+                          ×
+                        </button>
+                      </div>
                     );
                   })
                 )}

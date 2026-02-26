@@ -93,33 +93,34 @@ public class BrowsingService {
 
     // ================= FETCH HISTORY =================
 
-    public List<GetHistoryDTO> fetchHistory(String userId, String accessToken) {
+    public List<GetHistoryDTO> fetchHistory(
+        String userId, String accessToken
+    ) {
         String query = "user_id=eq." + userId + "&order=searched_at.desc&limit=5";
 
-        System.out.println("reached fetchHistory");
-
-        List<GetHistoryDTO> result = supabaseRestClient.getList(
+        return supabaseRestClient.getList(
                 "search_history",
                 query,
                 accessToken,
                 new TypeReference<List<GetHistoryDTO>>() {}
         );
-
-        // Print each item
-        result.forEach(System.out::println);  // thanks to toString() it will display nicely
-
-        return result;
     }
 
     // ================= CLEAR HISTORY =================
 
-    public void purgeHistory(
-            String userId,
+    public void deleteHistoryById(
+            String id,
             String accessToken
     ) {
+        String query = "id=eq." + id;
+
+        System.out.println("reach delete");
+        System.out.println(id);
+        System.out.println(query);
+
         supabaseRestClient.deleteList(
-                "browsing_history",
-                "user_id=eq." + userId,
+                "search_history",
+                query,   
                 accessToken,
                 new TypeReference<List<Map<String, Object>>>() {}
         );

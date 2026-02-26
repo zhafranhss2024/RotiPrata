@@ -309,7 +309,7 @@ export const fetchRecommendations = () =>
 export const fetchBrowsingHistory = () =>
   apiGet<GetHistoryDTO[]>(`/users/me/history`);
 
-export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
+export const clearBrowsingHistory = (id: string) => apiDelete<void>(`/users/me/history/${id}`);
 
 export const fetchLessonFeed = (params: LessonFeedParams = {}) =>
   withMockFallback(
