@@ -282,7 +282,7 @@ const ExplorePage = () => {
             </form>
           </div>
 
-          { showHistory && !submittedQuery && (
+          {showHistory && !submittedQuery && (
             <Card className="mt-3 bg-mainDark/70 border border-mainAlt/60">
               <CardContent className="p-3 space-y-2">
                 <p className="text-xs uppercase tracking-wide text-mainAccent">Recent (Top 5)</p>

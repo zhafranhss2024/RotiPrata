@@ -293,7 +293,6 @@ export const fetchTrendingContent = () =>
 export const searchContent = (query: string, filter?: string | null) =>
   withMockFallback(
     "search",
-    // () => mockSearchResults,
     () => [],
     () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
