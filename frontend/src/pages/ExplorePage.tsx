@@ -234,6 +234,11 @@ const ExplorePage = () => {
     }
   };
 
+  const openVideoViewer = (index: number) => {
+    const result = videoResults[index];
+    setVideoViewerStartIndex(index);
+  };
+
   if (videoViewerStartIndex !== null) {
     return (
       <MainLayout fullScreen>
@@ -346,6 +351,7 @@ const ExplorePage = () => {
                         key={`video-${result.id}`}
                         type="button"
                         className="text-left group"
+                        onClick={() => openVideoViewer(index)} 
                       >
                         <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-mainDark border border-mainAlt/70">
                           {result.thumbnailUrl || result.mediaUrl ? (
