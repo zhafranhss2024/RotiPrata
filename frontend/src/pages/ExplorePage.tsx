@@ -199,14 +199,9 @@ const ExplorePage = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-  };
-
-  const openVideoViewer = (index: number) => {
-    const result = videoResults[index];
-    if (result) {
-      saveBrowsingHistory(result.id, undefined, result.title);
+    if (searchQuery.trim()) {
+      saveBrowsingHistory(searchQuery.trim());
     }
-    setVideoViewerStartIndex(index);
   };
 
   const applyHistorySearch = (item: {
@@ -335,7 +330,6 @@ const ExplorePage = () => {
                         key={`video-${result.id}`}
                         type="button"
                         className="text-left group"
-                        onClick={() => openVideoViewer(index)}
                       >
                         <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-mainDark border border-mainAlt/70">
                           {result.thumbnailUrl || result.mediaUrl ? (
@@ -378,9 +372,6 @@ const ExplorePage = () => {
                     <Link
                       key={`lesson-${result.id}`}
                       to={`/lessons/${result.id}`}
-                      onClick={() => {
-                        saveBrowsingHistory(undefined, result.id, result.title || 'Untitled');
-                      }}
                     >
                       <Card className={cn('transition-colors hover:bg-mainAlt/25')}>
                         <CardContent className="p-4 flex items-start gap-3">

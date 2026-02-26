@@ -65,30 +65,26 @@ public class BrowsingService {
 
     public void saveHistory(
             String userId,
-            String contentId,
-            String lessonId,
+            String query,
             String title,
+            Instant searchedAt,
             String accessToken
     ) {
-        if (contentId == null && lessonId == null) {
-            return;
+        if (query == null || query.isEmpty()) {
+            return; 
         }
-
-        String itemId = contentId != null ? contentId : lessonId;
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("user_id", userId);
-        payload.put("item_id", itemId);
-        payload.put("content_id", contentId);
-        payload.put("lesson_id", lessonId);
+        payload.put("query", query);
         payload.put("title", title);
-        payload.put("viewed_at", Instant.now());
+        payload.put("searched_at", searchedAt != null ? searchedAt : Instant.now());
 
-        String query = "on_conflict=user_id,item_id";
+        String conflict = "on_conflict=user_id,query";
 
         supabaseRestClient.upsertList(
-                "browsing_history",
-                query,
+                "search_history",
+                conflict,
                 payload,
                 accessToken,
                 new TypeReference<List<Map<String, Object>>>() {}

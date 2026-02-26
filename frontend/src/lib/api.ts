@@ -301,8 +301,8 @@ export const searchContent = (query: string, filter?: string | null) =>
     () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
 
-export const saveBrowsingHistory = (contentId?: string, lessonId?: string, title?: string) => {
-  const body = { contentId: contentId ?? null, lessonId: lessonId ?? null, title: title ?? null };
+export const saveBrowsingHistory = (query: string) => {
+  const body = { query, searched_at: new Date().toISOString() }
   apiPost<void>(`/users/me/history`, body);
 };
 

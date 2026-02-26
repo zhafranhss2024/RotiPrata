@@ -81,20 +81,18 @@ public class UserController {
         );
     }
 
-    // 🔥 SINGLE clean history endpoint
-
     @PostMapping("/me/history")
-    public void saveBrowsingHistory(
-            @RequestBody SaveHistoryRequestDTO request,
-            @AuthenticationPrincipal Jwt jwt
-    ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
+        public void saveBrowsingHistory(
+                @RequestBody SaveHistoryRequestDTO request,
+                @AuthenticationPrincipal Jwt jwt
+        ) {
+        String userId = SecurityUtils.getUserId(jwt).toString();
 
         browsingService.saveHistory(
-                userId.toString(),
-                request.getContentId(),
-                request.getLessonId(),
-                request.getTitle(),
+                userId,
+                request.getQuery(),      
+                request.getTitle(),      
+                request.getSearchedAt(),  
                 SecurityUtils.getAccessToken()
         );
     }
