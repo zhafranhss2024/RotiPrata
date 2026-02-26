@@ -1,14 +1,16 @@
 package com.rotiprata.api;
 
-import com.rotiprata.domain.Profile;
 import com.rotiprata.application.AuthService;
+import com.rotiprata.application.LoginStreakService;
 import com.rotiprata.application.UserService;
 import com.rotiprata.api.dto.AuthSessionResponse;
+import com.rotiprata.api.dto.DisplayNameAvailabilityResponse;
 import com.rotiprata.api.dto.ForgotPasswordRequest;
+import com.rotiprata.api.dto.LoginStreakTouchRequest;
+import com.rotiprata.api.dto.LoginStreakTouchResponse;
 import com.rotiprata.api.dto.LoginRequest;
 import com.rotiprata.api.dto.RegisterRequest;
 import com.rotiprata.api.dto.ResetPasswordRequest;
-import com.rotiprata.api.dto.DisplayNameAvailabilityResponse;
 import com.rotiprata.security.SecurityUtils;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,15 +32,18 @@ import org.springframework.web.util.UriComponentsBuilder;
 @RequestMapping("/api/auth")
 public class AuthController {
     private final AuthService authService;
+    private final LoginStreakService loginStreakService;
     private final UserService userService;
     private final String frontendUrl;
 
     public AuthController(
         AuthService authService,
+        LoginStreakService loginStreakService,
         UserService userService,
         @Value("${app.frontend-url:http://localhost:5173}") String frontendUrl
     ) {
         this.authService = authService;
+        this.loginStreakService = loginStreakService;
         this.userService = userService;
         this.frontendUrl = frontendUrl;
     }
@@ -72,6 +77,18 @@ public class AuthController {
         String token = extractBearerToken(authHeader);
         authService.logout(token);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/streak/touch")
+    public LoginStreakTouchResponse touchLoginStreak(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestBody(required = false) LoginStreakTouchRequest request
+    ) {
+        return loginStreakService.touchLoginStreak(
+            SecurityUtils.getUserId(jwt),
+            SecurityUtils.getAccessToken(),
+            request == null ? null : request.timezone()
+        );
     }
 
     @GetMapping("/login/google")
@@ -109,11 +126,6 @@ public class AuthController {
         String normalized = userService.normalizeDisplayName(candidate);
         boolean available = !userService.isDisplayNameTaken(normalized);
         return new DisplayNameAvailabilityResponse(available, normalized);
-    }
-
-    @GetMapping("/me")
-    public Profile me(@AuthenticationPrincipal Jwt jwt) {
-        return userService.getOrCreateProfileFromJwt(jwt, SecurityUtils.getAccessToken());
     }
 
     private String extractBearerToken(String authHeader) {

@@ -6,6 +6,7 @@ import {
   loginUser,
   logoutUser,
   registerUser,
+  touchLoginStreak,
 } from '@/lib/api';
 import { ApiError } from '@/lib/apiClient';
 import { clearTokens, getAccessToken, setTokens } from '@/lib/tokenStorage';
@@ -20,6 +21,14 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
 }
+
+const resolveClientTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+  } catch (_error) {
+    return null;
+  }
+};
 
 export function useAuth() {
   const [state, setState] = useState<AuthState>({
@@ -69,6 +78,11 @@ export function useAuth() {
       const result = await loginUser(email, password);
       if (result.accessToken) {
         setTokens(result.accessToken, result.refreshToken, result.tokenType);
+        try {
+          await touchLoginStreak(resolveClientTimezone());
+        } catch (streakError) {
+          console.warn('Login streak touch failed', streakError);
+        }
         await checkAuth();
         return { success: true };
       }
@@ -99,6 +113,11 @@ export function useAuth() {
       const result = await registerUser(email, password, displayName, isGenAlpha);
       if (result.accessToken) {
         setTokens(result.accessToken, result.refreshToken, result.tokenType);
+        try {
+          await touchLoginStreak(resolveClientTimezone());
+        } catch (streakError) {
+          console.warn('Login streak touch failed', streakError);
+        }
         await checkAuth();
         return { success: true };
       }

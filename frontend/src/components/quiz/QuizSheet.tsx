@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Quiz, QuizQuestion, Content } from '@/types';
+import type { Quiz, Content } from '@/types';
+import { submitContentQuiz } from '@/lib/api';
+import { toast } from '@/components/ui/sonner';
 
 interface QuizSheetProps {
   quiz: Quiz | null;
@@ -14,10 +16,6 @@ interface QuizSheetProps {
   onComplete?: (score: number, maxScore: number) => void;
 }
 
-// TODO: Replace with Java backend API calls
-// POST /api/quizzes/{id}/submit - Submit quiz answers
-// GET /api/quizzes/{id}/results - Get quiz results
-
 export function QuizSheet({
   quiz,
   content,
@@ -25,37 +23,21 @@ export function QuizSheet({
   onOpenChange,
   onComplete,
 }: QuizSheetProps) {
+  const normalizeAnswerKey = (value: string | null | undefined) => (value ?? '').trim().toUpperCase();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [quizComplete, setQuizComplete] = useState(false);
   const [score, setScore] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // DUMMY QUESTIONS: used when no quiz is returned from the backend.
-  const mockQuestions: QuizQuestion[] = [
-    {
-      id: '1',
-      quiz_id: 'mock',
-      question_text: `What does "${content?.title || 'this term'}" mean?`,
-      question_type: 'multiple_choice',
-      media_url: null,
-      options: {
-        A: 'A formal greeting',
-        B: content?.definition_used || 'The correct answer',
-        C: 'A type of food',
-        D: 'None of the above',
-      },
-      correct_answer: 'B',
-      explanation: content?.definition_used || 'This is the correct usage!',
-      points: 10,
-      order_index: 0,
-      created_at: new Date().toISOString(),
-    },
-  ];
-
-  const questions = quiz?.questions || mockQuestions;
-  const currentQ = questions[currentQuestion];
+  const questions = quiz?.questions && quiz.questions.length > 0 ? quiz.questions : null;
+  const currentQ = questions ? questions[currentQuestion] : null;
+  const maxScore = useMemo(() => {
+    if (!questions) return 0;
+    return questions.reduce((total, question) => total + (question.points ?? 10), 0);
+  }, [questions]);
 
   const handleSelectAnswer = (answer: string) => {
     if (showResult) return;
@@ -68,28 +50,38 @@ export function QuizSheet({
     setAnswers(prev => ({ ...prev, [currentQ.id]: selectedAnswer }));
     setShowResult(true);
 
-    if (selectedAnswer === currentQ.correct_answer) {
-      setScore(prev => prev + currentQ.points);
+    if (normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer)) {
+      setScore(prev => prev + (currentQ.points ?? 10));
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
+    if (!questions) {
+      return;
+    }
     if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
       setSelectedAnswer(null);
       setShowResult(false);
-    } else {
-      // Quiz complete
-      setQuizComplete(true);
-      
-      // TODO: Submit quiz results to backend
-      // await fetch(`/api/quizzes/${quiz?.id}/submit`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ answers, score, max_score: questions.length * 10 }),
-      // });
-      
-      onComplete?.(score, questions.length * 10);
+      return;
+    }
+
+    setQuizComplete(true);
+    onComplete?.(score, maxScore);
+
+    if (!content?.id) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await submitContentQuiz(content.id, { answers, timeTakenSeconds: null });
+      toast('Quiz results saved', { position: 'bottom-center' });
+    } catch (error) {
+      console.warn('Failed to save quiz results', error);
+      toast('Failed to save quiz results', { position: 'bottom-center' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -100,6 +92,7 @@ export function QuizSheet({
     setAnswers({});
     setQuizComplete(false);
     setScore(0);
+    setIsSubmitting(false);
   };
 
   const handleClose = () => {
@@ -115,22 +108,32 @@ export function QuizSheet({
         <SheetHeader>
           <div className="flex items-center justify-between">
             <SheetTitle className="text-lg">Quick Quiz</SheetTitle>
-            <Badge variant="outline">
-              {currentQuestion + 1} / {questions.length}
-            </Badge>
+            {questions ? (
+              <Badge variant="outline">
+                {currentQuestion + 1} / {questions.length}
+              </Badge>
+            ) : null}
           </div>
         </SheetHeader>
 
         <div className="mt-6 flex-1 overflow-y-auto">
-          {quizComplete ? (
+          {!questions ? (
+            <div className="text-center py-12">
+              <div className="text-5xl mb-4">No quiz yet</div>
+              <p className="text-muted-foreground mb-6">
+                This video does not have a quick quiz.
+              </p>
+              <Button onClick={handleClose}>Close</Button>
+            </div>
+          ) : quizComplete ? (
             /* Results screen */
             <div className="text-center py-8">
               <div className="text-6xl mb-4">
-                {score >= questions.length * 5 ? '🎉' : '💪'}
+                {score >= maxScore * 0.5 ? '🎉' : '💪'}
               </div>
               <h2 className="text-2xl font-bold mb-2">Quiz Complete!</h2>
               <p className="text-muted-foreground mb-6">
-                You scored {score} out of {questions.length * 10} points
+                You scored {score} out of {maxScore} points
               </p>
               
               <div className="w-32 h-32 mx-auto mb-6 relative">
@@ -151,23 +154,23 @@ export function QuizSheet({
                     stroke="currentColor"
                     strokeWidth="8"
                     fill="none"
-                    strokeDasharray={`${(score / (questions.length * 10)) * 352} 352`}
+                    strokeDasharray={`${maxScore ? (score / maxScore) * 352 : 0} 352`}
                     className="text-primary"
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-2xl font-bold">
-                    {Math.round((score / (questions.length * 10)) * 100)}%
+                    {maxScore ? Math.round((score / maxScore) * 100) : 0}%
                   </span>
                 </div>
               </div>
 
               <div className="flex gap-3">
-                <Button variant="outline" onClick={handleReset} className="flex-1">
+                <Button variant="outline" onClick={handleReset} className="flex-1" disabled={isSubmitting}>
                   Try Again
                 </Button>
-                <Button onClick={handleClose} className="flex-1">
-                  Continue
+                <Button onClick={handleClose} className="flex-1" disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving...' : 'Continue'}
                 </Button>
               </div>
             </div>
@@ -185,7 +188,7 @@ export function QuizSheet({
               <div className="space-y-3">
                 {currentQ?.options && Object.entries(currentQ.options).map(([key, value]) => {
                   const isSelected = selectedAnswer === key;
-                  const isCorrect = key === currentQ.correct_answer;
+                  const isCorrect = normalizeAnswerKey(key) === normalizeAnswerKey(currentQ.correct_answer);
                   const showCorrect = showResult && isCorrect;
                   const showIncorrect = showResult && isSelected && !isCorrect;
 
@@ -196,9 +199,9 @@ export function QuizSheet({
                       disabled={showResult}
                       className={cn(
                         "w-full p-4 rounded-xl border-2 text-left transition-all",
-                        !showResult && isSelected && "border-sky-400 bg-sky-500/10",
-                        !showResult && !isSelected && "border-border hover:border-sky-400/60",
-                        showCorrect && "border-success bg-success/10",
+                        !showResult && isSelected && "border-primary bg-primary/10",
+                        !showResult && !isSelected && "border-border hover:border-primary/60",
+                        showCorrect && "border-primary bg-primary/10 text-mainAccent dark:text-white",
                         showIncorrect && "border-destructive bg-destructive/10",
                       )}
                     >
@@ -214,10 +217,10 @@ export function QuizSheet({
                   <p
                     className={cn(
                       "font-medium",
-                      selectedAnswer === currentQ.correct_answer ? "text-emerald-400" : "text-rose-400"
+                      normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? "text-primary" : "text-statusStrong"
                     )}
                   >
-                    {selectedAnswer === currentQ.correct_answer ? '✅ Correct!' : '❌ Not quite!'}
+                    {normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? '✅ Correct!' : '❌ Not quite!'}
                   </p>
                   <p className="text-sm text-muted-foreground leading-relaxed">{currentQ.explanation}</p>
                 </div>
@@ -258,3 +261,4 @@ export function QuizSheet({
     </Sheet>
   );
 }
+

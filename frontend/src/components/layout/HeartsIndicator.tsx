@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { fetchUserHearts } from '@/lib/api';
+import { subscribeToHeartsUpdated } from '@/lib/heartsEvents';
 import type { LessonHeartsStatus } from '@/types';
 
 interface HeartsIndicatorProps {
@@ -34,27 +35,30 @@ export function HeartsIndicator({ className }: HeartsIndicatorProps) {
     };
 
     load();
-    let intervalId: number | null = null;
     const handleFocus = () => load();
-    if (isQuizRoute) {
-      intervalId = window.setInterval(load, 5_000);
+    if (!isQuizRoute) {
       window.addEventListener('focus', handleFocus);
     }
 
     return () => {
       active = false;
-      if (intervalId != null) {
-        window.clearInterval(intervalId);
-      }
-      if (isQuizRoute) {
+      if (!isQuizRoute) {
         window.removeEventListener('focus', handleFocus);
       }
     };
   }, [isQuizRoute]);
 
+  useEffect(() => {
+    return subscribeToHeartsUpdated((nextHearts) => {
+      setHearts(nextHearts);
+      setHasError(false);
+      setIsLoading(false);
+    });
+  }, []);
+
   return (
     <div
-      className={`inline-flex items-center gap-1.5 rounded-full border border-mainAlt bg-main px-3 py-1.5 text-sm font-bold text-white ${hasError ? 'opacity-80' : ''} ${className ?? ''}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border border-mainAlt bg-main px-3 py-1.5 text-sm font-bold text-mainAccent dark:text-white ${hasError ? 'opacity-80' : ''} ${className ?? ''}`}
       title={
         hasError
           ? 'Hearts unavailable right now'

@@ -5,6 +5,7 @@ import com.rotiprata.api.dto.ContentCommentCreateRequest;
 import com.rotiprata.api.dto.ContentCommentResponse;
 import com.rotiprata.api.dto.ContentFlagRequest;
 import com.rotiprata.api.dto.ContentSearchDTO;
+import com.rotiprata.domain.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
@@ -34,10 +35,89 @@ public class ContentService {
 
     private final SupabaseRestClient supabaseRestClient;
     private final SupabaseAdminRestClient supabaseAdminRestClient;
+    private final ContentEngagementService contentEngagementService;
+    private final ContentCreatorEnrichmentService contentCreatorEnrichmentService;
+    private final UserService userService;
 
-    public ContentService(SupabaseRestClient supabaseRestClient, SupabaseAdminRestClient supabaseAdminRestClient) {
+    public ContentService(
+        SupabaseRestClient supabaseRestClient,
+        SupabaseAdminRestClient supabaseAdminRestClient,
+        ContentEngagementService contentEngagementService,
+        ContentCreatorEnrichmentService contentCreatorEnrichmentService,
+        UserService userService
+    ) {
         this.supabaseRestClient = supabaseRestClient;
         this.supabaseAdminRestClient = supabaseAdminRestClient;
+        this.contentEngagementService = contentEngagementService;
+        this.contentCreatorEnrichmentService = contentCreatorEnrichmentService;
+        this.userService = userService;
+    }
+
+    public Map<String, Object> getContentById(UUID userId, UUID contentId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+
+        List<Map<String, Object>> rows = supabaseRestClient.getList(
+            "content",
+            buildQuery(Map.of(
+                "select", "*",
+                "id", "eq." + contentId,
+                "status", "eq.approved",
+                "limit", "1"
+            )),
+            token,
+            MAP_LIST
+        );
+        if (rows.isEmpty()) {
+            rows = supabaseAdminRestClient.getList(
+                "content",
+                buildQuery(Map.of(
+                    "select", "*",
+                    "id", "eq." + contentId,
+                    "creator_id", "eq." + userId,
+                    "limit", "1"
+                )),
+                MAP_LIST
+            );
+        }
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
+        }
+        List<Map<String, Object>> decorated = contentEngagementService.decorateItemsWithUserEngagement(rows, userId, token);
+        List<Map<String, Object>> enriched = contentCreatorEnrichmentService.enrichWithCreatorProfiles(decorated);
+        Map<String, Object> item = enriched.get(0);
+        item.put("tags", fetchTagsForContent(contentId));
+        return item;
+    }
+
+    private List<String> fetchTagsForContent(UUID contentId) {
+        if (contentId == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content_tags",
+            buildQuery(Map.of(
+                "select", "tag",
+                "content_id", "eq." + contentId
+            )),
+            MAP_LIST
+        );
+        List<String> tags = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Object tag = row.get("tag");
+            if (tag != null) {
+                String value = tag.toString().trim();
+                if (!value.isBlank()) {
+                    tags.add(value);
+                }
+            }
+        }
+        return tags;
     }
 
     public List<ContentSearchDTO> getFilteredContent(String query, String filter, String accessToken) {
@@ -313,6 +393,53 @@ public class ContentService {
         Map<String, Object> row = created.get(0);
         Map<UUID, String> authors = fetchDisplayNames(Set.of(userId));
         return toCommentResponse(row, authors);
+    }
+
+    public void deleteComment(UUID userId, UUID contentId, UUID commentId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        ensureUserAndContent(userId, contentId);
+        if (commentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Comment id is required");
+        }
+
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content_comments",
+            buildQuery(Map.of(
+                "select", "id,user_id",
+                "id", "eq." + commentId,
+                "content_id", "eq." + contentId,
+                "is_deleted", "eq.false",
+                "limit", "1"
+            )),
+            MAP_LIST
+        );
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Comment not found");
+        }
+
+        UUID ownerId = parseUuid(rows.get(0).get("user_id"));
+        boolean isOwner = ownerId != null && ownerId.equals(userId);
+        boolean isAdmin = userService.getRoles(userId, token).contains(AppRole.ADMIN);
+        if (!isOwner && !isAdmin) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed to delete this comment");
+        }
+
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("is_deleted", true);
+        patch.put("updated_at", OffsetDateTime.now());
+
+        supabaseAdminRestClient.patchList(
+            "content_comments",
+            buildQuery(Map.of(
+                "id", "eq." + commentId,
+                "content_id", "eq." + contentId,
+                "is_deleted", "eq.false"
+            )),
+            patch,
+            MAP_LIST
+        );
+
+        refreshEngagementCounts(contentId);
     }
 
     private void refreshEngagementCounts(UUID contentId) {

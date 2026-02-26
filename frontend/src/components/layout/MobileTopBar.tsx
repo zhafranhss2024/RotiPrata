@@ -13,7 +13,7 @@ export function MobileTopBar() {
       <div className="h-16 px-4 flex items-center justify-between gap-3">
         <Link to="/lessons" className="inline-flex items-center gap-2">
           <img src="/icon-images/LEADERBOARD_ICON.png" alt="Rotiprata" className="h-7 w-7 rounded-md object-cover" />
-          <span className="text-white font-bold text-lg">Learn</span>
+          <span className="text-mainAccent dark:text-white font-bold text-lg">Learn</span>
         </Link>
 
         <div className="inline-flex items-center gap-2">

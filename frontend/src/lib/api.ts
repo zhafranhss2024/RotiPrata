@@ -56,6 +56,14 @@ import { mockAuthUser, mockRoles } from "@/mocks/auth";
 export type FeedResponse = {
   items: Content[];
   hasMore: boolean;
+  nextCursor?: string | null;
+};
+
+export type ContentQuizSubmitResult = {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean;
 };
 
 export type LessonFeedDifficultyFilter = "all" | "beginner" | "intermediate" | "advanced";
@@ -129,6 +137,13 @@ export type AuthSessionResponse = {
   email?: string;
   requiresEmailConfirmation?: boolean;
   message?: string;
+};
+
+export type LoginStreakTouchResponse = {
+  currentStreak: number;
+  longestStreak: number;
+  lastActivityDate: string;
+  touchedToday: boolean;
 };
 
 export type DisplayNameAvailabilityResponse = {
@@ -294,11 +309,18 @@ const buildLessonFeedPath = (params: LessonFeedParams = {}) => {
   return queryString ? `/lessons/feed?${queryString}` : "/lessons/feed";
 };
 
-export const fetchFeed = (page = 1) =>
+export const fetchFeed = (cursor: string | null = null, limit = 20) =>
   withMockFallback(
     "feed",
-    () => ({ items: mockContents, hasMore: false }),
-    () => apiGet<FeedResponse>(`/feed?page=${page}`)
+    () => ({ items: mockContents, hasMore: false, nextCursor: null }),
+    () => {
+      const params = new URLSearchParams();
+      params.set("limit", String(limit));
+      if (cursor) {
+        params.set("cursor", cursor);
+      }
+      return apiGet<FeedResponse>(`/feed?${params.toString()}`);
+    }
   );
 
 export const fetchTrendingContent = () =>
@@ -601,6 +623,13 @@ export const startContentMediaLink = (sourceUrl: string) =>
 export const fetchContentMediaStatus = (contentId: string) =>
   apiGet<ContentMediaStatusResponse>(`/content/${contentId}/media`);
 
+export const fetchContentById = (contentId: string) =>
+  withMockFallback(
+    "content-by-id",
+    () => mockContents[0],
+    () => apiGet<Content>(`/content/${contentId}`)
+  );
+
 export const updateDraftContent = (contentId: string, payload: Record<string, unknown>) =>
   apiPatch<Content>(`/content/${contentId}`, payload);
 
@@ -610,15 +639,28 @@ export const submitContent = (contentId: string, payload: Record<string, unknown
 export const fetchContentQuiz = (contentId: string) =>
   withMockFallback("content-quiz", () => null, () => apiGet<Quiz>(`/content/${contentId}/quiz`));
 
+export const submitContentQuiz = (
+  contentId: string,
+  payload: { answers: Record<string, string>; timeTakenSeconds?: number | null }
+) =>
+  apiPost<ContentQuizSubmitResult>(`/content/${contentId}/quiz/submit`, payload);
+
+export const fetchAdminContentQuiz = (contentId: string) =>
+  withMockFallback(
+    "admin-content-quiz",
+    () => [],
+    () => apiGet<QuizQuestion[]>(`/admin/content/${contentId}/quiz`),
+    { allowAutoFallback: false }
+  );
+
+export const saveAdminContentQuiz = (contentId: string, questions: Partial<QuizQuestion>[]) =>
+  apiPut<QuizQuestion[]>(`/admin/content/${contentId}/quiz`, { questions });
+
 export const trackContentView = (contentId: string) => apiPost<void>(`/content/${contentId}/view`);
 
 export const likeContent = (contentId: string) => apiPost<void>(`/content/${contentId}/like`);
 
 export const unlikeContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/like`);
-
-// Deprecated compatibility wrapper while older components still call voteContent.
-export const voteContent = (contentId: string, _voteType: string) =>
-  apiPost<void>(`/content/${contentId}/like`);
 
 export const saveContent = (contentId: string) => apiPost<void>(`/content/${contentId}/save`);
 
@@ -634,6 +676,9 @@ export const fetchContentComments = (contentId: string, limit = 50, offset = 0) 
 
 export const postContentComment = (contentId: string, body: string, parentId?: string | null) =>
   apiPost<ContentComment>(`/content/${contentId}/comments`, { body, parentId: parentId ?? null });
+
+export const deleteContentComment = (contentId: string, commentId: string) =>
+  apiDelete<void>(`/content/${contentId}/comments/${commentId}`);
 
 export const fetchProfile = () =>
   withMockFallback("profile", () => mockProfile, () => apiGet<Profile>(`/users/me`));
@@ -690,6 +735,9 @@ export const registerUser = (
 
 export const logoutUser = () => apiPost<void>(`/auth/logout`);
 
+export const touchLoginStreak = (timezone?: string | null) =>
+  apiPost<LoginStreakTouchResponse>(`/auth/streak/touch`, timezone ? { timezone } : {});
+
 export const requestPasswordReset = (email: string, redirectTo?: string) =>
   withMockFallback(
     "auth-forgot-password",
@@ -721,7 +769,7 @@ export const checkDisplayNameAvailability = (displayName: string) =>
   );
 
 export const fetchCurrentUser = () =>
-  withMockFallback("auth-me", () => mockAuthUser, () => apiGet<Profile>(`/auth/me`));
+  withMockFallback("auth-me", () => mockAuthUser, () => apiGet<Profile>(`/users/me`));
 
 export const fetchUserRoles = () =>
   withMockFallback("auth-roles", () => mockRoles, () => apiGet<AppRole[]>(`/users/me/roles`));

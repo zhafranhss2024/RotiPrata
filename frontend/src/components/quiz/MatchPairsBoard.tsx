@@ -168,7 +168,7 @@ export function MatchPairsBoard({
                   onClick={() => handleSelectLeft(item.id)}
                   disabled={disabled}
                   className={cn(
-                    "w-full rounded-2xl border text-left text-white transition active:translate-y-[5px] active:shadow-none",
+                    "w-full rounded-2xl border text-left text-mainAccent dark:text-white transition active:translate-y-[5px] active:shadow-none",
                     compact ? "px-3 py-2 text-sm" : "px-4 py-3",
                     isSelected
                       ? "border-mainAccent bg-mainAccent/20 shadow-mainCircleShadow"
@@ -203,7 +203,7 @@ export function MatchPairsBoard({
                   onClick={() => handleSelectRight(item.id)}
                   disabled={disabled}
                   className={cn(
-                    "w-full rounded-2xl border text-left text-white transition active:translate-y-[5px] active:shadow-none",
+                    "w-full rounded-2xl border text-left text-mainAccent dark:text-white transition active:translate-y-[5px] active:shadow-none",
                     compact ? "px-3 py-2 text-sm" : "px-4 py-3",
                     isSelected
                       ? "border-mainAccent bg-mainAccent/20 shadow-mainCircleShadow"
@@ -245,9 +245,9 @@ export function MatchPairsBoard({
                   disabled ? "cursor-default" : "hover:opacity-90"
                 )}
                 title={disabled ? undefined : "Click to unmatch"}
-              >
+                >
                 <span className="font-semibold">{leftText}</span>
-                <span className="mx-2 text-white/80">-&gt;</span>
+                <span className="mx-2 text-mainAccent/80 dark:text-white/80">-&gt;</span>
                 <span>{rightText}</span>
               </button>
             );

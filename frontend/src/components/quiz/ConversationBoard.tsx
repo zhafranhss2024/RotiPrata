@@ -38,7 +38,7 @@ export function ConversationBoard({
           </p>
           <div
             className={cn(
-              "rounded-2xl border border-mainAlt text-white shadow-duoGrayBorderShadow",
+              "rounded-2xl border border-mainAlt text-mainAccent dark:text-white shadow-duoGrayBorderShadow",
               compact ? "px-3 py-2 text-sm" : "px-4 py-3 text-base"
             )}
           >
@@ -60,7 +60,7 @@ export function ConversationBoard({
                   }}
                   disabled={disabled || !onChange}
                   className={cn(
-                    "w-full rounded-2xl border text-left text-white transition active:translate-y-[5px] active:shadow-none",
+                    "w-full rounded-2xl border text-left text-mainAccent dark:text-white transition active:translate-y-[5px] active:shadow-none",
                     compact ? "px-3 py-2 text-sm" : "px-4 py-3",
                     selected
                       ? "border-mainAccent bg-mainAccent/15 shadow-mainCircleShadow"

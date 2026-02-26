@@ -21,6 +21,7 @@ export interface Profile {
   current_streak: number;
   longest_streak: number;
   last_activity_date: string | null;
+  timezone?: string | null;
   total_hours_learned: number;
   created_at: string;
   updated_at: string;
@@ -60,8 +61,11 @@ export interface Content {
   definition_used: string | null;
   older_version_reference: string | null;
   educational_value_votes: number;
+  comments_count?: number;
   view_count: number;
   is_featured: boolean;
+  is_liked?: boolean;
+  is_saved?: boolean;
   reviewed_by: string | null;
   reviewed_at: string | null;
   review_feedback: string | null;

@@ -2,6 +2,7 @@ package com.rotiprata.api.dto;
 
 import com.rotiprata.domain.ContentType;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
@@ -17,5 +18,5 @@ public record ContentSubmitRequest(
     @Size(max = 500) String definitionLiteral,
     @Size(max = 500) String definitionUsed,
     @Size(max = 160) String olderVersionReference,
-    List<@Size(max = 30) String> tags
+    @NotEmpty List<@NotBlank @Size(max = 30) String> tags
 ) {}

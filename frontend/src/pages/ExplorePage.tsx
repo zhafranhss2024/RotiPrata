@@ -46,15 +46,15 @@ const ExplorePage = () => {
     let active = true;
     const loadContentLookup = async () => {
       const map: Record<string, Content> = {};
-      let page = 1;
+      let cursor: string | null = null;
       for (let i = 0; i < 5; i += 1) {
         try {
-          const response = await fetchFeed(page);
+          const response = await fetchFeed(cursor);
           response.items.forEach((item) => {
             map[item.id] = item;
           });
-          if (!response.hasMore) break;
-          page += 1;
+          if (!response.hasMore || !response.nextCursor) break;
+          cursor = response.nextCursor;
         } catch (error) {
           console.warn('Failed to load feed catalog for search thumbnails', error);
           break;
@@ -224,7 +224,11 @@ const ExplorePage = () => {
     return (
       <MainLayout fullScreen>
         <div className="sticky top-0 z-30 h-12 flex items-center justify-between gap-2 px-4 border-b border-mainAlt bg-mainDark/95 backdrop-blur">
-          <Button variant="ghost" onClick={() => setVideoViewerStartIndex(null)} className="text-white hover:bg-mainAlt">
+          <Button
+            variant="ghost"
+            onClick={() => setVideoViewerStartIndex(null)}
+            className="text-mainAccent dark:text-white hover:bg-mainAlt"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Search
           </Button>
@@ -291,7 +295,7 @@ const ExplorePage = () => {
                         onClick={() => applyHistorySearch(item)}
                         className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-mainAlt/30 transition-colors"
                       >
-                        <span className="text-sm text-white truncate pr-3">{item.title ?? 'Untitled'}</span>
+                        <span className="text-sm text-mainAccent dark:text-white truncate pr-3">{item.title ?? 'Untitled'}</span>
                         <span className="text-xs text-muted-foreground">
                           {new Date(item.viewed_at).toLocaleDateString()}
                         </span>
@@ -347,7 +351,6 @@ const ExplorePage = () => {
                           ) : (
                             <div className="absolute inset-0 bg-mainDark" />
                           )}
-                          <div className="absolute inset-0 bg-gradient-to-b from-mainAlt/15 via-black/15 to-black/80" />
                           <div className="absolute top-2 left-2">
                             <Badge variant="secondary" className="bg-black/45 text-white border-0">
                               Video
