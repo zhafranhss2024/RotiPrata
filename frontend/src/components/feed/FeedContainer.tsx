@@ -5,6 +5,7 @@ import { CommentSheet, type FeedComment } from './CommentSheet';
 import { QuizSheet } from '../quiz/QuizSheet';
 import type { Content, Quiz } from '@/types';
 import {
+  deleteContentComment,
   fetchContentComments,
   fetchContentQuiz,
   flagContent,
@@ -34,6 +35,7 @@ interface FeedContainerProps {
 
 const mapApiComment = (comment: ContentComment): FeedComment => ({
   id: comment.id,
+  userId: comment.userId ?? (comment as unknown as { user_id?: string }).user_id ?? '',
   author: comment.author || 'anonymous',
   text: comment.body,
 });
@@ -46,7 +48,7 @@ export function FeedContainer({
   initialIndex = 0,
   containerClassName,
 }: FeedContainerProps) {
-  const { isAdmin } = useAuthContext();
+  const { isAdmin, user } = useAuthContext();
   const navigate = useNavigate();
   const location = useLocation();
   const containerHeightClass =
@@ -63,6 +65,7 @@ export function FeedContainer({
   const [commentCountsByContent, setCommentCountsByContent] = useState<Record<string, number>>({});
   const [commentsLoadingByContent, setCommentsLoadingByContent] = useState<Record<string, boolean>>({});
   const [postingCommentByContent, setPostingCommentByContent] = useState<Record<string, boolean>>({});
+  const [deletingCommentByContent, setDeletingCommentByContent] = useState<Record<string, string | null>>({});
   const [savedByContent, setSavedByContent] = useState<Record<string, boolean>>({});
   const [savePendingByContent, setSavePendingByContent] = useState<Record<string, boolean>>({});
   const [likedByContent, setLikedByContent] = useState<Record<string, boolean>>({});
@@ -78,6 +81,10 @@ export function FeedContainer({
   const activeIndexRef = useRef(activeIndex);
   const previousActiveContentIdRef = useRef<string | null>(null);
   const isAdminUser = isAdmin();
+  const currentUserId =
+    (user as unknown as { user_id?: string; userId?: string } | null)?.user_id ??
+    (user as unknown as { user_id?: string; userId?: string } | null)?.userId ??
+    null;
   const visibleContents = useMemo(
     () => contents.filter((content) => !hiddenContentIds.has(content.id)),
     [contents, hiddenContentIds]
@@ -332,6 +339,41 @@ export function FeedContainer({
       setPostingCommentByContent((prev) => ({ ...prev, [contentId]: false }));
     }
   }, []);
+
+  const handleDeleteComment = useCallback(
+    async (contentId: string, commentId: string) => {
+      setDeletingCommentByContent((prev) => ({ ...prev, [contentId]: commentId }));
+      try {
+        await deleteContentComment(contentId, commentId);
+        setCommentsByContent((prev) => ({
+          ...prev,
+          [contentId]: (prev[contentId] ?? []).filter((comment) => comment.id !== commentId),
+        }));
+        setCommentCountsByContent((prev) => ({
+          ...prev,
+          [contentId]: Math.max(0, (prev[contentId] ?? 0) - 1),
+        }));
+        return true;
+      } catch (error) {
+        console.warn('Delete comment failed', error);
+        toast('Failed to delete comment', { position: 'bottom-center' });
+        return false;
+      } finally {
+        setDeletingCommentByContent((prev) => ({ ...prev, [contentId]: null }));
+      }
+    },
+    []
+  );
+
+  const canDeleteComment = useCallback(
+    (comment: FeedComment) => {
+      if (isAdminUser) {
+        return true;
+      }
+      return Boolean(currentUserId) && comment.userId === currentUserId;
+    },
+    [currentUserId, isAdminUser]
+  );
 
   const handleQuizClick = (content: Content) => {
     setActiveQuiz(null);
@@ -597,8 +639,11 @@ export function FeedContainer({
         comments={selectedContent ? getCommentsForContent(selectedContent.id) : []}
         isLoading={selectedContent ? Boolean(commentsLoadingByContent[selectedContent.id]) : false}
         isPosting={selectedContent ? Boolean(postingCommentByContent[selectedContent.id]) : false}
+        deletingCommentId={selectedContent ? deletingCommentByContent[selectedContent.id] ?? null : null}
         onOpenChange={setShowComments}
         onPostComment={handlePostComment}
+        onDeleteComment={handleDeleteComment}
+        canDeleteComment={canDeleteComment}
       />
 
       <QuizSheet

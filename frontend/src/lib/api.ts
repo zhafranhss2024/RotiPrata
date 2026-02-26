@@ -677,6 +677,9 @@ export const fetchContentComments = (contentId: string, limit = 50, offset = 0) 
 export const postContentComment = (contentId: string, body: string, parentId?: string | null) =>
   apiPost<ContentComment>(`/content/${contentId}/comments`, { body, parentId: parentId ?? null });
 
+export const deleteContentComment = (contentId: string, commentId: string) =>
+  apiDelete<void>(`/content/${contentId}/comments/${commentId}`);
+
 export const fetchProfile = () =>
   withMockFallback("profile", () => mockProfile, () => apiGet<Profile>(`/users/me`));
 

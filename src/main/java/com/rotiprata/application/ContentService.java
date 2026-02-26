@@ -5,6 +5,7 @@ import com.rotiprata.api.dto.ContentCommentCreateRequest;
 import com.rotiprata.api.dto.ContentCommentResponse;
 import com.rotiprata.api.dto.ContentFlagRequest;
 import com.rotiprata.api.dto.ContentSearchDTO;
+import com.rotiprata.domain.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
@@ -36,17 +37,20 @@ public class ContentService {
     private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final ContentEngagementService contentEngagementService;
     private final ContentCreatorEnrichmentService contentCreatorEnrichmentService;
+    private final UserService userService;
 
     public ContentService(
         SupabaseRestClient supabaseRestClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
         ContentEngagementService contentEngagementService,
-        ContentCreatorEnrichmentService contentCreatorEnrichmentService
+        ContentCreatorEnrichmentService contentCreatorEnrichmentService,
+        UserService userService
     ) {
         this.supabaseRestClient = supabaseRestClient;
         this.supabaseAdminRestClient = supabaseAdminRestClient;
         this.contentEngagementService = contentEngagementService;
         this.contentCreatorEnrichmentService = contentCreatorEnrichmentService;
+        this.userService = userService;
     }
 
     public Map<String, Object> getContentById(UUID userId, UUID contentId, String accessToken) {
@@ -389,6 +393,53 @@ public class ContentService {
         Map<String, Object> row = created.get(0);
         Map<UUID, String> authors = fetchDisplayNames(Set.of(userId));
         return toCommentResponse(row, authors);
+    }
+
+    public void deleteComment(UUID userId, UUID contentId, UUID commentId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+        ensureUserAndContent(userId, contentId);
+        if (commentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Comment id is required");
+        }
+
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content_comments",
+            buildQuery(Map.of(
+                "select", "id,user_id",
+                "id", "eq." + commentId,
+                "content_id", "eq." + contentId,
+                "is_deleted", "eq.false",
+                "limit", "1"
+            )),
+            MAP_LIST
+        );
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Comment not found");
+        }
+
+        UUID ownerId = parseUuid(rows.get(0).get("user_id"));
+        boolean isOwner = ownerId != null && ownerId.equals(userId);
+        boolean isAdmin = userService.getRoles(userId, token).contains(AppRole.ADMIN);
+        if (!isOwner && !isAdmin) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not allowed to delete this comment");
+        }
+
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("is_deleted", true);
+        patch.put("updated_at", OffsetDateTime.now());
+
+        supabaseAdminRestClient.patchList(
+            "content_comments",
+            buildQuery(Map.of(
+                "id", "eq." + commentId,
+                "content_id", "eq." + contentId,
+                "is_deleted", "eq.false"
+            )),
+            patch,
+            MAP_LIST
+        );
+
+        refreshEngagementCounts(contentId);
     }
 
     private void refreshEngagementCounts(UUID contentId) {

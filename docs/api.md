@@ -69,6 +69,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /content/{contentId}/share`
 - `GET /content/{contentId}/comments`
 - `POST /content/{contentId}/comments`
+- `DELETE /content/{contentId}/comments/{commentId}`
 - `POST /content/{contentId}/flag`
 
 ### Lessons Learner Flow (`LessonController`)
@@ -142,6 +143,20 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - Day boundary uses valid request timezone first, then stored profile timezone, then UTC fallback.
   - This endpoint is idempotent for same-day repeated calls (`touchedToday=true`).
 
+## Comment Delete Contract
+
+- Endpoint: `DELETE /content/{contentId}/comments/{commentId}`
+- Auth: required (`Authorization: Bearer <accessToken>`)
+- Authorization:
+  - Admin can delete any comment.
+  - Non-admin user can delete only their own comment.
+- Behavior:
+  - Comment is soft-deleted (`is_deleted=true`) and content `comments_count` is refreshed.
+- Common responses:
+  - `204` success
+  - `403` trying to delete another user's comment without admin role
+  - `404` comment/content not found
+
 ## Frontend Parity Checklist (`frontend/src/lib/api.ts`)
 
 ### Feed / Explore
@@ -180,6 +195,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /content/{id}/share` -> implemented
 - `GET /content/{id}/comments` -> implemented
 - `POST /content/{id}/comments` -> implemented
+- `DELETE /content/{id}/comments/{commentId}` -> implemented
 - `POST /content/{id}/flag` -> implemented
 
 ### Lessons learner flow
@@ -240,6 +256,9 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Feed items and `GET /content/{contentId}` now include creator enrichment when profile exists:
   - `creator: { user_id, display_name, avatar_url }`
   - UI should keep fallback `@anonymous` when creator/display name is missing
+- Comment deletion authorization:
+  - `DELETE /content/{contentId}/comments/{commentId}` allows admins to delete any comment.
+  - Non-admin users can delete only comments they authored.
 - `/users/me` may include `timezone` for login streak day-boundary preference.
 - `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.

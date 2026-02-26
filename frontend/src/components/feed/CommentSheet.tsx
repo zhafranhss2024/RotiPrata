@@ -6,6 +6,7 @@ import type { Content } from '@/types';
 
 export interface FeedComment {
   id: string;
+  userId: string;
   author: string;
   text: string;
 }
@@ -16,8 +17,11 @@ interface CommentSheetProps {
   comments: FeedComment[];
   isLoading?: boolean;
   isPosting?: boolean;
+  deletingCommentId?: string | null;
   onOpenChange: (open: boolean) => void;
   onPostComment: (contentId: string, commentText: string) => Promise<boolean>;
+  onDeleteComment: (contentId: string, commentId: string) => Promise<boolean>;
+  canDeleteComment: (comment: FeedComment) => boolean;
 }
 
 export function CommentSheet({
@@ -26,8 +30,11 @@ export function CommentSheet({
   comments,
   isLoading = false,
   isPosting = false,
+  deletingCommentId = null,
   onOpenChange,
   onPostComment,
+  onDeleteComment,
+  canDeleteComment,
 }: CommentSheetProps) {
   const [newComment, setNewComment] = useState('');
 
@@ -48,6 +55,10 @@ export function CommentSheet({
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    await onDeleteComment(content.id, commentId);
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[70vh] rounded-t-3xl">
@@ -64,7 +75,23 @@ export function CommentSheet({
             ) : (
               comments.map((comment) => (
                 <div key={comment.id} className="rounded-lg bg-muted p-3">
-                  <p className="text-xs font-semibold text-muted-foreground">@{comment.author}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-muted-foreground">@{comment.author}</p>
+                    {canDeleteComment(comment) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto px-2 py-0 text-xs text-destructive hover:text-destructive"
+                        disabled={deletingCommentId === comment.id}
+                        onClick={() => {
+                          void handleDeleteComment(comment.id);
+                        }}
+                      >
+                        {deletingCommentId === comment.id ? 'Deleting...' : 'Delete'}
+                      </Button>
+                    )}
+                  </div>
                   <p className="mt-1 text-sm">{comment.text}</p>
                 </div>
               ))

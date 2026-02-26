@@ -225,6 +225,17 @@ public class ContentController {
         return contentService.createComment(userId, contentId, request, SecurityUtils.getAccessToken());
     }
 
+    @DeleteMapping("/{contentId}/comments/{commentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteComment(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @PathVariable UUID commentId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        contentService.deleteComment(userId, contentId, commentId, SecurityUtils.getAccessToken());
+    }
+
     @PostMapping("/{contentId}/flag")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void flag(
