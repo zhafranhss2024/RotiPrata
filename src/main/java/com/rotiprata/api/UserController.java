@@ -101,9 +101,10 @@ public class UserController {
     public List<GetHistoryDTO> browsingHistory(
             @AuthenticationPrincipal Jwt jwt
     ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
+        String userId = jwt.getSubject();
+
         return browsingService.fetchHistory(
-                userId.toString(),
+                userId,
                 SecurityUtils.getAccessToken()
         );
     }

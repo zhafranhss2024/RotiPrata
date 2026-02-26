@@ -94,38 +94,22 @@ public class BrowsingService {
 
     // ================= FETCH HISTORY =================
 
-    public List<GetHistoryDTO> fetchHistory(
-            String userId,
-            String accessToken
-    ) {
-        String query = "user_id=eq." + userId + "&order=viewed_at.desc&limit=20";
+    public List<GetHistoryDTO> fetchHistory(String userId, String accessToken) {
+        String query = "user_id=eq." + userId + "&order=searched_at.desc&limit=5";
 
-        List<Map<String, Object>> rows = supabaseRestClient.getList(
-                "browsing_history",
+        System.out.println("reached fetchHistory");
+
+        List<GetHistoryDTO> result = supabaseRestClient.getList(
+                "search_history",
                 query,
                 accessToken,
-                new TypeReference<List<Map<String, Object>>>() {}
+                new TypeReference<List<GetHistoryDTO>>() {}
         );
 
-        List<GetHistoryDTO> history = new ArrayList<>();
+        // Print each item
+        result.forEach(System.out::println);  // thanks to toString() it will display nicely
 
-        for (Map<String, Object> row : rows) {
-            GetHistoryDTO item = new GetHistoryDTO();
-            item.setId(toStringValue(row.get("id")));
-            item.setItemId(toStringValue(row.get("item_id")));
-            item.setTitle(toStringValue(row.get("title")));
-            item.setContentId(toStringValue(row.get("content_id")));
-            item.setLessonId(toStringValue(row.get("lesson_id")));
-
-            Object viewedAt = row.get("viewed_at");
-            if (viewedAt != null) {
-                item.setViewedAt(Instant.parse(viewedAt.toString()));
-            }
-
-            history.add(item);
-        }
-
-        return history;
+        return result;
     }
 
     // ================= CLEAR HISTORY =================

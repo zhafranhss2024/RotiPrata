@@ -32,9 +32,7 @@ const ExplorePage = () => {
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
   const [videoViewerStartIndex, setVideoViewerStartIndex] = useState<number | null>(null);
   const [contentLookup, setContentLookup] = useState<Record<string, Content>>({});
-  const [browsingHistory, setBrowsingHistory] = useState<
-    { id: string; item_id: string; title?: string | null; content_id?: string | null; lesson_id?: string | null; viewed_at: string }[]
-  >([]);
+  const [browsingHistory, setBrowsingHistory] = useState<{ id: string; query: string; searched_at: string }[]>([]);
   const searchWrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -141,7 +139,7 @@ const ExplorePage = () => {
   const recentHistory = useMemo(
     () =>
       [...browsingHistory]
-        .sort((a, b) => new Date(b.viewed_at).getTime() - new Date(a.viewed_at).getTime())
+        .sort((a, b) => new Date(b.searched_at).getTime() - new Date(a.searched_at).getTime())
         .slice(0, 4),
     [browsingHistory]
   );
@@ -206,13 +204,12 @@ const ExplorePage = () => {
     setSubmittedQuery(query);      
   };
 
-  const applyHistorySearch = (item: { title?: string | null; lesson_id?: string | null }) => {
-    const text = (item.title ?? '').trim();
+  const applyHistorySearch = (query: string) => {
+    const text = query.trim();
     if (!text) return;
     setSearchQuery(text);       
     setSubmittedQuery(text);  
     setShowHistory(false);
-    setSearchTab(item.lesson_id ? 'lessons' : 'videos');
   };
 
   if (videoViewerStartIndex !== null) {
@@ -265,7 +262,7 @@ const ExplorePage = () => {
           { showHistory && !submittedQuery && (
             <Card className="mt-3 bg-mainDark/70 border border-mainAlt/60">
               <CardContent className="p-3 space-y-2">
-                <p className="text-xs uppercase tracking-wide text-mainAccent">Recent (Top 4)</p>
+                <p className="text-xs uppercase tracking-wide text-mainAccent">Recent</p>
                 {recentHistory.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No recent history yet.</p>
                 ) : (
@@ -274,12 +271,12 @@ const ExplorePage = () => {
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => applyHistorySearch(item)}
+                        onClick={() => applyHistorySearch(item.query)}
                         className="flex items-center justify-between rounded-lg px-2 py-2 hover:bg-mainAlt/30 transition-colors"
                       >
-                        <span className="text-sm text-white truncate pr-3">{item.title ?? 'Untitled'}</span>
+                        <span className="text-sm text-white truncate pr-3">{item.query ?? 'Untitled'}</span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(item.viewed_at).toLocaleDateString()}
+                          {new Date(item.searched_at).toLocaleDateString()}
                         </span>
                       </button>
                     );

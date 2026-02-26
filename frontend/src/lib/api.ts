@@ -103,11 +103,8 @@ export type SearchResult = {
 
 export type GetHistoryDTO = {
   id: string;
-  item_id: string;
-  title?: string | null;
-  content_id?: string | null;
-  lesson_id?: string | null;
-  viewed_at: string;
+  query: string;
+  searched_at: string;
 }
 
 export type UserStats = {
@@ -310,7 +307,6 @@ export const fetchRecommendations = () =>
   withMockFallback("recommendations", () => mockAiSuggestions, () => apiGet(`/recommendations`));
 
 export const fetchBrowsingHistory = () =>
-  // withMockFallback("history", () => mockBrowsingHistory, () => apiGet(`/users/me/history`));
   apiGet<GetHistoryDTO[]>(`/users/me/history`);
 
 export const clearBrowsingHistory = () => apiDelete<void>(`/users/me/history`);
