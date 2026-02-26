@@ -1,52 +1,94 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ThemePreference } from '@/types';
 import { fetchThemePreference, updateThemePreference } from '@/lib/api';
+import { AUTH_TOKEN_CHANGED_EVENT, getAccessToken } from '@/lib/tokenStorage';
 
-// Backend integration: /api/users/me/preferences.
-// If mocks are enabled, this falls back to localStorage and dummy data.
+const THEME_STORAGE_KEY = 'theme-preference';
+
+const isThemePreference = (value: string | null): value is ThemePreference => {
+  return value === 'light' || value === 'dark' || value === 'system';
+};
+
+const readStoredTheme = (): ThemePreference | null => {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  return isThemePreference(stored) ? stored : null;
+};
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<ThemePreference>('system');
+  const [theme, setThemeState] = useState<ThemePreference>(() => readStoredTheme() ?? 'system');
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
-  // Get stored theme preference
-  useEffect(() => {
-    const loadTheme = async () => {
+  const loadThemePreference = useCallback(async () => {
+    const token = getAccessToken();
+    if (token) {
       try {
         const preference = await fetchThemePreference();
-        if (preference) {
+        if (isThemePreference(preference)) {
           setThemeState(preference);
+          localStorage.setItem(THEME_STORAGE_KEY, preference);
           return;
         }
       } catch (error) {
         console.warn('Theme preference fetch failed, using local fallback', error);
       }
+    }
 
-      // Dummy fallback: localStorage
-      const stored = localStorage.getItem('theme-preference') as ThemePreference | null;
-      if (stored) {
-        setThemeState(stored);
+    const stored = readStoredTheme();
+    if (stored) {
+      setThemeState(stored);
+    }
+  }, []);
+
+  // Load theme at startup and re-sync when auth token changes.
+  useEffect(() => {
+    const bootstrapTimer = window.setTimeout(() => {
+      void loadThemePreference();
+    }, 0);
+
+    const handleAuthTokenChanged = () => {
+      void loadThemePreference();
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === THEME_STORAGE_KEY && isThemePreference(event.newValue)) {
+        setThemeState(event.newValue);
+        return;
+      }
+
+      if (
+        event.key === 'rotiprata.accessToken' ||
+        event.key === 'rotiprata.refreshToken' ||
+        event.key === 'rotiprata.tokenType'
+      ) {
+        void loadThemePreference();
       }
     };
 
-    loadTheme();
-  }, []);
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, handleAuthTokenChanged);
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.clearTimeout(bootstrapTimer);
+      window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, handleAuthTokenChanged);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [loadThemePreference]);
 
   // Resolve system theme
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
+
     const updateResolvedTheme = () => {
       if (theme === 'system') {
         setResolvedTheme(mediaQuery.matches ? 'dark' : 'light');
       } else {
-        setResolvedTheme(theme as 'light' | 'dark');
+        setResolvedTheme(theme);
       }
     };
 
     updateResolvedTheme();
     mediaQuery.addEventListener('change', updateResolvedTheme);
-    
+
     return () => mediaQuery.removeEventListener('change', updateResolvedTheme);
   }, [theme]);
 
@@ -59,16 +101,19 @@ export function useTheme() {
 
   const setTheme = useCallback((newTheme: ThemePreference) => {
     setThemeState(newTheme);
-    localStorage.setItem('theme-preference', newTheme);
+    localStorage.setItem(THEME_STORAGE_KEY, newTheme);
 
-    // Fire-and-forget update to backend. In mock mode, this is a no-op.
+    if (!getAccessToken()) {
+      return;
+    }
+
     updateThemePreference(newTheme).catch((error) => {
       console.warn('Theme preference update failed', error);
     });
   }, []);
 
   const toggleTheme = useCallback(() => {
-    const nextTheme = resolvedTheme === 'light' ? 'dark' : 'light';
+    const nextTheme: ThemePreference = resolvedTheme === 'light' ? 'dark' : 'light';
     setTheme(nextTheme);
   }, [resolvedTheme, setTheme]);
 

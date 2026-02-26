@@ -191,6 +191,7 @@ export function QuizSheet({
                   const isCorrect = normalizeAnswerKey(key) === normalizeAnswerKey(currentQ.correct_answer);
                   const showCorrect = showResult && isCorrect;
                   const showIncorrect = showResult && isSelected && !isCorrect;
+                  const showSelected = !showResult && isSelected;
 
                   return (
                     <button
@@ -198,11 +199,16 @@ export function QuizSheet({
                       onClick={() => handleSelectAnswer(key)}
                       disabled={showResult}
                       className={cn(
-                        "w-full p-4 rounded-xl border-2 text-left transition-all",
-                        !showResult && isSelected && "border-primary bg-primary/10",
-                        !showResult && !isSelected && "border-border hover:border-primary/60",
-                        showCorrect && "border-primary bg-primary/10 text-mainAccent dark:text-white",
-                        showIncorrect && "border-destructive bg-destructive/10",
+                        "w-full rounded-xl border-2 p-4 text-left transition-all",
+                        showSelected &&
+                          "border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-100",
+                        !showResult &&
+                          !isSelected &&
+                          "border-border text-mainAccent hover:border-blue-400 dark:text-white dark:hover:border-blue-500",
+                        showCorrect &&
+                          "border-emerald-500 bg-emerald-50 text-emerald-900 dark:border-emerald-400 dark:bg-emerald-950/40 dark:text-emerald-100",
+                        showIncorrect &&
+                          "border-red-500 bg-red-50 text-red-900 dark:border-red-400 dark:bg-red-950/40 dark:text-red-100",
                       )}
                     >
                       <span>{value}</span>
@@ -217,7 +223,9 @@ export function QuizSheet({
                   <p
                     className={cn(
                       "font-medium",
-                      normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? "text-primary" : "text-statusStrong"
+                      normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer)
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600 dark:text-red-400"
                     )}
                   >
                     {normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? '✅ Correct!' : '❌ Not quite!'}
