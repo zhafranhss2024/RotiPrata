@@ -781,7 +781,7 @@ const LessonQuizPage = () => {
 
   return (
     <MainLayout className="overflow-hidden">
-      <div className="w-full px-4 lg:px-8 py-6">
+      <div className="w-full min-h-[calc(100dvh-4rem)] px-4 lg:px-8 py-6 flex flex-col">
         <div className="flex items-center justify-between">
           <Link to={`/lessons/${id}`} className="inline-flex items-center text-mainAccent hover:text-white">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -803,99 +803,108 @@ const LessonQuizPage = () => {
         ) : null}
 
         {quizSummary ? (
-          <section className="mt-8 mx-auto max-w-3xl rounded-3xl p-6 lg:p-8 space-y-6">
-            <div className="text-center space-y-2">
-              <img
-                src={quizSummary.passed ? "/icon-images/STAR_COMPLETE.svg" : "/icon-images/STAR_INCOMPLETE.svg"}
-                alt="Quiz summary"
-                className="h-20 w-20 mx-auto"
-              />
-              <h2 className="text-3xl text-white">
-                {quizSummary.passed ? "Perfect quiz run" : "Quiz finished"}
-              </h2>
-              <p className="text-mainAccent">
-                {quizSummary.passed
-                  ? "Lesson is complete."
-                  : "Lesson stays incomplete until you get full marks."}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-2xl px-4 py-3">
-                <p className="text-xs uppercase text-mainAccent">Correct</p>
-                <p className="text-2xl text-white">
-                  {quizSummary.correctCount}/{quizSummary.totalQuestions}
+          <div className="flex-1 flex items-start lg:items-center justify-center">
+            <section className="w-full max-w-2xl rounded-3xl p-6 lg:p-8 space-y-6">
+              <div className="text-center space-y-2">
+                <img
+                  src={quizSummary.passed ? "/icon-images/STAR_COMPLETE.svg" : "/icon-images/STAR_INCOMPLETE.svg"}
+                  alt="Quiz summary"
+                  className="h-20 w-20 mx-auto"
+                />
+                <h2 className="text-3xl text-white">
+                  {quizSummary.passed ? "Perfect quiz run" : "Quiz finished"}
+                </h2>
+                <p className="text-mainAccent">
+                  {quizSummary.passed
+                    ? "Lesson is complete."
+                    : "Lesson stays incomplete until you get full marks."}
                 </p>
               </div>
-              <div className="rounded-2xl px-4 py-3">
-                <p className="text-xs uppercase text-mainAccent">Score</p>
-                <p className="text-2xl text-white">
-                  {quizSummary.earnedScore}/{quizSummary.maxScore}
-                </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl px-4 py-3 text-center">
+                  <p className="text-xs uppercase text-mainAccent">Correct</p>
+                  <p className="text-2xl text-white">
+                    {quizSummary.correctCount}/{quizSummary.totalQuestions}
+                  </p>
+                </div>
+                <div className="rounded-2xl px-4 py-3 text-center">
+                  <p className="text-xs uppercase text-mainAccent">Score</p>
+                  <p className="text-2xl text-white">
+                    {quizSummary.earnedScore}/{quizSummary.maxScore}
+                  </p>
+                </div>
+                <div className="rounded-2xl px-4 py-3 text-center">
+                  <p className="text-xs uppercase text-mainAccent">Accuracy</p>
+                  <p className="text-2xl text-white">
+                    {Math.round(
+                      (quizSummary.correctCount / Math.max(1, quizSummary.totalQuestions)) * 100
+                    )}
+                    %
+                  </p>
+                </div>
               </div>
-              <div className="rounded-2xl px-4 py-3">
-                <p className="text-xs uppercase text-mainAccent">Accuracy</p>
-                <p className="text-2xl text-white">
-                  {Math.round(
-                    (quizSummary.correctCount / Math.max(1, quizSummary.totalQuestions)) * 100
-                  )}
-                  %
-                </p>
-              </div>
-            </div>
-            <div className={cn("flex flex-wrap gap-3", quizSummary.passed ? "justify-center" : "justify-start")}>
-              {quizSummary.passed ? (
-                <button
-                  type="button"
-                  onClick={() => navigate(`/lessons/${id}`)}
-                  className="h-12 px-7 duo-button-primary"
-                >
-                  Complete Lesson
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleRedoWrong();
-                    }}
-                    className="h-12 px-7 duo-button-primary disabled:opacity-60"
-                    disabled={isSubmitting}
-                  >
-                    Redo Wrong Questions
-                  </button>
+              <div
+                className={cn(
+                  "flex flex-wrap gap-3",
+                  quizSummary.passed ? "justify-center" : "justify-center lg:justify-start"
+                )}
+              >
+                {quizSummary.passed ? (
                   <button
                     type="button"
                     onClick={() => navigate(`/lessons/${id}`)}
-                    className="h-12 px-7 rounded-xl border border-mainAlt bg-main text-white"
-                    disabled={isSubmitting}
+                    className="h-12 px-7 duo-button-primary"
                   >
-                    Continue (Incomplete)
+                    Complete Lesson
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleRestart}
-                    className="h-12 px-7 rounded-xl border border-mainAlt bg-main text-white"
-                    disabled={isSubmitting}
-                  >
-                    Retry Full Quiz
-                  </button>
-                </>
-              )}
-            </div>
-          </section>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleRedoWrong();
+                      }}
+                      className="h-12 px-7 duo-button-primary disabled:opacity-60"
+                      disabled={isSubmitting}
+                    >
+                      Redo Wrong Questions
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/lessons/${id}`)}
+                      className="h-12 px-7 rounded-xl border border-mainAlt bg-main text-white"
+                      disabled={isSubmitting}
+                    >
+                      Continue (Incomplete)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRestart}
+                      className="h-12 px-7 rounded-xl border border-mainAlt bg-main text-white"
+                      disabled={isSubmitting}
+                    >
+                      Retry Full Quiz
+                    </button>
+                  </>
+                )}
+              </div>
+            </section>
+          </div>
         ) : quizState.status === "passed" ? (
-          <section className="mt-8 text-center space-y-4">
-            <img src="/icon-images/STAR_COMPLETE.svg" alt="Passed" className="h-20 w-20 mx-auto" />
-            <h2 className="text-3xl text-white">Quiz Passed</h2>
-            <p className="text-base text-mainAccent">Lesson completion and rewards are now applied.</p>
-            <button
-              type="button"
-              onClick={() => navigate(`/lessons/${id}`)}
-              className="w-full lg:w-80 h-12 duo-button-primary"
-            >
-              Back to Lesson
-            </button>
-          </section>
+          <div className="flex-1 flex items-start lg:items-center justify-center">
+            <section className="w-full max-w-2xl text-center space-y-4">
+              <img src="/icon-images/STAR_COMPLETE.svg" alt="Passed" className="h-20 w-20 mx-auto" />
+              <h2 className="text-3xl text-white">Quiz Passed</h2>
+              <p className="text-base text-mainAccent">Lesson completion and rewards are now applied.</p>
+              <button
+                type="button"
+                onClick={() => navigate(`/lessons/${id}`)}
+                className="mx-auto h-12 w-full max-w-80 duo-button-primary"
+              >
+                Back to Lesson
+              </button>
+            </section>
+          </div>
         ) : (
           <div className="mt-4 mx-auto max-w-[1420px] grid lg:grid-cols-[170px_minmax(0,1fr)] gap-10 items-start">
             <aside className="hidden lg:flex flex-col items-center pt-4 sticky top-24">
