@@ -59,7 +59,7 @@ const AdminLessonsPage = () => {
         {loadError && <p className="text-sm text-destructive">{loadError}</p>}
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-white">All Lessons ({lessons.length})</h2>
+          <h2 className="text-xl font-semibold text-mainAccent dark:text-white">All Lessons ({lessons.length})</h2>
 
           {isLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground">
@@ -74,12 +74,12 @@ const AdminLessonsPage = () => {
                   <div className="flex items-start justify-between gap-4 rounded-xl px-3 py-3 hover:bg-mainAlt/25 transition-colors">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-white truncate">{lesson.title}</p>
+                        <p className="font-semibold text-mainAccent dark:text-white truncate">{lesson.title}</p>
                         <span
                           className={`text-xs px-2 py-0.5 rounded-full ${
                             lesson.is_published
-                              ? 'bg-emerald-900/40 text-emerald-300'
-                              : 'bg-amber-900/35 text-amber-300'
+                              ? 'border border-primary/35 bg-primary/15 text-primary'
+                              : 'border border-statusSoft bg-statusSoft text-statusStrong'
                           }`}
                         >
                           {lesson.is_published ? 'Published' : 'Draft'}
@@ -91,7 +91,7 @@ const AdminLessonsPage = () => {
                       <Link to={`/admin/lessons/${lesson.id}/edit`}>
                         <Button
                           size="sm"
-                          className="h-9 border border-mainAlt bg-transparent text-white hover:bg-mainAlt/35"
+                          className="h-9 border border-mainAlt bg-transparent text-mainAccent dark:text-white hover:bg-mainAlt/35"
                         >
                           <Pencil className="h-4 w-4 mr-1" /> Edit
                         </Button>
@@ -100,7 +100,7 @@ const AdminLessonsPage = () => {
                         size="sm"
                         onClick={() => handleDelete(lesson)}
                         disabled={isDeleting}
-                        className="h-9 bg-[#fe2c55] hover:bg-[#ff3f69] text-white"
+                        className="h-9 bg-primary hover:bg-primary/90 text-white"
                       >
                         <Trash2 className="h-4 w-4 mr-1" /> Delete
                       </Button>

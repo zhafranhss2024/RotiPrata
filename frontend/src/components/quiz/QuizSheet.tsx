@@ -199,9 +199,9 @@ export function QuizSheet({
                       disabled={showResult}
                       className={cn(
                         "w-full p-4 rounded-xl border-2 text-left transition-all",
-                        !showResult && isSelected && "border-sky-400 bg-sky-500/10",
-                        !showResult && !isSelected && "border-border hover:border-sky-400/60",
-                        showCorrect && "border-emerald-500 bg-emerald-500/10 text-emerald-200",
+                        !showResult && isSelected && "border-primary bg-primary/10",
+                        !showResult && !isSelected && "border-border hover:border-primary/60",
+                        showCorrect && "border-primary bg-primary/10 text-mainAccent dark:text-white",
                         showIncorrect && "border-destructive bg-destructive/10",
                       )}
                     >
@@ -217,7 +217,7 @@ export function QuizSheet({
                   <p
                     className={cn(
                       "font-medium",
-                      normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? "text-emerald-400" : "text-rose-400"
+                      normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? "text-primary" : "text-statusStrong"
                     )}
                   >
                     {normalizeAnswerKey(selectedAnswer) === normalizeAnswerKey(currentQ.correct_answer) ? '✅ Correct!' : '❌ Not quite!'}

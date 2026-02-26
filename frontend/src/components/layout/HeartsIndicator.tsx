@@ -58,7 +58,7 @@ export function HeartsIndicator({ className }: HeartsIndicatorProps) {
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 rounded-full border border-mainAlt bg-main px-3 py-1.5 text-sm font-bold text-white ${hasError ? 'opacity-80' : ''} ${className ?? ''}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border border-mainAlt bg-main px-3 py-1.5 text-sm font-bold text-mainAccent dark:text-white ${hasError ? 'opacity-80' : ''} ${className ?? ''}`}
       title={
         hasError
           ? 'Hearts unavailable right now'

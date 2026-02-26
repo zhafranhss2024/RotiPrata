@@ -18,60 +18,68 @@
 
 @layer base {
   :root {
-    --background: 42 32% 95%;
-    --foreground: 220 16% 13%;
-    --card: 42 28% 92%;
-    --card-foreground: 220 16% 13%;
-    --popover: 42 30% 94%;
-    --popover-foreground: 220 16% 13%;
+    --background: 0 0% 100%;
+    --foreground: 222 32% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 32% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 32% 14%;
     --primary: 346 99% 58%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 42 20% 88%;
-    --secondary-foreground: 220 16% 20%;
-    --muted: 42 20% 86%;
-    --muted-foreground: 220 10% 36%;
-    --accent: 42 20% 88%;
-    --accent-foreground: 220 16% 20%;
+    --secondary: 220 20% 95%;
+    --secondary-foreground: 222 28% 18%;
+    --muted: 220 18% 94%;
+    --muted-foreground: 220 10% 40%;
+    --accent: 220 18% 94%;
+    --accent-foreground: 222 28% 18%;
     --destructive: 357 98% 63%;
     --destructive-foreground: 0 0% 100%;
     --success: 346 99% 58%;
     --success-foreground: 0 0% 100%;
-    --warning: 47 98% 50%;
-    --warning-foreground: 220 16% 20%;
-    --border: 42 16% 76%;
-    --input: 42 16% 76%;
+    --warning: 357 90% 70%;
+    --warning-foreground: 222 32% 14%;
+    --border: 220 14% 86%;
+    --input: 220 14% 86%;
     --ring: 346 99% 58%;
-    --category-slang: 357 98% 63%;
-    --category-meme: 220 70% 65%;
-    --category-dance: 197 85% 58%;
+    --category-slang: 351 96% 58%;
+    --category-meme: 357 88% 62%;
+    --category-dance: 5 86% 60%;
     --category-social: 346 99% 58%;
-    --category-cultural: 47 98% 50%;
+    --category-cultural: 12 84% 64%;
     --radius: 1rem;
-    --sidebar-background: 42 28% 92%;
-    --sidebar-foreground: 220 16% 13%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 32% 14%;
     --sidebar-primary: 346 99% 58%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 42 24% 86%;
-    --sidebar-accent-foreground: 220 16% 13%;
-    --sidebar-border: 42 16% 76%;
+    --sidebar-accent: 220 18% 95%;
+    --sidebar-accent-foreground: 222 32% 14%;
+    --sidebar-border: 220 14% 86%;
     --sidebar-ring: 346 99% 58%;
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
     --safe-area-left: env(safe-area-inset-left, 0px);
     --safe-area-right: env(safe-area-inset-right, 0px);
     --bottom-nav-height: 5rem;
-    --duo-main: #f2ede2;
-    --duo-main-dark: #ebe5d8;
-    --duo-main-alt: #e0d9c9;
-    --duo-main-accent: #252525;
-    --duo-border: #c8bfad;
+    --duo-main: #ffffff;
+    --duo-main-dark: #f8fafc;
+    --duo-main-alt: #eef2f7;
+    --duo-main-accent: #1f2937;
+    --duo-border: #dbe3ec;
     --duo-green: #fe2c55;
     --duo-green-shadow: #c92143;
     --duo-red: #ff4b4b;
-    --duo-gold: #fec700;
-    --duo-shadow-main: #c8c0af;
-    --duo-shadow-locked: #b5ad9c;
-    --duo-shadow-current: #c0b8a8;
+    --duo-gold: #ff8f99;
+    --duo-shadow-main: #d5dee8;
+    --duo-shadow-locked: #c8d2de;
+    --duo-shadow-current: #cfd8e4;
+    --duo-surface: #ffffff;
+    --duo-surface-soft: #f7f9fc;
+    --duo-surface-strong: #eff3f8;
+    --duo-text-strong: #1f2937;
+    --duo-text-muted: #5b6676;
+    --duo-red-soft: #ffd8dd;
+    --duo-red-soft-border: #f2a0ac;
+    --duo-red-strong: #ae1738;
   }
 
   .dark {
@@ -170,6 +178,48 @@
     border-radius: 1rem;
     box-shadow: none;
   }
+
+  .gradient-feed {
+    background: linear-gradient(
+      180deg,
+      rgb(0 0 0 / 0.1) 0%,
+      rgb(0 0 0 / 0.32) 42%,
+      rgb(0 0 0 / 0.74) 100%
+    );
+  }
+
+  .gradient-secondary {
+    background: linear-gradient(180deg, #ff7d95 0%, #fe2c55 100%);
+  }
+
+  .badge-slang,
+  .badge-meme,
+  .badge-dance,
+  .badge-social,
+  .badge-cultural {
+    border: 0;
+    color: white;
+  }
+
+  .badge-slang {
+    background: hsl(var(--category-slang) / 0.92);
+  }
+
+  .badge-meme {
+    background: hsl(var(--category-meme) / 0.92);
+  }
+
+  .badge-dance {
+    background: hsl(var(--category-dance) / 0.92);
+  }
+
+  .badge-social {
+    background: hsl(var(--category-social) / 0.92);
+  }
+
+  .badge-cultural {
+    background: hsl(var(--category-cultural) / 0.92);
+  }
 }
 
 @layer utilities {
@@ -265,6 +315,42 @@
   .glass-dark {
     background: color-mix(in oklab, var(--duo-main-dark) 72%, transparent);
     backdrop-filter: blur(14px);
+  }
+
+  .bg-surface {
+    background-color: var(--duo-surface);
+  }
+
+  .bg-surfaceSoft {
+    background-color: var(--duo-surface-soft);
+  }
+
+  .bg-surfaceStrong {
+    background-color: var(--duo-surface-strong);
+  }
+
+  .text-surfaceStrong {
+    color: var(--duo-text-strong);
+  }
+
+  .text-surfaceMuted {
+    color: var(--duo-text-muted);
+  }
+
+  .border-surface {
+    border-color: var(--duo-border);
+  }
+
+  .bg-statusSoft {
+    background-color: var(--duo-red-soft);
+  }
+
+  .border-statusSoft {
+    border-color: var(--duo-red-soft-border);
+  }
+
+  .text-statusStrong {
+    color: var(--duo-red-strong);
   }
 }
 

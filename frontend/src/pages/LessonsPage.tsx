@@ -87,12 +87,12 @@ const LessonNode = ({ lesson, index }: { lesson: LessonHubLesson; index: number 
   const ringFillDeg = `${ringProgress * 3.6}deg`;
 
   const classes = isLocked
-    ? 'border-duoGrayBorder text-white/65'
+    ? 'border-duoGrayBorder text-mainAccent/45 dark:text-white/65'
     : isCompleted
       ? 'bg-duoGreen border-[#b51f3d] text-white'
       : isCurrent
         ? 'bg-mainAccent border-mainAccent text-main'
-        : 'border-mainAlt text-white';
+        : 'border-mainAlt text-mainAccent dark:text-white';
 
   return (
     <div
@@ -102,7 +102,7 @@ const LessonNode = ({ lesson, index }: { lesson: LessonHubLesson; index: number 
       <Link to={`/lessons/${lesson.lessonId}`} aria-label={lesson.title} className="relative group focus:outline-none">
         <div
           className={cn('h-[74px] w-[76px] rounded-full p-[3px] transition-transform', isLocked ? 'opacity-80' : '')}
-          style={{ background: `conic-gradient(#5a9dff ${ringFillDeg}, rgba(130, 152, 187, 0.35) ${ringFillDeg} 360deg)` }}
+          style={{ background: `conic-gradient(#fe2c55 ${ringFillDeg}, rgba(246, 139, 155, 0.35) ${ringFillDeg} 360deg)` }}
         >
           <div
           className={cn(
@@ -169,16 +169,16 @@ const LessonsPage = () => {
       <div className="mx-auto w-full max-w-4xl px-4 pt-2 pb-24 lg:pt-4 lg:pb-8 space-y-4">
         <section className="p-2">
           <p className="text-mainAccent text-xs uppercase tracking-wide">Lesson Path</p>
-          <h1 className="text-3xl text-white leading-tight mt-1">Keep Moving Forward</h1>
+          <h1 className="text-3xl text-mainAccent dark:text-white leading-tight mt-1">Keep Moving Forward</h1>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-white/90">
+            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-mainAccent dark:text-white/90">
               Lessons {summary.totalLessons}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-white/90">
+            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-mainAccent dark:text-white/90">
               Completed {summary.completedLessons}
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-white/90">
-              <Flame className="h-3.5 w-3.5 text-orange-400" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-mainAccent dark:text-white/90">
+              <Flame className="h-3.5 w-3.5 text-primary" />
               {summary.currentStreak}
             </span>
           </div>
@@ -196,7 +196,7 @@ const LessonsPage = () => {
         )}
 
         {!isLoading && error && (
-          <div className="rounded-2xl p-4 text-sm text-red-200">{error}</div>
+          <div className="rounded-2xl p-4 text-sm text-statusStrong">{error}</div>
         )}
 
         {!isLoading && !error && hub && (

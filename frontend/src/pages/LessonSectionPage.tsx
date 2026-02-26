@@ -249,7 +249,7 @@ const LessonSectionPage = () => {
       <MainLayout className="overflow-hidden">
         <div className="w-full px-4 lg:px-8 py-10">
           <div className="rounded-2xl p-6 text-center space-y-4">
-            <p className="text-red-200">{error ?? "Unable to load this lesson."}</p>
+            <p className="text-statusStrong">{error ?? "Unable to load this lesson."}</p>
             <Button asChild className="duo-button-primary">
               <Link to="/lessons">Back to Lesson Hub</Link>
             </Button>
@@ -264,7 +264,7 @@ const LessonSectionPage = () => {
       <MainLayout className="overflow-hidden">
         <div className="w-full px-4 lg:px-8 py-10">
           <div className="text-center space-y-4">
-            <p className="text-white/80">This lesson does not have any readable sections yet.</p>
+            <p className="text-mainAccent/80 dark:text-white/80">This lesson does not have any readable sections yet.</p>
             <Button asChild className="duo-button-primary">
               <Link to={`/lessons/${id}`}>Back to Lesson</Link>
             </Button>
@@ -279,7 +279,7 @@ const LessonSectionPage = () => {
       <div className="w-full h-full overflow-hidden px-4 lg:px-8 py-6 pb-28 lg:pb-10">
         <Link
           to={`/lessons/${id}`}
-          className="inline-flex items-center text-mainAccent hover:text-white"
+          className="inline-flex items-center text-mainAccent hover:text-mainAccent dark:hover:text-white"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Lesson Details
@@ -320,7 +320,7 @@ const LessonSectionPage = () => {
                   ? "bg-duoGreen border-[#b51f3d] text-white shadow-mainCircleShadow"
                   : isCurrent
                     ? "bg-mainAccent border-mainAccent text-main shadow-mainCircleShadow"
-                    : "bg-main border-mainAlt text-white/85 shadow-mainCircleShadow";
+                    : "bg-main border-mainAlt text-mainAccent/85 dark:text-white/85 shadow-mainCircleShadow";
 
                 return (
                   <div
@@ -370,8 +370,8 @@ const LessonSectionPage = () => {
           </aside>
 
           <section className="min-w-0 max-w-4xl w-full justify-self-center pt-6 lg:h-full lg:flex lg:flex-col overflow-hidden">
-            <h2 className="text-4xl text-white mb-7 flex-none">{currentSection.title}</h2>
-            <div className="space-y-4 text-lg leading-9 text-white/95 min-h-[48dvh] lg:min-h-0 lg:flex-1 lg:pr-2">
+            <h2 className="text-4xl text-mainAccent dark:text-white mb-7 flex-none">{currentSection.title}</h2>
+            <div className="space-y-4 text-lg leading-9 text-mainAccent/95 dark:text-white/95 min-h-[48dvh] lg:min-h-0 lg:flex-1 lg:pr-2">
               {currentSection.content
                 .split("\n")
                 .filter((line) => line.trim().length > 0)
@@ -383,7 +383,7 @@ const LessonSectionPage = () => {
         </div>
 
         {saveError ? (
-          <div className="rounded-xl p-3 text-sm text-red-200 mt-4">
+          <div className="rounded-xl p-3 text-sm text-statusStrong mt-4">
             {saveError}
           </div>
         ) : null}

@@ -176,7 +176,7 @@ const DuoChoiceButton = ({
       "w-full rounded-2xl border px-4 py-4 text-left transition active:translate-y-[5px] active:shadow-none",
       selected
         ? "border-[#b51f3d] bg-duoGreen text-white shadow-mainShadow"
-        : "border-mainAlt bg-main text-white hover:bg-mainAlt shadow-duoGrayBorderShadow"
+        : "border-mainAlt bg-main text-mainAccent dark:text-white hover:bg-mainAlt shadow-duoGrayBorderShadow"
     )}
     onClick={onClick}
     disabled={disabled}
@@ -293,7 +293,7 @@ const LessonQuizQuestionRenderer = ({
       <div className="space-y-4">
         <p className="text-sm text-mainAccent">Drag an option into a blank, or tap an option then tap a blank.</p>
         {hasTemplateBlanks ? (
-          <div className="p-1 text-lg leading-9 text-white">
+          <div className="p-1 text-lg leading-9 text-mainAccent dark:text-white">
             {templateParts.map((part, index) => {
               if (part.kind === "text") return <span key={`cloze-text-${index}`}>{part.value}</span>;
               const blankId = part.blankId;
@@ -313,7 +313,7 @@ const LessonQuizQuestionRenderer = ({
                     selectedChoiceId
                       ? "border-[#b51f3d] bg-duoGreen text-white"
                       : "border-mainAlt bg-main text-mainAccent border-dashed",
-                    hoveredBlankId === blankId && "border-mainAccent bg-mainAlt text-white"
+                    hoveredBlankId === blankId && "border-mainAccent bg-mainAlt text-mainAccent dark:text-white"
                   )}
                   onClick={() => {
                     if (disabled) return;
@@ -383,7 +383,7 @@ const LessonQuizQuestionRenderer = ({
                     ? "border-[#b51f3d] bg-duoGreen text-white"
                     : tapSelected
                       ? "border-mainAccent bg-mainAccent text-main"
-                      : "border-mainAlt bg-main text-white hover:bg-mainAlt",
+                      : "border-mainAlt bg-main text-mainAccent dark:text-white hover:bg-mainAlt",
                   draggingClozeOptionKey === option.optionKey && "opacity-60 scale-[0.98]"
                 )}
                 disabled={disabled}
@@ -393,7 +393,7 @@ const LessonQuizQuestionRenderer = ({
             );
           })}
         </div>
-        {clozeUiError ? <p className="text-sm text-red-200">{clozeUiError}</p> : null}
+        {clozeUiError ? <p className="text-sm text-statusStrong">{clozeUiError}</p> : null}
       </div>
     );
   }
@@ -475,8 +475,8 @@ const LessonQuizQuestionRenderer = ({
                 className={cn(
                   "rounded-2xl border px-3 py-2 text-sm transition",
                   isSelected
-                    ? "border-mainAlt bg-mainAlt text-white/50"
-                    : "border-mainAlt bg-main text-white hover:bg-mainAlt"
+                    ? "border-mainAlt bg-mainAlt text-mainAccent/50 dark:text-white/50"
+                    : "border-mainAlt bg-main text-mainAccent dark:text-white hover:bg-mainAlt"
                 )}
                 onClick={() => onChange({ tokenOrder: [...tokenOrder, token.id] })}
                 disabled={disabled || isSelected}
@@ -493,7 +493,7 @@ const LessonQuizQuestionRenderer = ({
   const shortText = typeof response?.text === "string" ? response.text : "";
   return (
     <textarea
-      className="w-full min-h-40 rounded-2xl border border-mainAlt bg-main p-4 text-white placeholder:text-mainAccent/70"
+      className="w-full min-h-40 rounded-2xl border border-mainAlt bg-main p-4 text-mainAccent dark:text-white placeholder:text-mainAccent/70"
       placeholder={question.payload.placeholder ?? "Type your answer"}
       minLength={question.payload.minLength ?? 1}
       maxLength={question.payload.maxLength ?? 280}
@@ -767,7 +767,7 @@ const LessonQuizPage = () => {
       <MainLayout className="overflow-hidden">
         <div className="w-full px-4 lg:px-8 py-10">
           <div className="rounded-2xl p-6 text-center space-y-4">
-            <p className="text-red-200">{error ?? "Unable to load quiz."}</p>
+            <p className="text-statusStrong">{error ?? "Unable to load quiz."}</p>
             <Link to={`/lessons/${id}`} className="inline-flex h-11 items-center justify-center px-5 duo-button-primary">
               Back to Lesson
             </Link>
@@ -783,7 +783,7 @@ const LessonQuizPage = () => {
     <MainLayout className="overflow-hidden">
       <div className="w-full min-h-[calc(100dvh-4rem)] px-4 lg:px-8 py-6 flex flex-col">
         <div className="flex items-center justify-between">
-          <Link to={`/lessons/${id}`} className="inline-flex items-center text-mainAccent hover:text-white">
+          <Link to={`/lessons/${id}`} className="inline-flex items-center text-mainAccent hover:text-mainAccent dark:hover:text-white">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Exit
           </Link>
@@ -791,15 +791,15 @@ const LessonQuizPage = () => {
             <span className="rounded-full bg-mainAlt px-2 py-1 text-xs text-mainAccent">
               {currentQuestionNumber}/{totalQuestions}
             </span>
-            <div className="inline-flex items-center gap-1 rounded-full border border-mainAlt bg-main px-3 py-1 text-sm text-white">
-              <Heart className="h-4 w-4 text-rose-400" />
+            <div className="inline-flex items-center gap-1 rounded-full border border-mainAlt bg-main px-3 py-1 text-sm text-mainAccent dark:text-white">
+              <Heart className="h-4 w-4 text-primary" />
               {quizState.hearts.heartsRemaining}
             </div>
           </div>
         </div>
 
         {quizState.status === "blocked_hearts" ? (
-          <p className="mt-2 text-sm text-red-200">Hearts are empty{refillText ? ` until ${refillText}` : ""}.</p>
+          <p className="mt-2 text-sm text-statusStrong">Hearts are empty{refillText ? ` until ${refillText}` : ""}.</p>
         ) : null}
 
         {quizSummary ? (
@@ -811,7 +811,7 @@ const LessonQuizPage = () => {
                   alt="Quiz summary"
                   className="h-20 w-20 mx-auto"
                 />
-                <h2 className="text-3xl text-white">
+                <h2 className="text-3xl text-mainAccent dark:text-white">
                   {quizSummary.passed ? "Perfect quiz run" : "Quiz finished"}
                 </h2>
                 <p className="text-mainAccent">
@@ -823,19 +823,19 @@ const LessonQuizPage = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="rounded-2xl px-4 py-3 text-center">
                   <p className="text-xs uppercase text-mainAccent">Correct</p>
-                  <p className="text-2xl text-white">
+                  <p className="text-2xl text-mainAccent dark:text-white">
                     {quizSummary.correctCount}/{quizSummary.totalQuestions}
                   </p>
                 </div>
                 <div className="rounded-2xl px-4 py-3 text-center">
                   <p className="text-xs uppercase text-mainAccent">Score</p>
-                  <p className="text-2xl text-white">
+                  <p className="text-2xl text-mainAccent dark:text-white">
                     {quizSummary.earnedScore}/{quizSummary.maxScore}
                   </p>
                 </div>
                 <div className="rounded-2xl px-4 py-3 text-center">
                   <p className="text-xs uppercase text-mainAccent">Accuracy</p>
-                  <p className="text-2xl text-white">
+                  <p className="text-2xl text-mainAccent dark:text-white">
                     {Math.round(
                       (quizSummary.correctCount / Math.max(1, quizSummary.totalQuestions)) * 100
                     )}
@@ -872,7 +872,7 @@ const LessonQuizPage = () => {
                     <button
                       type="button"
                       onClick={() => navigate(`/lessons/${id}`)}
-                      className="h-12 px-7 rounded-xl border border-mainAlt bg-main text-white"
+                      className="h-12 px-7 rounded-xl border border-mainAlt bg-main text-mainAccent dark:text-white"
                       disabled={isSubmitting}
                     >
                       Continue (Incomplete)
@@ -880,7 +880,7 @@ const LessonQuizPage = () => {
                     <button
                       type="button"
                       onClick={handleRestart}
-                      className="h-12 px-7 rounded-xl border border-mainAlt bg-main text-white"
+                      className="h-12 px-7 rounded-xl border border-mainAlt bg-main text-mainAccent dark:text-white"
                       disabled={isSubmitting}
                     >
                       Retry Full Quiz
@@ -894,7 +894,7 @@ const LessonQuizPage = () => {
           <div className="flex-1 flex items-start lg:items-center justify-center">
             <section className="w-full max-w-2xl text-center space-y-4">
               <img src="/icon-images/STAR_COMPLETE.svg" alt="Passed" className="h-20 w-20 mx-auto" />
-              <h2 className="text-3xl text-white">Quiz Passed</h2>
+              <h2 className="text-3xl text-mainAccent dark:text-white">Quiz Passed</h2>
               <p className="text-base text-mainAccent">Lesson completion and rewards are now applied.</p>
               <button
                 type="button"
@@ -937,7 +937,7 @@ const LessonQuizPage = () => {
                     ? "bg-duoGreen border-[#b51f3d] text-white shadow-mainCircleShadow"
                     : isCurrent
                       ? "bg-mainAccent border-mainAccent text-main shadow-mainCircleShadow"
-                      : "bg-main border-mainAlt text-white/85 shadow-mainCircleShadow";
+                      : "bg-main border-mainAlt text-mainAccent/85 dark:text-white/85 shadow-mainCircleShadow";
 
                   return (
                     <div
@@ -984,7 +984,7 @@ const LessonQuizPage = () => {
                     {questionTypeLabel(currentQuestion)}
                   </p>
                   {currentQuestion.questionType !== "cloze" ? (
-                    <h2 className="text-4xl text-white mt-2 mb-7">
+                    <h2 className="text-4xl text-mainAccent dark:text-white mt-2 mb-7">
                       {currentQuestion.prompt ?? currentQuestion.questionText}
                     </h2>
                   ) : null}
@@ -1000,11 +1000,11 @@ const LessonQuizPage = () => {
                     <div className="mt-6 space-y-3">
                       <p className="font-bold inline-flex items-center gap-2">
                         {feedback.correct ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-                        <span className={cn(feedback.correct ? "text-[#70f5b2]" : "text-[#ff8c98]")}>
+                        <span className={cn(feedback.correct ? "text-primary" : "text-statusStrong")}>
                           {feedback.correct ? "Correct" : "Not quite"}
                         </span>
                       </p>
-                      {feedback.explanation ? <p className="text-sm text-white/85">{feedback.explanation}</p> : null}
+                      {feedback.explanation ? <p className="text-sm text-mainAccent/85 dark:text-white/85">{feedback.explanation}</p> : null}
                       <button
                         type="button"
                         onClick={() => {
@@ -1039,7 +1039,7 @@ const LessonQuizPage = () => {
                     type="button"
                     onClick={handleRestart}
                     disabled={isSubmitting || quizState.hearts.heartsRemaining <= 0}
-                    className="h-11 border border-mainAlt bg-main text-white rounded-xl disabled:opacity-60 px-4"
+                    className="h-11 border border-mainAlt bg-main text-mainAccent dark:text-white rounded-xl disabled:opacity-60 px-4"
                   >
                     <RotateCcw className="h-4 w-4 inline mr-2" />
                     Restart Quiz

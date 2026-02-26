@@ -44,7 +44,7 @@ export function BottomNav() {
                   'inline-flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-xs transition-colors',
                   isActive
                     ? 'text-mainAccent bg-main border border-mainAlt'
-                    : 'text-white/80 hover:text-white'
+                    : 'text-mainAccent/75 hover:text-mainAccent dark:text-white/80 dark:hover:text-white'
                 )}
               >
                 <Icon className="h-5 w-5" />

@@ -19,14 +19,14 @@ export function MainLayout({
 }: MainLayoutProps) {
   if (hideNav) {
     return (
-      <div className={cn("min-h-screen bg-mainDark text-white", className)}>
+      <div className={cn("min-h-screen bg-mainDark text-mainAccent dark:text-white", className)}>
         {children}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen h-dvh bg-mainDark text-white">
+    <div className="min-h-screen h-dvh bg-mainDark text-mainAccent dark:text-white">
       <DesktopNav />
       <MobileTopBar />
       <main

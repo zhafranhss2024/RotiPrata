@@ -1083,9 +1083,9 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
                         type="button"
                         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition-all duration-300 ${
                           isActive
-                            ? "border-blue-600 bg-blue-600 text-white"
+                            ? "border-primary bg-primary text-white"
                             : circle.isDraft
-                              ? "border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-200"
+                              ? "border-primary/40 bg-primary/10 text-primary dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-200"
                               : "border-muted-foreground/30 bg-background text-muted-foreground hover:border-primary/40"
                         } ${isHighlighted ? "scale-110 shadow-lg" : ""}`}
                         onClick={() => {

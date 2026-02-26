@@ -472,7 +472,7 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
               key={choiceId}
               className={`grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-xl border-2 px-3 py-2 transition ${
                 question.correct_answer === choiceId
-                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                  ? "border-primary bg-primary/10 dark:bg-emerald-950/30"
                   : "border-border"
               }`}
             >
@@ -480,7 +480,7 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
                 type="button"
                 className={`h-5 w-5 rounded-full border-2 transition ${
                   question.correct_answer === choiceId
-                    ? "border-emerald-600 bg-emerald-600"
+                    ? "border-primary bg-primary"
                     : "border-muted-foreground/40"
                 }`}
                 aria-label={`Set ${choiceId} as correct answer`}
@@ -504,7 +504,7 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
                 type="button"
                 size="sm"
                 variant={question.correct_answer === choiceId ? "default" : "outline"}
-                className={question.correct_answer === choiceId ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+                className={question.correct_answer === choiceId ? "bg-primary hover:bg-primary/90" : ""}
                 onClick={() => onChange({ ...question, correct_answer: choiceId })}
               >
                 {question.correct_answer === choiceId ? "Correct" : "Set Correct"}
@@ -544,8 +544,8 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
               type="button"
               className={`rounded-2xl border-2 px-4 py-4 text-left font-semibold transition ${
                 selected === value
-                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
-                  : "border-border hover:border-emerald-300"
+                  ? "border-primary bg-primary/10 dark:bg-emerald-950/30"
+                  : "border-border hover:border-primary/50"
               }`}
               onClick={() => onChange({ ...question, correct_answer: value })}
             >
@@ -801,7 +801,7 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
                 key={token.id}
                 type="button"
                 className={`rounded-full border px-3 py-1 text-sm ${
-                  selected.has(token.id) ? "border-rose-500 bg-rose-50 dark:bg-rose-950/30" : "hover:border-rose-300"
+                  selected.has(token.id) ? "border-primary bg-primary/10 dark:bg-rose-950/30" : "hover:border-primary/50"
                 }`}
                 onClick={() => {
                   const next = selected.has(token.id)
@@ -1114,7 +1114,7 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
                 key={`preview-${choiceId}`}
                 className={`w-full rounded-2xl border-2 px-4 py-3 text-left ${
                   isCorrect
-                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+                    ? "border-primary bg-primary/10 dark:bg-emerald-950/30"
                     : ""
                 }`}
               >

@@ -102,7 +102,7 @@ const LessonDetailPage = () => {
       <MainLayout>
         <div className="mx-auto max-w-3xl px-4 py-10">
           <div className="rounded-2xl p-6 text-center space-y-4">
-            <p className="text-red-200">{error ?? 'Unable to load this lesson.'}</p>
+            <p className="text-statusStrong">{error ?? 'Unable to load this lesson.'}</p>
             <Button asChild className="duo-button-primary">
               <Link to="/lessons">Back to Lessons</Link>
             </Button>
@@ -175,7 +175,7 @@ const LessonDetailPage = () => {
   return (
     <MainLayout>
       <div className="mx-auto w-full max-w-5xl px-4 py-6">
-        <Link to="/lessons" className="inline-flex items-center text-mainAccent hover:text-white">
+        <Link to="/lessons" className="inline-flex items-center text-mainAccent hover:text-mainAccent dark:hover:text-white">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Lessons
         </Link>
@@ -188,25 +188,25 @@ const LessonDetailPage = () => {
             <button
               type="button"
               onClick={handleSave}
-              className="rounded-full border border-mainAlt px-3 py-1 text-xs text-white hover:bg-mainAlt"
+              className="rounded-full border border-mainAlt px-3 py-1 text-xs text-mainAccent dark:text-white hover:bg-mainAlt"
             >
               Save
             </button>
           </div>
 
-          <h1 className="mt-4 text-4xl text-white leading-tight">{lesson.title}</h1>
-          <p className="mt-2 text-white/80 leading-7">{lesson.summary ?? lesson.description}</p>
+          <h1 className="mt-4 text-4xl text-mainAccent dark:text-white leading-tight">{lesson.title}</h1>
+          <p className="mt-2 text-mainAccent/80 dark:text-white/80 leading-7">{lesson.summary ?? lesson.description}</p>
 
           <div className="mt-5 flex flex-wrap gap-2 text-sm">
-            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-white">
+            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-mainAccent dark:text-white">
               <Clock3 className="h-4 w-4" />
               {lesson.estimated_minutes}m
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-white">
+            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-mainAccent dark:text-white">
               <Star className="h-4 w-4" />
               {lesson.xp_reward} XP
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-white">
+            <span className="inline-flex items-center gap-1 rounded-full border border-mainAlt px-3 py-1 text-mainAccent dark:text-white">
               <Users className="h-4 w-4" />
               {lesson.completion_count} learners
             </span>
@@ -215,7 +215,7 @@ const LessonDetailPage = () => {
           <div className="mt-6 rounded-2xl p-4">
             <div className="flex items-center justify-between">
               <p className="text-sm uppercase tracking-wide text-mainAccent">Path Progress</p>
-              <span className="text-sm text-white">{progress}%</span>
+              <span className="text-sm text-mainAccent dark:text-white">{progress}%</span>
             </div>
 
             <div className="mt-3 overflow-x-auto pb-1 scrollbar-hide">
