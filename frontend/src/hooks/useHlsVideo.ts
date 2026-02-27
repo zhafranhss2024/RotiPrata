@@ -81,6 +81,11 @@ export const useHlsVideo = ({
               setReadyKey((prev) => prev + 1);
             }
           });
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (!cancelled) {
+              setReadyKey((prev) => prev + 1);
+            }
+          });
           hls.on(Hls.Events.ERROR, (_event, data) => {
             if (!data?.fatal) {
               return;

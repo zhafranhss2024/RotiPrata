@@ -87,7 +87,7 @@ export function FeedCard({
   const { readyKey } = useHlsVideo({
     videoRef,
     src: videoUrl,
-    enabled: shouldMountMedia && isActive && isHls,
+    enabled: shouldMountMedia && isHls,
   });
 
   const clearSingleTapTimer = () => {
@@ -256,7 +256,7 @@ export function FeedCard({
             loop
             autoPlay={isActive && !isPaused}
             playsInline
-            preload={isActive ? 'auto' : 'none'}
+            preload={isActive ? 'auto' : shouldMountMedia ? 'metadata' : 'none'}
           />
         );
       }
@@ -265,7 +265,7 @@ export function FeedCard({
           <img
             src={content.thumbnail_url}
             alt={content.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         );
       }
