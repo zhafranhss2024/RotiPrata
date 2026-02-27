@@ -52,6 +52,7 @@ export interface Content {
   description: string | null;
   content_type: ContentType;
   media_url: string | null;
+  hls_url?: string | null;
   thumbnail_url: string | null;
   category_id: string | null;
   status: ContentStatus;

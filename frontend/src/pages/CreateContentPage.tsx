@@ -24,6 +24,7 @@ import {
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { ContentType, Category, Content, QuizQuestion } from '@/types';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { isHlsUrl, useHlsVideo } from '@/hooks/useHlsVideo';
 import {
   fetchCategories,
   fetchContentById,
@@ -180,6 +181,7 @@ const CreateContentPage = () => {
   const [hasAttemptedQuizSave, setHasAttemptedQuizSave] = useState(false);
 
   const lastDraftRef = useRef<string>('');
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     fetchCategories()
@@ -419,6 +421,13 @@ const CreateContentPage = () => {
     if (formData.content_type === 'video') return mediaHlsUrl;
     return mediaThumbnailUrl;
   }, [mediaPreview, mediaHlsUrl, mediaThumbnailUrl, formData.content_type]);
+  const isPreviewHls = isHlsUrl(mediaPreviewUrl);
+
+  useHlsVideo({
+    videoRef: previewVideoRef,
+    src: mediaPreviewUrl,
+    enabled: formData.content_type === 'video' && Boolean(mediaPreviewUrl) && isPreviewHls,
+  });
 
   const handleMediaFile = async (file: File) => {
     if (!file.type.startsWith('video/') && !file.type.startsWith('image/')) {
@@ -786,7 +795,8 @@ const CreateContentPage = () => {
                   <div className="relative">
                     {formData.content_type === 'video' ? (
                       <video
-                        src={mediaPreviewUrl}
+                        ref={previewVideoRef}
+                        src={isPreviewHls ? undefined : mediaPreviewUrl}
                         className="w-full h-56 object-cover rounded-lg"
                         controls
                       />
@@ -1277,7 +1287,12 @@ const CreateContentPage = () => {
                   {formData.content_type.toUpperCase()}
                 </div>
                 {mediaPreviewUrl && formData.content_type === 'video' && (
-                  <video src={mediaPreviewUrl} className="w-full h-48 object-cover rounded" controls />
+                  <video
+                    ref={previewVideoRef}
+                    src={isPreviewHls ? undefined : mediaPreviewUrl}
+                    className="w-full h-48 object-cover rounded"
+                    controls
+                  />
                 )}
                 {mediaPreviewUrl && formData.content_type === 'image' && (
                   <img src={mediaPreviewUrl} alt="Preview" className="w-full h-48 object-cover rounded" />

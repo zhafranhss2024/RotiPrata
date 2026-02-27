@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import type { Content } from '@/types';
+import { isHlsUrl, useHlsVideo } from '@/hooks/useHlsVideo';
 
 interface FeedCardProps {
   content: Content;
@@ -81,6 +82,13 @@ export function FeedCard({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const lastTapRef = useRef(0);
   const singleTapTimerRef = useRef<number | null>(null);
+  const videoUrl = content.hls_url ?? content.media_url;
+  const isHls = isHlsUrl(videoUrl);
+  const { readyKey } = useHlsVideo({
+    videoRef,
+    src: videoUrl,
+    enabled: shouldMountMedia && isActive && isHls,
+  });
 
   const clearSingleTapTimer = () => {
     if (singleTapTimerRef.current) {
@@ -137,7 +145,7 @@ export function FeedCard({
     return () => {
       cancelled = true;
     };
-  }, [content.content_type, isActive, isPaused, onPlaybackBlocked, shouldMountMedia]);
+  }, [content.content_type, isActive, isPaused, onPlaybackBlocked, readyKey, shouldMountMedia, videoUrl]);
 
   const addFloatingHearts = (x: number, y: number) => {
     const hearts = Array.from({ length: 6 }, (_, index) => ({
@@ -237,17 +245,18 @@ export function FeedCard({
   };
 
   const renderBackgroundMedia = () => {
-    if (content.content_type === 'video' && content.media_url) {
+    if (content.content_type === 'video' && videoUrl) {
       if (shouldMountMedia) {
         return (
           <video
             ref={videoRef}
-            src={content.media_url}
+            src={isHls ? undefined : videoUrl}
             poster={content.thumbnail_url ?? undefined}
             className="w-full h-full object-contain"
             loop
             autoPlay={isActive && !isPaused}
             playsInline
+            preload={isActive ? 'auto' : 'none'}
           />
         );
       }

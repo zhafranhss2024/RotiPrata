@@ -121,6 +121,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - `limit` (optional): default `20`, max `50`
 - Response:
   - `{ items: Content[], hasMore: boolean, nextCursor: string | null }`
+  - Each `Content` item may include `hls_url` (string | null) for HLS manifests.
 - Ordering:
   - Stable descending sort on `(created_at desc, id desc)`
 - Pagination behavior:

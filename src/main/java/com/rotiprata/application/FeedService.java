@@ -2,14 +2,18 @@ package com.rotiprata.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.dto.FeedResponse;
+import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -25,15 +29,18 @@ public class FeedService {
     private static final int MAX_LIMIT = 50;
 
     private final SupabaseRestClient supabaseRestClient;
+    private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final ContentEngagementService contentEngagementService;
     private final ContentCreatorEnrichmentService contentCreatorEnrichmentService;
 
     public FeedService(
         SupabaseRestClient supabaseRestClient,
+        SupabaseAdminRestClient supabaseAdminRestClient,
         ContentEngagementService contentEngagementService,
         ContentCreatorEnrichmentService contentCreatorEnrichmentService
     ) {
         this.supabaseRestClient = supabaseRestClient;
+        this.supabaseAdminRestClient = supabaseAdminRestClient;
         this.contentEngagementService = contentEngagementService;
         this.contentCreatorEnrichmentService = contentCreatorEnrichmentService;
     }
@@ -72,6 +79,7 @@ public class FeedService {
             token
         );
         List<Map<String, Object>> enriched = contentCreatorEnrichmentService.enrichWithCreatorProfiles(decorated);
+        attachHlsUrls(enriched);
 
         String nextCursor = null;
         if (hasMore && !items.isEmpty()) {
@@ -120,6 +128,53 @@ public class FeedService {
     private String encodeCursor(OffsetDateTime createdAt, UUID id) {
         String payload = createdAt.toInstant() + "|" + id;
         return Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void attachHlsUrls(List<Map<String, Object>> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+        List<UUID> contentIds = items.stream()
+            .map(item -> parseUuid(item.get("id")))
+            .filter(Objects::nonNull)
+            .toList();
+        if (contentIds.isEmpty()) {
+            return;
+        }
+        String inClause = contentIds.stream().map(UUID::toString).collect(Collectors.joining(","));
+        try {
+            List<Map<String, Object>> mediaRows = supabaseAdminRestClient.getList(
+                "content_media",
+                buildQuery(Map.of(
+                    "select", "content_id,hls_url",
+                    "content_id", "in.(" + inClause + ")"
+                )),
+                MAP_LIST
+            );
+            Map<UUID, String> hlsByContentId = new HashMap<>();
+            for (Map<String, Object> row : mediaRows) {
+                UUID contentId = parseUuid(row.get("content_id"));
+                Object hlsUrl = row.get("hls_url");
+                if (contentId != null && hlsUrl != null) {
+                    hlsByContentId.put(contentId, hlsUrl.toString());
+                }
+            }
+            if (hlsByContentId.isEmpty()) {
+                return;
+            }
+            items.forEach(item -> {
+                UUID contentId = parseUuid(item.get("id"));
+                if (contentId == null) {
+                    return;
+                }
+                String hlsUrl = hlsByContentId.get(contentId);
+                if (hlsUrl != null) {
+                    item.put("hls_url", hlsUrl);
+                }
+            });
+        } catch (ResponseStatusException ex) {
+            log.warn("Failed to load hls_url for feed items", ex);
+        }
     }
 
     private CursorKey decodeCursor(String cursor) {

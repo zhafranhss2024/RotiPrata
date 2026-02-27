@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,6 +44,7 @@ import {
   resolveFlag,
   saveAdminContentQuiz,
 } from '@/lib/api';
+import { isHlsUrl, useHlsVideo } from '@/hooks/useHlsVideo';
 
 // Backend: /api/admin/*
 // Dummy data is returned when mocks are enabled.
@@ -118,6 +119,7 @@ const mapQuizQuestionToDraft = (question: QuizQuestion, index: number): ContentQ
 });
 
 const AdminDashboard = () => {
+  const moderationVideoRef = useRef<HTMLVideoElement | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({
@@ -200,6 +202,17 @@ const AdminDashboard = () => {
   }, [quizQuestions]);
   const isQuizValid = !quizValidationError;
   const canApprove = isSaved && isFormValid && !quizDirty && isQuizValid;
+  const moderationVideoUrl =
+    selectedModerationItem?.content?.content_type === 'video'
+      ? selectedModerationItem.content.hls_url ?? selectedModerationItem.content.media_url
+      : null;
+  const moderationIsHls = isHlsUrl(moderationVideoUrl);
+
+  useHlsVideo({
+    videoRef: moderationVideoRef,
+    src: moderationVideoUrl,
+    enabled: Boolean(selectedModerationItem) && moderationIsHls,
+  });
 
   useEffect(() => {
     fetchAdminStats()
@@ -1152,11 +1165,12 @@ const AdminDashboard = () => {
 
                   <div className="p-6 space-y-3">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Media</p>
-                    {selectedModerationItem.content.content_type === 'video' && selectedModerationItem.content.media_url ? (
+                    {selectedModerationItem.content.content_type === 'video' && moderationVideoUrl ? (
                       <video
+                        ref={moderationVideoRef}
                         controls
                         className="w-full max-h-[420px] rounded-md bg-black"
-                        src={selectedModerationItem.content.media_url}
+                        src={moderationIsHls ? undefined : moderationVideoUrl}
                       />
                     ) : null}
 
@@ -1168,7 +1182,9 @@ const AdminDashboard = () => {
                       />
                     ) : null}
 
-                    {!selectedModerationItem.content.media_url && selectedModerationItem.content.thumbnail_url ? (
+                    {!moderationVideoUrl &&
+                    !selectedModerationItem.content.media_url &&
+                    selectedModerationItem.content.thumbnail_url ? (
                       <img
                         src={selectedModerationItem.content.thumbnail_url}
                         alt={selectedModerationItem.content.title}
@@ -1176,7 +1192,9 @@ const AdminDashboard = () => {
                       />
                     ) : null}
 
-                    {!selectedModerationItem.content.media_url && !selectedModerationItem.content.thumbnail_url ? (
+                    {!moderationVideoUrl &&
+                    !selectedModerationItem.content.media_url &&
+                    !selectedModerationItem.content.thumbnail_url ? (
                       <p className="text-sm text-muted-foreground">No media URL available.</p>
                     ) : null}
                   </div>
