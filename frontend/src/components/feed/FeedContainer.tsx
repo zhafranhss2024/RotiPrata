@@ -72,6 +72,7 @@ export function FeedContainer({
   const [likeCountsByContent, setLikeCountsByContent] = useState<Record<string, number>>({});
   const [likePendingByContent, setLikePendingByContent] = useState<Record<string, boolean>>({});
   const [pausedByContent, setPausedByContent] = useState<Record<string, boolean>>({});
+  const [visibilityRatios, setVisibilityRatios] = useState<Record<string, number>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const visibilityRatiosRef = useRef<Record<string, number>>({});
@@ -192,20 +193,28 @@ export function FeedContainer({
 
     const observer = new IntersectionObserver(
       (entries) => {
+        let hasChanges = false;
+        const nextRatios = { ...visibilityRatiosRef.current };
         entries.forEach((entry) => {
           const contentId = entry.target.getAttribute('data-content-id');
           if (!contentId) {
             return;
           }
-          visibilityRatiosRef.current[contentId] = entry.isIntersecting ? entry.intersectionRatio : 0;
+          const ratio = entry.isIntersecting ? entry.intersectionRatio : 0;
+          visibilityRatiosRef.current[contentId] = ratio;
+          nextRatios[contentId] = ratio;
+          hasChanges = true;
         });
+        if (hasChanges) {
+          setVisibilityRatios(nextRatios);
+        }
 
         let bestIndex = -1;
         let bestRatio = -1;
 
         visibleContents.forEach((content, index) => {
           const ratio = visibilityRatiosRef.current[content.id] ?? 0;
-          if (ratio >= 0.6 && ratio > bestRatio) {
+          if (ratio >= 0.5 && ratio > bestRatio) {
             bestRatio = ratio;
             bestIndex = index;
           }
@@ -216,7 +225,7 @@ export function FeedContainer({
             setActiveIndex(bestIndex);
           }
         } else if (activeIndexRef.current !== -1) {
-          // No feed card is >= 60% visible (e.g. end-of-feed card), so pause all media.
+          // No feed card is >= 50% visible (e.g. end-of-feed card), so pause all media.
           setActiveIndex(-1);
         }
       },
@@ -250,7 +259,7 @@ export function FeedContainer({
     const contentId = activeContent.id;
     viewTimerRef.current = window.setTimeout(() => {
       const ratio = visibilityRatiosRef.current[contentId] ?? 0;
-      if (ratio < 0.6 || trackedViewsRef.current.has(contentId)) {
+      if (ratio < 0.5 || trackedViewsRef.current.has(contentId)) {
         return;
       }
       trackedViewsRef.current.add(contentId);
@@ -265,6 +274,24 @@ export function FeedContainer({
         viewTimerRef.current = null;
       }
     };
+  }, [activeIndex, visibleContents]);
+
+  useEffect(() => {
+    if (activeIndex < 0 || visibleContents.length === 0) {
+      return;
+    }
+    const nearbyIndices = [activeIndex - 2, activeIndex - 1, activeIndex, activeIndex + 1, activeIndex + 2];
+    const urls = new Set<string>();
+    nearbyIndices.forEach((index) => {
+      const content = visibleContents[index];
+      if (content?.thumbnail_url) {
+        urls.add(content.thumbnail_url);
+      }
+    });
+    urls.forEach((url) => {
+      const img = new Image();
+      img.src = url;
+    });
   }, [activeIndex, visibleContents]);
 
   useEffect(() => {
@@ -568,41 +595,52 @@ export function FeedContainer({
         ref={containerRef}
         className={`${containerHeightClass} ${containerClassName ?? ''} overflow-y-auto snap-y snap-mandatory overscroll-y-contain scrollbar-hide`}
       >
-        {visibleContents.map((content, index) => (
-          <div
-            key={content.id}
-            ref={setCardRef(content.id)}
-            data-content-id={content.id}
-            className="h-full w-full snap-start snap-always"
-          >
-            <FeedCard
-              content={content}
-              isActive={index === activeIndex}
-              shouldMountMedia={Math.abs(index - activeIndex) <= 2}
-              isPaused={Boolean(pausedByContent[content.id])}
-              isSaved={Boolean(savedByContent[content.id])}
-              isSavePending={Boolean(savePendingByContent[content.id])}
-              isLiked={Boolean(likedByContent[content.id])}
-              likeCount={getLikeCountForContent(content)}
-              isLikePending={Boolean(likePendingByContent[content.id])}
-              commentCount={getCommentCountForContent(content)}
-              onLearnMoreClick={() => handleLearnMoreClick(content)}
-              onCommentClick={() => handleCommentClick(content)}
-              onLikeToggle={(nextLiked) => void handleLikeToggle(content, nextLiked)}
-              onSave={() => void handleSave(content.id)}
-              onShare={() => handleShare(content)}
-              onFlag={() => handleFlag(content.id)}
-              onQuizClick={() => handleQuizClick(content)}
-              onTogglePlayback={() => handleTogglePlayback(content.id)}
-              onPlaybackBlocked={() => handlePlaybackBlocked(content.id)}
-              showEdit={isAdminUser && content.content_type === 'video'}
-              onEdit={() => handleEdit(content)}
-              showTakeDown={isAdminUser && content.content_type === 'video'}
-              onTakeDown={() => handleTakeDown(content.id)}
-              isTakingDown={takingDownContentId === content.id}
-            />
-          </div>
-        ))}
+        {visibleContents.map((content, index) => {
+          const visibilityRatio = visibilityRatios[content.id] ?? 0;
+          const isActive = visibilityRatio >= 0.5;
+          const distance = activeIndex >= 0 ? Math.abs(index - activeIndex) : null;
+          const shouldMountMedia =
+            activeIndex === -1 ? visibilityRatio > 0 : Boolean(distance !== null && distance <= 2);
+          const shouldPrefetch = Boolean(distance !== null && distance <= 1);
+
+          return (
+            <div
+              key={content.id}
+              ref={setCardRef(content.id)}
+              data-content-id={content.id}
+              className="h-full w-full snap-start snap-always"
+            >
+              <FeedCard
+                content={content}
+                isActive={isActive}
+                shouldMountMedia={shouldMountMedia}
+                prefetchHint={shouldPrefetch}
+                visibilityRatio={visibilityRatio}
+                isPaused={Boolean(pausedByContent[content.id])}
+                isSaved={Boolean(savedByContent[content.id])}
+                isSavePending={Boolean(savePendingByContent[content.id])}
+                isLiked={Boolean(likedByContent[content.id])}
+                likeCount={getLikeCountForContent(content)}
+                isLikePending={Boolean(likePendingByContent[content.id])}
+                commentCount={getCommentCountForContent(content)}
+                onLearnMoreClick={() => handleLearnMoreClick(content)}
+                onCommentClick={() => handleCommentClick(content)}
+                onLikeToggle={(nextLiked) => void handleLikeToggle(content, nextLiked)}
+                onSave={() => void handleSave(content.id)}
+                onShare={() => handleShare(content)}
+                onFlag={() => handleFlag(content.id)}
+                onQuizClick={() => handleQuizClick(content)}
+                onTogglePlayback={() => handleTogglePlayback(content.id)}
+                onPlaybackBlocked={() => handlePlaybackBlocked(content.id)}
+                showEdit={isAdminUser && content.content_type === 'video'}
+                onEdit={() => handleEdit(content)}
+                showTakeDown={isAdminUser && content.content_type === 'video'}
+                onTakeDown={() => handleTakeDown(content.id)}
+                isTakingDown={takingDownContentId === content.id}
+              />
+            </div>
+          );
+        })}
 
         {!isLoading && !hasMore && visibleContents.length > 0 && (
           <div className="h-full w-full snap-start snap-always flex items-center justify-center p-6">

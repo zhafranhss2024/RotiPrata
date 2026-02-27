@@ -22,6 +22,8 @@ type UseHlsVideoParams = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   src?: string | null;
   enabled?: boolean;
+  shouldLoad?: boolean;
+  loadMode?: 'active' | 'prefetch' | 'none';
   onFatalError?: (error: unknown) => void;
 };
 
@@ -29,10 +31,17 @@ export const useHlsVideo = ({
   videoRef,
   src,
   enabled = true,
+  shouldLoad = true,
+  loadMode,
   onFatalError,
 }: UseHlsVideoParams) => {
   const hlsRef = useRef<HlsInstance | null>(null);
   const [readyKey, setReadyKey] = useState(0);
+  const loadModeRef = useRef<'active' | 'prefetch' | 'none'>('none');
+  const prefetchDoneRef = useRef(false);
+
+  const resolvedLoadMode: 'active' | 'prefetch' | 'none' =
+    loadMode ?? (shouldLoad ? 'active' : 'none');
 
   useEffect(() => {
     const video = videoRef.current;
@@ -60,6 +69,8 @@ export const useHlsVideo = ({
     }
 
     let cancelled = false;
+    prefetchDoneRef.current = false;
+    loadModeRef.current = resolvedLoadMode;
 
     const attach = async () => {
       try {
@@ -73,12 +84,33 @@ export const useHlsVideo = ({
             hlsRef.current.destroy();
             hlsRef.current = null;
           }
-          const hls = new Hls();
+          const hls = new Hls({
+            autoStartLoad: false,
+            capLevelToPlayerSize: true,
+            startLevel: -1,
+            maxBufferLength: 10,
+            maxMaxBufferLength: 20,
+            backBufferLength: 30,
+          });
           hlsRef.current = hls;
+          hls.on(Hls.Events.FRAG_BUFFERED, () => {
+            if (loadModeRef.current !== 'prefetch' || prefetchDoneRef.current) {
+              return;
+            }
+            prefetchDoneRef.current = true;
+            hls.stopLoad();
+          });
           hls.on(Hls.Events.MEDIA_ATTACHED, () => {
             if (!cancelled) {
               hls.loadSource(src as string);
               setReadyKey((prev) => prev + 1);
+              if (loadModeRef.current === 'active') {
+                hls.startLoad();
+              } else if (loadModeRef.current === 'prefetch') {
+                hls.startLoad();
+              } else {
+                hls.stopLoad();
+              }
             }
           });
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -102,10 +134,21 @@ export const useHlsVideo = ({
       }
 
       if (!cancelled && video.canPlayType('application/vnd.apple.mpegurl')) {
+        if (loadModeRef.current === 'none') {
+          const existingSrc = video.getAttribute('src');
+          if (existingSrc && isHlsUrl(existingSrc)) {
+            video.removeAttribute('src');
+            video.load();
+          }
+          return;
+        }
         const existingSrc = video.getAttribute('src');
         if (existingSrc !== src) {
           video.src = src as string;
           setReadyKey((prev) => prev + 1);
+        }
+        if (loadModeRef.current === 'prefetch') {
+          video.load();
         }
       }
     };
@@ -119,7 +162,29 @@ export const useHlsVideo = ({
         hlsRef.current = null;
       }
     };
-  }, [enabled, onFatalError, src, videoRef]);
+  }, [enabled, onFatalError, resolvedLoadMode, src, videoRef]);
+
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) {
+      return;
+    }
+    loadModeRef.current = resolvedLoadMode;
+    if (resolvedLoadMode === 'active') {
+      prefetchDoneRef.current = false;
+      hls.startLoad();
+      return;
+    }
+    if (resolvedLoadMode === 'prefetch') {
+      if (prefetchDoneRef.current) {
+        hls.stopLoad();
+        return;
+      }
+      hls.startLoad();
+    } else {
+      hls.stopLoad();
+    }
+  }, [resolvedLoadMode]);
 
   return { readyKey };
 };

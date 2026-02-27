@@ -20,6 +20,8 @@ interface FeedCardProps {
   content: Content;
   isActive?: boolean;
   shouldMountMedia?: boolean;
+  prefetchHint?: boolean;
+  visibilityRatio?: number;
   isPaused?: boolean;
   isSaved?: boolean;
   isLikePending?: boolean;
@@ -56,6 +58,8 @@ export function FeedCard({
   content,
   isActive = false,
   shouldMountMedia = true,
+  prefetchHint = false,
+  visibilityRatio = 0,
   isPaused = false,
   isSaved = false,
   isLikePending = false,
@@ -79,15 +83,26 @@ export function FeedCard({
   isTakingDown = false,
 }: FeedCardProps) {
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
+  const [videoReady, setVideoReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const frameCallbackRef = useRef<number | null>(null);
   const lastTapRef = useRef(0);
   const singleTapTimerRef = useRef<number | null>(null);
   const videoUrl = content.hls_url ?? content.media_url;
   const isHls = isHlsUrl(videoUrl);
+  const shouldPreload = shouldMountMedia && (prefetchHint || visibilityRatio >= 0.2);
+  const loadMode: 'active' | 'prefetch' | 'none' = !shouldMountMedia
+    ? 'none'
+    : isActive
+      ? 'active'
+      : shouldPreload
+        ? 'prefetch'
+        : 'none';
   const { readyKey } = useHlsVideo({
     videoRef,
     src: videoUrl,
     enabled: shouldMountMedia && isHls,
+    loadMode,
   });
 
   const clearSingleTapTimer = () => {
@@ -100,8 +115,37 @@ export function FeedCard({
   useEffect(() => {
     return () => {
       clearSingleTapTimer();
+      if (frameCallbackRef.current !== null) {
+        const video = videoRef.current as HTMLVideoElement & {
+          cancelVideoFrameCallback?: (handle: number) => void;
+        };
+        video?.cancelVideoFrameCallback?.(frameCallbackRef.current);
+        frameCallbackRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    if (!shouldMountMedia || content.content_type !== 'video') {
+      if (frameCallbackRef.current !== null) {
+        const video = videoRef.current as HTMLVideoElement & {
+          cancelVideoFrameCallback?: (handle: number) => void;
+        };
+        video?.cancelVideoFrameCallback?.(frameCallbackRef.current);
+        frameCallbackRef.current = null;
+      }
+      setVideoReady(false);
+      return;
+    }
+    if (frameCallbackRef.current !== null) {
+      const video = videoRef.current as HTMLVideoElement & {
+        cancelVideoFrameCallback?: (handle: number) => void;
+      };
+      video?.cancelVideoFrameCallback?.(frameCallbackRef.current);
+      frameCallbackRef.current = null;
+    }
+    setVideoReady(false);
+  }, [content.content_type, shouldMountMedia, videoUrl]);
 
   useEffect(() => {
     if (content.content_type !== 'video' || !shouldMountMedia) {
@@ -145,7 +189,36 @@ export function FeedCard({
     return () => {
       cancelled = true;
     };
-  }, [content.content_type, isActive, isPaused, onPlaybackBlocked, readyKey, shouldMountMedia, videoUrl]);
+  }, [
+    content.content_type,
+    isActive,
+    isPaused,
+    onPlaybackBlocked,
+    readyKey,
+    shouldMountMedia,
+    videoUrl,
+  ]);
+
+  const handleVideoPlaying = () => {
+    if (videoReady) {
+      return;
+    }
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    const videoWithFrameCallback = video as HTMLVideoElement & {
+      requestVideoFrameCallback?: (callback: VideoFrameRequestCallback) => number;
+    };
+    if (videoWithFrameCallback.requestVideoFrameCallback) {
+      frameCallbackRef.current = videoWithFrameCallback.requestVideoFrameCallback(() => {
+        setVideoReady(true);
+        frameCallbackRef.current = null;
+      });
+      return;
+    }
+    setVideoReady(true);
+  };
 
   const addFloatingHearts = (x: number, y: number) => {
     const hearts = Array.from({ length: 6 }, (_, index) => ({
@@ -248,16 +321,32 @@ export function FeedCard({
     if (content.content_type === 'video' && videoUrl) {
       if (shouldMountMedia) {
         return (
-          <video
-            ref={videoRef}
-            src={isHls ? undefined : videoUrl}
-            poster={content.thumbnail_url ?? undefined}
-            className="w-full h-full object-contain"
-            loop
-            autoPlay={isActive && !isPaused}
-            playsInline
-            preload={isActive ? 'auto' : shouldMountMedia ? 'metadata' : 'none'}
-          />
+          <div className="relative w-full h-full">
+            <video
+              ref={videoRef}
+              src={isHls ? undefined : videoUrl}
+              poster={content.thumbnail_url ?? undefined}
+              className={cn(
+                'w-full h-full object-contain transition-opacity duration-150',
+                videoReady ? 'opacity-100' : 'opacity-0'
+              )}
+              loop
+              autoPlay={isActive && !isPaused}
+              playsInline
+              preload={isActive || shouldPreload ? 'auto' : shouldMountMedia ? 'metadata' : 'none'}
+              onPlaying={handleVideoPlaying}
+            />
+            {!videoReady &&
+              (content.thumbnail_url ? (
+                <img
+                  src={content.thumbnail_url}
+                  alt={content.title}
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                />
+              ) : (
+                <div className="absolute inset-0 w-full h-full gradient-primary pointer-events-none" />
+              ))}
+          </div>
         );
       }
       if (content.thumbnail_url) {
