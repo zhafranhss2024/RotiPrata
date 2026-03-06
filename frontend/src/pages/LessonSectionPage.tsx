@@ -13,13 +13,21 @@ import {
 import { ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
 
-const STEP_GAP = 70;
+const STEP_GAP = 116;
 const MAX_VISIBLE_DISTANCE = 3;
 const STEP_HORIZONTAL_OFFSET = 26;
 const NAV_GESTURE_LOCK_MS = 420;
 const WHEEL_DELTA_THRESHOLD = 20;
 const SWIPE_DELTA_THRESHOLD = 45;
 const ADVANCE_NAV_DELAY_MS = 120;
+
+const resolveSectionLabel = (title: string | null | undefined, index: number) => {
+  const normalized = title?.trim();
+  if (normalized) {
+    return normalized;
+  }
+  return `Topic ${index + 1}`;
+};
 
 const LessonSectionPage = () => {
   const { id, sectionId } = useParams<{ id: string; sectionId: string }>();
@@ -302,7 +310,7 @@ const LessonSectionPage = () => {
               <ArrowUp className="h-4 w-4 mx-auto" />
             </button>
 
-            <div className="relative h-[460px] w-[120px] overflow-hidden">
+            <div className="relative h-[460px] w-[156px] overflow-hidden">
               {sections.map((section, index) => {
                 const relative = index - currentIndex;
                 const distance = Math.abs(relative);
@@ -315,6 +323,7 @@ const LessonSectionPage = () => {
                 const isCurrent = relative === 0;
                 const isAnimatingComplete = animatingCompleteIndex === index;
                 const isNextPulse = nextPulseIndex === index;
+                const sectionLabel = resolveSectionLabel(section.title, index);
 
                 const baseClasses = isCompleted
                   ? "bg-duoGreen border-[#b51f3d] text-white shadow-mainCircleShadow"
@@ -336,6 +345,7 @@ const LessonSectionPage = () => {
                       onClick={() => {
                         void handleStopSelect(index);
                       }}
+                      aria-label={sectionLabel}
                       disabled={isSaving}
                       className={cn(
                         "relative h-16 w-[68px] rounded-full border-2 flex items-center justify-center transition-transform duration-200 active:translate-y-[5px] active:shadow-none",
@@ -344,7 +354,7 @@ const LessonSectionPage = () => {
                         isAnimatingComplete && "animate-stop-fill",
                         isNextPulse && "animate-stop-next"
                       )}
-                    >
+                      >
                       {isCompleted ? (
                         <Check className="h-6 w-6" />
                       ) : isCurrent ? (
@@ -353,6 +363,12 @@ const LessonSectionPage = () => {
                         <span className="text-lg">{index + 1}</span>
                       )}
                     </button>
+                    <p
+                      className="pointer-events-none absolute left-1/2 top-[72px] h-8 w-[132px] -translate-x-1/2 overflow-hidden text-center text-[11px] leading-4 text-mainAccent/90 dark:text-white/90 break-words"
+                      title={sectionLabel}
+                    >
+                      {sectionLabel}
+                    </p>
                   </div>
                 );
               })}

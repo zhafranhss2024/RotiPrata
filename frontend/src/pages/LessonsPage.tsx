@@ -7,18 +7,26 @@ import { fetchLessonHub } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 const HORIZONTAL_SWING = 92;
-const NODE_STEP_HEIGHT = 104;
+const NODE_STEP_HEIGHT = 132;
 const PATH_WIDTH = 320;
 const PATH_CENTER_X = PATH_WIDTH / 2;
 const NODE_CONNECTOR_GAP = 42;
+const LESSON_LABEL_HEIGHT = 32;
 
 const nodeOffsetX = (index: number) => (index % 2 === 0 ? -HORIZONTAL_SWING : HORIZONTAL_SWING);
+const resolveLessonLabel = (title: string | null | undefined, index: number) => {
+  const normalized = title?.trim();
+  if (normalized) {
+    return normalized;
+  }
+  return `Lesson ${index + 1}`;
+};
 
 const DottedPath = ({ lessonCount }: { lessonCount: number }) => {
   if (lessonCount < 2) return null;
   const points = Array.from({ length: lessonCount }, (_, index) => ({
     x: PATH_CENTER_X + nodeOffsetX(index),
-    y: index * NODE_STEP_HEIGHT + NODE_STEP_HEIGHT / 2,
+    y: index * NODE_STEP_HEIGHT + 37,
   }));
   const segments = points
     .slice(0, -1)
@@ -80,6 +88,7 @@ const LessonNode = ({ lesson, index }: { lesson: LessonHubLesson; index: number 
   const isCurrent = lesson.current;
   const isCompleted = lesson.completed;
   const isLocked = lesson.visuallyLocked;
+  const lessonLabel = resolveLessonLabel(lesson.title, index);
   const ringProgress = Math.max(
     0,
     Math.min(100, Math.round(isCompleted ? 100 : lesson.progressPercentage ?? 0))
@@ -96,10 +105,14 @@ const LessonNode = ({ lesson, index }: { lesson: LessonHubLesson; index: number 
 
   return (
     <div
-      className="absolute left-0 right-0 h-20 flex justify-center"
+      className="absolute left-0 right-0 flex justify-center"
       style={{ top: index * NODE_STEP_HEIGHT, transform: `translateX(${nodeOffsetX(index)}px)` }}
     >
-      <Link to={`/lessons/${lesson.lessonId}`} aria-label={lesson.title} className="relative group focus:outline-none">
+      <Link
+        to={`/lessons/${lesson.lessonId}`}
+        aria-label={lessonLabel}
+        className="relative group flex w-[136px] flex-col items-center focus:outline-none"
+      >
         <div
           className={cn('h-[74px] w-[76px] rounded-full p-[3px] transition-transform', isLocked ? 'opacity-80' : '')}
           style={{ background: `conic-gradient(#fe2c55 ${ringFillDeg}, rgba(246, 139, 155, 0.35) ${ringFillDeg} 360deg)` }}
@@ -121,9 +134,12 @@ const LessonNode = ({ lesson, index }: { lesson: LessonHubLesson; index: number 
           )}
         </div>
         </div>
-        <div className="pointer-events-none absolute z-30 -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-xl bg-mainDark px-3 py-1 text-xs text-mainAccent opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
-          {lesson.title}
-        </div>
+        <span
+          className="mt-2 block h-8 w-full overflow-hidden text-center text-[11px] leading-4 text-mainAccent dark:text-white/90 break-words"
+          title={lessonLabel}
+        >
+          {lessonLabel}
+        </span>
       </Link>
     </div>
   );
@@ -206,7 +222,10 @@ const LessonsPage = () => {
                 <div className="py-5 overflow-visible">
                   <div
                     className="relative mx-auto"
-                    style={{ width: PATH_WIDTH, height: unit.lessons.length * NODE_STEP_HEIGHT }}
+                    style={{
+                      width: PATH_WIDTH,
+                      height: unit.lessons.length * NODE_STEP_HEIGHT + LESSON_LABEL_HEIGHT,
+                    }}
                   >
                     <DottedPath lessonCount={unit.lessons.length} />
                     {unit.lessons.map((lesson, index) => (

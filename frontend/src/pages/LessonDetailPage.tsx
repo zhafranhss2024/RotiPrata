@@ -8,6 +8,7 @@ import {
   enrollLesson,
   fetchLessonById,
   fetchLessonProgressDetail,
+  fetchLessonSections,
   saveLesson,
 } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -19,10 +20,24 @@ const formatRefill = (value?: string | null) => {
   return date.toLocaleString();
 };
 
+const QUIZ_STOP_ID = 'quiz';
+const QUIZ_STOP_LABEL = 'Quiz';
+
+const normalizeLabel = (value: string | null | undefined) => {
+  const normalized = value?.trim();
+  return normalized && normalized.length > 0 ? normalized : null;
+};
+
+const sectionOrderValue = (orderIndex: number | null | undefined) =>
+  typeof orderIndex === 'number' && Number.isFinite(orderIndex)
+    ? orderIndex
+    : Number.MAX_SAFE_INTEGER;
+
 const LessonDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [sectionStops, setSectionStops] = useState<Array<{ id: string; label: string }>>([]);
   const [progressDetail, setProgressDetail] = useState<LessonProgressDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,11 +47,19 @@ const LessonDetailPage = () => {
     if (!id) return;
     let active = true;
 
-    Promise.all([fetchLessonById(id), fetchLessonProgressDetail(id)])
-      .then(([lessonData, progress]) => {
+    Promise.all([fetchLessonById(id), fetchLessonProgressDetail(id), fetchLessonSections(id)])
+      .then(([lessonData, progress, sectionData]) => {
         if (!active) return;
+        const sortedSections = [...sectionData].sort(
+          (left, right) => sectionOrderValue(left.order_index) - sectionOrderValue(right.order_index)
+        );
+        const normalizedSections = sortedSections.map((section, index) => ({
+          id: section.id,
+          label: normalizeLabel(section.title) ?? `Topic ${index + 1}`,
+        }));
         setLesson(lessonData);
         setProgressDetail(progress);
+        setSectionStops(normalizedSections);
       })
       .catch((loadError) => {
         if (!active) return;
@@ -76,18 +99,21 @@ const LessonDetailPage = () => {
     }
   };
 
-  const stopLabels = useMemo(
-    () => [
-      { id: 'intro', label: 'Origin' },
-      { id: 'definition', label: 'Definition' },
-      { id: 'usage', label: 'Usage' },
-      { id: 'lore', label: 'Lore' },
-      { id: 'evolution', label: 'Evolution' },
-      { id: 'comparison', label: 'Comparison' },
-      { id: 'quiz', label: 'Quiz' },
-    ],
-    []
-  );
+  const displayStops = useMemo(() => {
+    const sectionList = [...sectionStops];
+    const fallbackStopCount = sectionList.length > 0 ? sectionList.length : 1;
+    const totalStopsFromProgress = Math.max(1, progressDetail?.totalStops ?? fallbackStopCount);
+    if (totalStopsFromProgress > sectionList.length) {
+      sectionList.push({ id: QUIZ_STOP_ID, label: QUIZ_STOP_LABEL });
+    }
+    while (sectionList.length < totalStopsFromProgress) {
+      sectionList.push({
+        id: `topic-${sectionList.length + 1}`,
+        label: `Topic ${sectionList.length + 1}`,
+      });
+    }
+    return sectionList.slice(0, totalStopsFromProgress);
+  }, [progressDetail?.totalStops, sectionStops]);
 
   if (isLoading) {
     return (
@@ -116,8 +142,6 @@ const LessonDetailPage = () => {
   const progress = progressDetail?.progressPercentage ?? 0;
   const completedStops = progressDetail?.completedStops ?? 0;
   const currentStopId = progressDetail?.currentStopId ?? null;
-  const totalStops = Math.max(1, progressDetail?.totalStops ?? stopLabels.length);
-  const displayStops = stopLabels.slice(0, totalStops);
   const heartsRefill = formatRefill(progressDetail?.heartsRefillAt);
   const quizBlocked = progressDetail?.quizStatus === 'blocked_hearts';
 
@@ -219,7 +243,7 @@ const LessonDetailPage = () => {
             </div>
 
             <div className="mt-3 overflow-x-auto pb-1 scrollbar-hide">
-              <div className="flex min-w-max items-center">
+              <div className="flex min-w-max items-start">
                 {displayStops.map((stop, index) => {
                   const isDone = index < completedStops;
                   const isCurrent =
@@ -228,21 +252,34 @@ const LessonDetailPage = () => {
                       (!currentStopId && index === completedStops && completedStops < displayStops.length));
                   return (
                     <React.Fragment key={stop.id}>
-                      <div
-                        className={cn(
-                          'h-10 w-10 rounded-full border flex items-center justify-center text-xs',
-                          isDone
-                            ? 'border-[#b51f3d] bg-duoGreen text-white'
-                            : isCurrent
-                              ? 'border-mainAccent bg-mainAccent text-main'
-                              : 'border-mainAlt text-mainAccent'
-                        )}
-                        title={stop.label}
-                      >
-                        {isDone ? <Check className="h-4 w-4" /> : index + 1}
+                      <div className="w-[90px]">
+                        <div
+                          className={cn(
+                            'mx-auto h-10 w-10 rounded-full border flex items-center justify-center text-xs',
+                            isDone
+                              ? 'border-[#b51f3d] bg-duoGreen text-white'
+                              : isCurrent
+                                ? 'border-mainAccent bg-mainAccent text-main'
+                                : 'border-mainAlt text-mainAccent'
+                          )}
+                          title={stop.label}
+                        >
+                          {isDone ? <Check className="h-4 w-4" /> : index + 1}
+                        </div>
+                        <p
+                          className="mt-2 h-8 overflow-hidden text-center text-[11px] leading-4 text-mainAccent/85 dark:text-white/85 break-words"
+                          title={stop.label}
+                        >
+                          {stop.label}
+                        </p>
                       </div>
                       {index < displayStops.length - 1 ? (
-                        <div className={cn('h-[2px] w-7 mx-1', index < completedStops - 1 ? 'bg-duoGreen' : 'bg-mainAlt')} />
+                        <div
+                          className={cn(
+                            'mt-5 h-[2px] w-8 mx-1',
+                            index < completedStops - 1 ? 'bg-duoGreen' : 'bg-mainAlt'
+                          )}
+                        />
                       ) : null}
                     </React.Fragment>
                   );
