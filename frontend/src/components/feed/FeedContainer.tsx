@@ -15,10 +15,17 @@ import {
   saveContent,
   shareContent,
   trackContentView,
+  trackContentPlaybackEvent,
   unlikeContent,
   unsaveContent,
   type ContentComment,
 } from '@/lib/api';
+import type { FeedVideoPlaybackMetrics, FeedVideoPreload } from './FeedVideoPlayer';
+import {
+  ACTIVE_VISIBILITY_THRESHOLD,
+  VIEW_TRACKING_THRESHOLD,
+  chooseActiveFeedIndex,
+} from './feedActivation';
 import { toast } from '@/components/ui/sonner';
 import { Button } from '@/components/ui/button';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -52,7 +59,7 @@ export function FeedContainer({
   const navigate = useNavigate();
   const location = useLocation();
   const containerHeightClass =
-    'h-[calc(100vh-var(--bottom-nav-height)-var(--safe-area-bottom))] md:h-[calc(100vh-4rem)]';
+    'h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom))] md:h-[calc(100dvh-4rem)]';
   const [hiddenContentIds, setHiddenContentIds] = useState<Set<string>>(() => new Set());
   const [takingDownContentId, setTakingDownContentId] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
@@ -72,6 +79,8 @@ export function FeedContainer({
   const [likeCountsByContent, setLikeCountsByContent] = useState<Record<string, number>>({});
   const [likePendingByContent, setLikePendingByContent] = useState<Record<string, boolean>>({});
   const [pausedByContent, setPausedByContent] = useState<Record<string, boolean>>({});
+  const [blockedByContent, setBlockedByContent] = useState<Record<string, boolean>>({});
+  const [userHasInteracted, setUserHasInteracted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const visibilityRatiosRef = useRef<Record<string, number>>({});
@@ -99,6 +108,14 @@ export function FeedContainer({
     const previousActiveId = previousActiveContentIdRef.current;
     if (previousActiveId && previousActiveId !== currentActiveId) {
       setPausedByContent((prev) => {
+        if (prev[previousActiveId] === undefined) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[previousActiveId];
+        return next;
+      });
+      setBlockedByContent((prev) => {
         if (prev[previousActiveId] === undefined) {
           return prev;
         }
@@ -200,29 +217,24 @@ export function FeedContainer({
           visibilityRatiosRef.current[contentId] = entry.isIntersecting ? entry.intersectionRatio : 0;
         });
 
-        let bestIndex = -1;
-        let bestRatio = -1;
+        const nextActiveIndex = chooseActiveFeedIndex(
+          visibleContents,
+          visibilityRatiosRef.current,
+          activeIndexRef.current
+        );
 
-        visibleContents.forEach((content, index) => {
-          const ratio = visibilityRatiosRef.current[content.id] ?? 0;
-          if (ratio >= 0.6 && ratio > bestRatio) {
-            bestRatio = ratio;
-            bestIndex = index;
-          }
-        });
-
-        if (bestIndex >= 0) {
-          if (bestIndex !== activeIndexRef.current) {
-            setActiveIndex(bestIndex);
+        if (nextActiveIndex >= 0) {
+          if (nextActiveIndex !== activeIndexRef.current) {
+            setActiveIndex(nextActiveIndex);
           }
         } else if (activeIndexRef.current !== -1) {
-          // No feed card is >= 60% visible (e.g. end-of-feed card), so pause all media.
+          // No feed card is >= activation visibility threshold (e.g. end-of-feed card), so pause all media.
           setActiveIndex(-1);
         }
       },
       {
         root: container,
-        threshold: [0, 0.25, 0.5, 0.6, 0.75, 1],
+        threshold: [0, 0.1, 0.2, ACTIVE_VISIBILITY_THRESHOLD, 0.5, 0.75, 1],
       }
     );
 
@@ -250,7 +262,7 @@ export function FeedContainer({
     const contentId = activeContent.id;
     viewTimerRef.current = window.setTimeout(() => {
       const ratio = visibilityRatiosRef.current[contentId] ?? 0;
-      if (ratio < 0.6 || trackedViewsRef.current.has(contentId)) {
+      if (ratio < VIEW_TRACKING_THRESHOLD || trackedViewsRef.current.has(contentId)) {
         return;
       }
       trackedViewsRef.current.add(contentId);
@@ -532,6 +544,14 @@ export function FeedContainer({
   };
 
   const handleTogglePlayback = useCallback((contentId: string) => {
+    setBlockedByContent((prev) => {
+      if (prev[contentId] === undefined) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[contentId];
+      return next;
+    });
     setPausedByContent((prev) => ({
       ...prev,
       [contentId]: !Boolean(prev[contentId]),
@@ -539,6 +559,10 @@ export function FeedContainer({
   }, []);
 
   const handlePlaybackBlocked = useCallback((contentId: string) => {
+    setBlockedByContent((prev) => ({
+      ...prev,
+      [contentId]: true,
+    }));
     setPausedByContent((prev) => {
       if (prev[contentId]) {
         return prev;
@@ -547,6 +571,48 @@ export function FeedContainer({
         ...prev,
         [contentId]: true,
       };
+    });
+  }, []);
+
+  const handlePlaybackStarted = useCallback((contentId: string) => {
+    setBlockedByContent((prev) => {
+      if (prev[contentId] === undefined) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[contentId];
+      return next;
+    });
+  }, []);
+
+  const handleMediaInteraction = useCallback((contentId: string) => {
+    setUserHasInteracted(true);
+    setBlockedByContent((prev) => {
+      if (prev[contentId] === undefined) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[contentId];
+      return next;
+    });
+  }, []);
+
+  const handlePlaybackMetrics = useCallback((contentId: string, metrics: FeedVideoPlaybackMetrics) => {
+    if (metrics.debugTimingsMs) {
+      console.debug('feed-video-startup-debug', contentId, metrics.debugTimingsMs);
+    }
+    const nav = navigator as Navigator & { connection?: { effectiveType?: string } };
+    void trackContentPlaybackEvent(contentId, {
+      startupMs: metrics.startupMs,
+      stallCount: metrics.stallCount,
+      stalledMs: metrics.stalledMs,
+      watchMs: metrics.watchMs,
+      playSuccess: metrics.playSuccess,
+      autoplayBlockedCount: metrics.autoplayBlockedCount,
+      networkType: nav.connection?.effectiveType ?? null,
+      userAgent: navigator.userAgent ?? null,
+    }).catch((error) => {
+      console.warn('Failed to track playback metrics', error);
     });
   }, []);
 
@@ -575,32 +641,49 @@ export function FeedContainer({
             data-content-id={content.id}
             className="h-full w-full snap-start snap-always"
           >
-            <FeedCard
-              content={content}
-              isActive={index === activeIndex}
-              shouldMountMedia={Math.abs(index - activeIndex) <= 2}
-              isPaused={Boolean(pausedByContent[content.id])}
-              isSaved={Boolean(savedByContent[content.id])}
-              isSavePending={Boolean(savePendingByContent[content.id])}
-              isLiked={Boolean(likedByContent[content.id])}
-              likeCount={getLikeCountForContent(content)}
-              isLikePending={Boolean(likePendingByContent[content.id])}
-              commentCount={getCommentCountForContent(content)}
-              onLearnMoreClick={() => handleLearnMoreClick(content)}
-              onCommentClick={() => handleCommentClick(content)}
-              onLikeToggle={(nextLiked) => void handleLikeToggle(content, nextLiked)}
-              onSave={() => void handleSave(content.id)}
-              onShare={() => handleShare(content)}
-              onFlag={() => handleFlag(content.id)}
-              onQuizClick={() => handleQuizClick(content)}
-              onTogglePlayback={() => handleTogglePlayback(content.id)}
-              onPlaybackBlocked={() => handlePlaybackBlocked(content.id)}
-              showEdit={isAdminUser && content.content_type === 'video'}
-              onEdit={() => handleEdit(content)}
-              showTakeDown={isAdminUser && content.content_type === 'video'}
-              onTakeDown={() => handleTakeDown(content.id)}
-              isTakingDown={takingDownContentId === content.id}
-            />
+            {(() => {
+              const distanceFromActive =
+                activeIndex >= 0 ? Math.abs(index - activeIndex) : Number.POSITIVE_INFINITY;
+              const shouldMountMedia = distanceFromActive <= 1;
+              const preload: FeedVideoPreload =
+                distanceFromActive === 0 ? 'auto' : distanceFromActive === 1 ? 'auto' : 'none';
+              const isPlaybackBlocked = Boolean(blockedByContent[content.id]);
+              const shouldAutoplay = index === activeIndex && (userHasInteracted || !isPlaybackBlocked);
+              return (
+                <FeedCard
+                  content={content}
+                  isActive={index === activeIndex}
+                  shouldMountMedia={shouldMountMedia}
+                  preload={preload}
+                  shouldAutoplay={shouldAutoplay}
+                  isPaused={Boolean(pausedByContent[content.id])}
+                  isPlaybackBlocked={isPlaybackBlocked}
+                  isSaved={Boolean(savedByContent[content.id])}
+                  isSavePending={Boolean(savePendingByContent[content.id])}
+                  isLiked={Boolean(likedByContent[content.id])}
+                  likeCount={getLikeCountForContent(content)}
+                  isLikePending={Boolean(likePendingByContent[content.id])}
+                  commentCount={getCommentCountForContent(content)}
+                  onLearnMoreClick={() => handleLearnMoreClick(content)}
+                  onCommentClick={() => handleCommentClick(content)}
+                  onLikeToggle={(nextLiked) => void handleLikeToggle(content, nextLiked)}
+                  onSave={() => void handleSave(content.id)}
+                  onShare={() => handleShare(content)}
+                  onFlag={() => handleFlag(content.id)}
+                  onQuizClick={() => handleQuizClick(content)}
+                  onTogglePlayback={() => handleTogglePlayback(content.id)}
+                  onPlaybackBlocked={() => handlePlaybackBlocked(content.id)}
+                  onPlaybackStarted={() => handlePlaybackStarted(content.id)}
+                  onPlaybackMetrics={(metrics) => handlePlaybackMetrics(content.id, metrics)}
+                  onMediaInteraction={() => handleMediaInteraction(content.id)}
+                  showEdit={isAdminUser && content.content_type === 'video'}
+                  onEdit={() => handleEdit(content)}
+                  showTakeDown={isAdminUser && content.content_type === 'video'}
+                  onTakeDown={() => handleTakeDown(content.id)}
+                  isTakingDown={takingDownContentId === content.id}
+                />
+              );
+            })()}
           </div>
         ))}
 

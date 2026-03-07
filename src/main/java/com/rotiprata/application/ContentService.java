@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.dto.ContentCommentCreateRequest;
 import com.rotiprata.api.dto.ContentCommentResponse;
 import com.rotiprata.api.dto.ContentFlagRequest;
+import com.rotiprata.api.dto.ContentPlaybackEventRequest;
 import com.rotiprata.api.dto.ContentSearchDTO;
 import com.rotiprata.domain.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
@@ -18,6 +19,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
@@ -26,6 +29,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class ContentService {
+    private static final Logger log = LoggerFactory.getLogger(ContentService.class);
 
     private static final String ID = "id";
     private static final String TITLE = "title";
@@ -92,6 +96,7 @@ public class ContentService {
         List<Map<String, Object>> enriched = contentCreatorEnrichmentService.enrichWithCreatorProfiles(decorated);
         Map<String, Object> item = enriched.get(0);
         item.put("tags", fetchTagsForContent(contentId));
+        attachStreamFields(item);
         return item;
     }
 
@@ -191,6 +196,32 @@ public class ContentService {
             ),
             MAP_LIST
         );
+    }
+
+    public void recordPlaybackEvent(UUID userId, UUID contentId, ContentPlaybackEventRequest request) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        ensureContentExists(contentId);
+
+        Map<String, Object> insert = new LinkedHashMap<>();
+        insert.put("content_id", contentId);
+        insert.put("user_id", userId);
+        insert.put("startup_ms", request.startupMs());
+        insert.put("stall_count", request.stallCount());
+        insert.put("stalled_ms", request.stalledMs());
+        insert.put("watch_ms", request.watchMs());
+        insert.put("play_success", request.playSuccess());
+        insert.put("autoplay_blocked_count", request.autoplayBlockedCount());
+        insert.put("network_type", normalizeNullableText(request.networkType()));
+        insert.put("user_agent", normalizeNullableText(request.userAgent()));
+        insert.put("created_at", OffsetDateTime.now());
+
+        try {
+            supabaseAdminRestClient.postList("content_playback_events", insert, MAP_LIST);
+        } catch (ResponseStatusException ex) {
+            log.debug("Failed to persist playback event for content {}: {}", contentId, ex.getReason());
+        }
     }
 
     public void likeContent(UUID userId, UUID contentId, String accessToken) {
@@ -682,6 +713,23 @@ public class ContentService {
 
     private String toStringOrNull(Object value) {
         return value == null ? null : value.toString();
+    }
+
+    private void attachStreamFields(Map<String, Object> item) {
+        if (item == null) {
+            return;
+        }
+        String mediaUrl = toStringOrNull(item.get("media_url"));
+        if (mediaUrl == null || mediaUrl.isBlank()) {
+            return;
+        }
+        item.put("stream_url", mediaUrl);
+        String lower = mediaUrl.toLowerCase();
+        if (lower.contains(".m3u8")) {
+            item.put("stream_type", "hls");
+            return;
+        }
+        item.put("stream_type", "file");
     }
 
     private String normalizeNullableText(String value) {

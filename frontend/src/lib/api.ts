@@ -172,6 +172,17 @@ export type ContentComment = {
   updatedAt?: string | null;
 };
 
+export type ContentPlaybackEventPayload = {
+  startupMs?: number | null;
+  stallCount?: number | null;
+  stalledMs?: number | null;
+  watchMs?: number | null;
+  playSuccess?: boolean | null;
+  autoplayBlockedCount?: number | null;
+  networkType?: string | null;
+  userAgent?: string | null;
+};
+
 const withMockFallback = async <T>(
   label: string,
   fallback: () => T,
@@ -652,6 +663,9 @@ export const saveAdminContentQuiz = (contentId: string, questions: Partial<QuizQ
   apiPut<QuizQuestion[]>(`/admin/content/${contentId}/quiz`, { questions });
 
 export const trackContentView = (contentId: string) => apiPost<void>(`/content/${contentId}/view`);
+
+export const trackContentPlaybackEvent = (contentId: string, payload: ContentPlaybackEventPayload) =>
+  apiPost<void>(`/content/${contentId}/playback-events`, payload);
 
 export const likeContent = (contentId: string) => apiPost<void>(`/content/${contentId}/like`);
 

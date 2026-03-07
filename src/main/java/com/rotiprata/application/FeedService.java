@@ -23,6 +23,37 @@ public class FeedService {
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
     private static final int DEFAULT_LIMIT = 20;
     private static final int MAX_LIMIT = 50;
+    private static final String FEED_SELECT = String.join(
+        ",",
+        "id",
+        "creator_id",
+        "title",
+        "description",
+        "content_type",
+        "media_url",
+        "thumbnail_url",
+        "category_id",
+        "status",
+        "learning_objective",
+        "origin_explanation",
+        "definition_literal",
+        "definition_used",
+        "older_version_reference",
+        "educational_value_votes",
+        "view_count",
+        "is_featured",
+        "reviewed_by",
+        "reviewed_at",
+        "review_feedback",
+        "created_at",
+        "updated_at",
+        "is_submitted",
+        "media_status",
+        "likes_count",
+        "comments_count",
+        "saves_count",
+        "shares_count"
+    );
 
     private final SupabaseRestClient supabaseRestClient;
     private final ContentEngagementService contentEngagementService;
@@ -45,8 +76,12 @@ public class FeedService {
         long startedAt = System.currentTimeMillis();
 
         Map<String, String> params = new LinkedHashMap<>();
-        params.put("select", "*");
+        params.put("select", FEED_SELECT);
         params.put("status", "eq.approved");
+        params.put("is_submitted", "eq.true");
+        params.put("content_type", "eq.video");
+        params.put("media_status", "eq.ready");
+        params.put("media_url", "not.is.null");
         params.put("order", "created_at.desc,id.desc");
         params.put("limit", String.valueOf(boundedLimit + 1));
         if (cursorKey != null) {
@@ -57,12 +92,7 @@ public class FeedService {
             );
         }
 
-        List<Map<String, Object>> rows = supabaseRestClient.getList(
-            "content",
-            buildQuery(params),
-            token,
-            MAP_LIST
-        );
+        List<Map<String, Object>> rows = fetchFeedRowsWithFallback(params, token);
 
         boolean hasMore = rows.size() > boundedLimit;
         List<Map<String, Object>> items = hasMore ? rows.subList(0, boundedLimit) : rows;
@@ -72,6 +102,7 @@ public class FeedService {
             token
         );
         List<Map<String, Object>> enriched = contentCreatorEnrichmentService.enrichWithCreatorProfiles(decorated);
+        enriched.forEach(this::attachStreamFields);
 
         String nextCursor = null;
         if (hasMore && !items.isEmpty()) {
@@ -165,6 +196,66 @@ public class FeedService {
         } catch (RuntimeException ex) {
             return null;
         }
+    }
+
+    private void attachStreamFields(Map<String, Object> item) {
+        if (item == null) {
+            return;
+        }
+        Object mediaUrlValue = item.get("media_url");
+        if (mediaUrlValue == null) {
+            return;
+        }
+        String mediaUrl = mediaUrlValue.toString();
+        if (mediaUrl.isBlank()) {
+            return;
+        }
+        item.put("stream_url", mediaUrl);
+        String lower = mediaUrl.toLowerCase();
+        if (lower.contains(".m3u8")) {
+            item.put("stream_type", "hls");
+            return;
+        }
+        item.put("stream_type", "file");
+    }
+
+    private List<Map<String, Object>> fetchFeedRowsWithFallback(Map<String, String> params, String token) {
+        try {
+            return supabaseRestClient.getList(
+                "content",
+                buildQuery(params),
+                token,
+                MAP_LIST
+            );
+        } catch (ResponseStatusException ex) {
+            if (!shouldRetryWithoutMediaStatus(ex)) {
+                throw ex;
+            }
+            Map<String, String> fallbackParams = new LinkedHashMap<>(params);
+            fallbackParams.remove("media_status");
+            return supabaseRestClient.getList(
+                "content",
+                buildQuery(fallbackParams),
+                token,
+                MAP_LIST
+            );
+        }
+    }
+
+    private boolean shouldRetryWithoutMediaStatus(ResponseStatusException ex) {
+        String reason = ex.getReason();
+        String message = ex.getMessage();
+        if (reason != null) {
+            String lower = reason.toLowerCase();
+            if (lower.contains("media_status") || lower.contains("pgrst204")) {
+                return true;
+            }
+        }
+        if (message != null) {
+            String lower = message.toLowerCase();
+            return lower.contains("media_status") || lower.contains("pgrst204");
+        }
+        return false;
     }
 
     private record CursorKey(OffsetDateTime createdAt, UUID id) {}

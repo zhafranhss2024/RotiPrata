@@ -19,19 +19,19 @@ export function MainLayout({
 }: MainLayoutProps) {
   if (hideNav) {
     return (
-      <div className={cn("min-h-screen bg-mainDark text-mainAccent dark:text-white", className)}>
+      <div className={cn("min-h-screen bg-main dark:bg-mainDark text-mainAccent dark:text-white", className)}>
         {children}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen h-dvh bg-mainDark text-mainAccent dark:text-white">
+    <div className="min-h-screen h-dvh bg-main dark:bg-mainDark text-mainAccent dark:text-white">
       <DesktopNav />
       <MobileTopBar />
       <main
         className={cn(
-          "h-dvh overflow-y-auto duo-scrollbar pt-16 lg:pt-16",
+          "h-dvh overflow-y-auto duo-scrollbar pt-0 lg:pt-16",
           !fullScreen && "pb-safe lg:pb-0",
           className
         )}

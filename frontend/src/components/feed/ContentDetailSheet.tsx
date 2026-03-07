@@ -18,8 +18,8 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl">
-        <SheetHeader className="text-left">
+      <SheetContent side="bottom" className="h-[85dvh] rounded-t-3xl flex flex-col overflow-hidden">
+        <SheetHeader className="text-left shrink-0">
           <div className="flex items-start gap-3">
             {content.category && <Badge variant="secondary">{content.category.name}</Badge>}
             {content.learning_objective && (
@@ -31,7 +31,7 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
           <SheetTitle className="text-2xl mt-2">{content.title}</SheetTitle>
         </SheetHeader>
 
-        <div className="mt-6 space-y-6 overflow-y-auto pb-safe">
+        <div className="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto pb-safe pr-1">
           {content.description && (
             <div>
               <h3 className="font-semibold text-sm text-muted-foreground mb-2">About</h3>

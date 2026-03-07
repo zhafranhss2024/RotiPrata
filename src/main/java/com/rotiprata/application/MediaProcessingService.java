@@ -29,6 +29,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 public class MediaProcessingService {
     private static final Logger log = LoggerFactory.getLogger(MediaProcessingService.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper().findAndRegisterModules();
+    private static final String CACHE_CONTROL_PLAYLIST = "public,max-age=30";
+    private static final String CACHE_CONTROL_SEGMENT = "public,max-age=31536000,immutable";
+    private static final String CACHE_CONTROL_IMAGE = "public,max-age=604800";
 
     private final MediaProcessingProperties properties;
     private final SupabaseProperties supabaseProperties;
@@ -163,7 +166,7 @@ public class MediaProcessingService {
         String objectPath = "images/" + contentId + "/original" + extension;
         String contentType = extension.equalsIgnoreCase(".png") ? "image/png" : "image/jpeg";
         long stepStart = System.nanoTime();
-        storageClient.uploadObject(bucket, objectPath, Files.readAllBytes(input), contentType);
+        storageClient.uploadObject(bucket, objectPath, Files.readAllBytes(input), contentType, CACHE_CONTROL_IMAGE);
         log.info("TIMING content {} image upload {}s", contentId, elapsedSeconds(stepStart));
         String publicUrlBase = normalizeBaseUrl();
         String imageUrl = publicUrlBase + "/storage/v1/object/public/" + bucket + "/" + objectPath;
@@ -355,7 +358,13 @@ public class MediaProcessingService {
             throw new IllegalStateException("Supabase storage bucket for content media is not configured");
         }
         Path master = outputDir.resolve("master.m3u8");
-        storageClient.uploadObject(bucket, "hls/" + contentId + "/master.m3u8", Files.readAllBytes(master), "application/x-mpegURL");
+        storageClient.uploadObject(
+            bucket,
+            "hls/" + contentId + "/master.m3u8",
+            Files.readAllBytes(master),
+            "application/x-mpegURL",
+            CACHE_CONTROL_PLAYLIST
+        );
 
         List<Path> files;
         try (java.util.stream.Stream<Path> stream = Files.walk(outputDir)) {
@@ -380,7 +389,13 @@ public class MediaProcessingService {
                     : filename.endsWith(".ts") ? "video/MP2T"
                     : filename.endsWith(".jpg") ? "image/jpeg"
                     : "application/octet-stream";
-                storageClient.uploadObject(bucket, targetPath, Files.readAllBytes(path), contentType);
+                storageClient.uploadObject(
+                    bucket,
+                    targetPath,
+                    Files.readAllBytes(path),
+                    contentType,
+                    cacheControlForFilename(filename)
+                );
                 return null;
             }));
         }
@@ -405,7 +420,8 @@ public class MediaProcessingService {
                 bucket,
                 "thumbs/" + contentId + "/poster.jpg",
                 Files.readAllBytes(posterPath),
-                "image/jpeg"
+                "image/jpeg",
+                CACHE_CONTROL_IMAGE
             );
         }
     }
@@ -424,6 +440,23 @@ public class MediaProcessingService {
             return 10;
         }
         return 15;
+    }
+
+    private String cacheControlForFilename(String filename) {
+        if (filename == null) {
+            return CACHE_CONTROL_PLAYLIST;
+        }
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".m3u8")) {
+            return CACHE_CONTROL_PLAYLIST;
+        }
+        if (lower.endsWith(".ts")) {
+            return CACHE_CONTROL_SEGMENT;
+        }
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")) {
+            return CACHE_CONTROL_IMAGE;
+        }
+        return CACHE_CONTROL_PLAYLIST;
     }
 
     private void markReady(UUID contentId, MediaProbe probe) {

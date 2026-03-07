@@ -32,9 +32,17 @@ public class SupabaseStorageClient {
     }
 
     public void uploadObject(String bucket, String path, byte[] data, String contentType) {
+        uploadObject(bucket, path, data, contentType, null);
+    }
+
+    public void uploadObject(String bucket, String path, byte[] data, String contentType, String cacheControl) {
         String encodedPath = encodePath(path);
-        restClient.put()
-            .uri("/object/{bucket}/{path}", bucket, encodedPath)
+        RestClient.RequestBodySpec request = restClient.put()
+            .uri("/object/{bucket}/{path}", bucket, encodedPath);
+        if (cacheControl != null && !cacheControl.isBlank()) {
+            request = request.header(HttpHeaders.CACHE_CONTROL, cacheControl);
+        }
+        request
             .contentType(contentType != null ? MediaType.parseMediaType(contentType) : MediaType.APPLICATION_OCTET_STREAM)
             .body(data)
             .retrieve()

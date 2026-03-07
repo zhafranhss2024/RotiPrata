@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:8080/api`
 
-Last audited: 2026-02-26  
+Last audited: 2026-03-07  
 Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controller.java` and frontend calls in `frontend/src/lib/api.ts`.
 
 ## Security and Error Contract
@@ -62,6 +62,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /content/{contentId}/quiz`
 - `POST /content/{contentId}/quiz/submit`
 - `POST /content/{contentId}/view`
+- `POST /content/{contentId}/playback-events`
 - `POST /content/{contentId}/like`
 - `DELETE /content/{contentId}/like`
 - `POST /content/{contentId}/save`
@@ -121,6 +122,9 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - `limit` (optional): default `20`, max `50`
 - Response:
   - `{ items: Content[], hasMore: boolean, nextCursor: string | null }`
+  - Feed/content items may include:
+    - `stream_url` (currently mirrors `media_url`)
+    - `stream_type` (`hls` when URL contains `.m3u8`, else `file`)
 - Ordering:
   - Stable descending sort on `(created_at desc, id desc)`
 - Pagination behavior:
@@ -157,6 +161,16 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - `403` trying to delete another user's comment without admin role
   - `404` comment/content not found
 
+## Playback Event Contract
+
+- Endpoint: `POST /content/{contentId}/playback-events`
+- Auth: required (`Authorization: Bearer <accessToken>`)
+- Status: `202 Accepted` (best-effort ingestion)
+- Request body fields (all optional):
+  - `startupMs`, `stallCount`, `stalledMs`, `watchMs`
+  - `playSuccess`, `autoplayBlockedCount`
+  - `networkType`, `userAgent`
+
 ## Frontend Parity Checklist (`frontend/src/lib/api.ts`)
 
 ### Feed / Explore
@@ -188,6 +202,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /content/{id}/quiz` -> implemented
 - `POST /content/{id}/quiz/submit` -> implemented
 - `POST /content/{id}/view` -> implemented
+- `POST /content/{id}/playback-events` -> implemented
 - `POST /content/{id}/like` -> implemented
 - `DELETE /content/{id}/like` -> implemented
 - `POST /content/{id}/save` -> implemented

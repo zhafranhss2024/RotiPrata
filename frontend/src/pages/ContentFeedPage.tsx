@@ -93,7 +93,7 @@ const ContentFeedPage = () => {
   return (
     <MainLayout fullScreen>
       {error ? (
-        <div className="h-[calc(100vh-var(--bottom-nav-height)-var(--safe-area-bottom))] flex items-center justify-center">
+        <div className="h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom))] flex items-center justify-center">
           <div className="text-center p-6">
             <h2 className="text-xl font-semibold mb-2">Unable to load content</h2>
             <p className="text-muted-foreground">{error}</p>

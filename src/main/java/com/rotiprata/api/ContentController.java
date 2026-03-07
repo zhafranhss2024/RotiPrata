@@ -3,6 +3,7 @@ package com.rotiprata.api;
 import com.rotiprata.api.dto.ContentMediaStartLinkRequest;
 import com.rotiprata.api.dto.ContentMediaStartResponse;
 import com.rotiprata.api.dto.ContentMediaStatusResponse;
+import com.rotiprata.api.dto.ContentPlaybackEventRequest;
 import com.rotiprata.api.dto.ContentFlagRequest;
 import com.rotiprata.api.dto.ContentCommentCreateRequest;
 import com.rotiprata.api.dto.ContentCommentResponse;
@@ -128,6 +129,17 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         contentService.trackView(userId, contentId);
+    }
+
+    @PostMapping("/{contentId}/playback-events")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void trackPlaybackEvent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @Valid @RequestBody ContentPlaybackEventRequest request
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        contentService.recordPlaybackEvent(userId, contentId, request);
     }
 
     @PostMapping("/{contentId}/like")

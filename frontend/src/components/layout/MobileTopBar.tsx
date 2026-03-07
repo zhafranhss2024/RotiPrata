@@ -9,11 +9,11 @@ export function MobileTopBar() {
   const isDesktop = useIsDesktop();
 
   return (
-    <header className="lg:hidden sticky top-0 z-40 border-b border-mainAlt bg-mainDark/95 backdrop-blur">
+    <header className="lg:hidden sticky top-0 z-40 border-b border-mainAlt bg-main dark:bg-mainDark">
       <div className="h-16 px-4 flex items-center justify-between gap-3">
-        <Link to="/lessons" className="inline-flex items-center gap-2">
+        <Link to="/" className="inline-flex items-center gap-2">
           <img src="/icon-images/LEADERBOARD_ICON.png" alt="Rotiprata" className="h-7 w-7 rounded-md object-cover" />
-          <span className="text-mainAccent dark:text-white font-bold text-lg">Learn</span>
+          <span className="text-mainAccent dark:text-white font-bold text-lg">Rotiprata</span>
         </Link>
 
         <div className="inline-flex items-center gap-2">
