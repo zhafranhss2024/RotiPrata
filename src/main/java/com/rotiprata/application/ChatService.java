@@ -1,18 +1,18 @@
 package com.rotiprata.application;
 
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.ai.openai.OpenAIClient;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
 
 @Service
 public class ChatService {
 
-    private final OpenAIClient openAIClient;
+    private final OpenAiChatModel openAiChatModel;
     private final LessonService lessonService;
 
-    @Autowired
-    public ChatService(OpenAIClient openAIClient, LessonService lessonService) {
-        this.openAIClient = openAIClient;
+    public ChatService(OpenAiChatModel openAiChatModel, LessonService lessonService) {
+        this.openAiChatModel = openAiChatModel;
         this.lessonService = lessonService;
     }
 
@@ -20,7 +20,6 @@ public class ChatService {
 
         String context = lessonService.findRelevantLesson(question);
 
-        // Combine into a prompt
         String prompt = """
                 Answer the question using the context.
                 If the answer is not in the context, say "I don't know".
@@ -32,9 +31,10 @@ public class ChatService {
                 %s
                 """.formatted(context, question);
 
-        return openAIClient.completion(request -> {
-            request.model("gpt-4o-mini"); 
-            request.prompt(prompt);
-        }).block().getText(); 
+    return openAiChatModel.call(new Prompt(new UserMessage(prompt)))
+                    .getResult()
+                    .getOutput()
+                    // to check if the below is correct
+                    .getText();
     }
 }

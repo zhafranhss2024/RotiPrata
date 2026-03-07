@@ -62,6 +62,10 @@ public class LessonService {
         this.lessonQuizService = lessonQuizService;
     }
 
+    public List<Map<String, Object>> findRelevantLesson(String question) {
+        
+    }
+
     public List<Map<String, Object>> getLessons(String accessToken) {
         String token = requireAccessToken(accessToken);
         return supabaseRestClient.getList(
