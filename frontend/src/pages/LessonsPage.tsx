@@ -5,7 +5,7 @@ import { Check, Flame, Lock, Star } from 'lucide-react';
 import type { LessonHubLesson, LessonHubResponse } from '@/types';
 import { fetchLessonHub } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import Chatbot from '@/components/ui/Chatbot';
+import Chatbot from '@/components/ui/chatbot';
 
 const HORIZONTAL_SWING = 92;
 const NODE_STEP_HEIGHT = 104;

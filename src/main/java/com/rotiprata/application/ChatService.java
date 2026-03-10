@@ -18,7 +18,9 @@ public class ChatService {
   
     public String ask(String question) {
 
+        System.out.println(question);
         String context = lessonService.findRelevantLesson(question);
+        // System.out.println(context);
 
         String prompt = """
             You are a learning assistant.
@@ -34,10 +36,12 @@ public class ChatService {
             %s
             """.formatted(context, question);
 
-    return openAiChatModel.call(new Prompt(new UserMessage(prompt)))
-                    .getResult()
-                    .getOutput()
-                    // to check if the below is correct
-                    .getText();
+    return null;
+    
+    // openAiChatModel.call(new Prompt(new UserMessage(prompt)))
+    //                 .getResult()
+    //                 .getOutput()
+    //                 // to check if the below is correct
+    //                 .getText();
     }
 }

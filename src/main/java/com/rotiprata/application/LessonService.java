@@ -82,6 +82,8 @@ public class LessonService {
                 MAP_LIST
         );
 
+        System.out.println("Lessons found:" + lessons);
+
         // return only text content to feed LLM
         return lessons.stream()
                 .map(l -> String.join(" ",
@@ -501,32 +503,34 @@ public class LessonService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create lesson");
         }
         Map<String, Object> lesson = created.get(0);
-        // Embedding Logic
-        String textToEmbed = String.join(" ",
-            Objects.toString(lesson.get("title"), ""),
-            Objects.toString(lesson.get("description"), ""),
-            Objects.toString(lesson.get("summary"), ""),
-            Objects.toString(lesson.get("definition_content"), ""),
-            Objects.toString(lesson.get("usage_examples"), "")
-        );
-
-        float[] vector = embeddingService.generateEmbedding(textToEmbed);
-        String vectorString = embeddingService.toPgVector(vector);
-
-        // Store embedding
-        Map<String, Object> update = new HashMap<>();
-        update.put("embedding", vectorString);
-
-        supabaseAdminRestClient.patchList(
-            "lessons",
-            "id=eq." + lesson.get("id"),
-            update,
-            MAP_LIST
-        );
 
         if (!questions.isEmpty()) {
             createQuizWithQuestions(userId, lesson, questions);
         }
+
+        if (publish) {
+            String textToEmbed = String.join(" ",
+                Objects.toString(lesson.get("title"), ""),
+                Objects.toString(lesson.get("description"), ""),
+                Objects.toString(lesson.get("summary"), ""),
+                Objects.toString(lesson.get("definition_content"), ""),
+                Objects.toString(lesson.get("usage_examples"), "")
+            );
+
+            float[] vector = embeddingService.generateEmbedding(textToEmbed);
+            String vectorString = embeddingService.toPgVector(vector);
+
+            Map<String, Object> update = new HashMap<>();
+            update.put("embedding", vectorString);
+
+            supabaseAdminRestClient.patchList(
+                "lessons",
+                "id=eq." + lesson.get("id"),
+                update,
+                MAP_LIST
+            );
+        }
+        
         return lesson;
     }
 
