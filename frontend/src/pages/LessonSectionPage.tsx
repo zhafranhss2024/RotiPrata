@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { ApiError } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
+import Chatbot from '@/components/ui/chatbot';
 
 const STEP_GAP = 116;
 const MAX_VISIBLE_DISTANCE = 3;
@@ -416,6 +417,7 @@ const LessonSectionPage = () => {
           </div>
         ) : null}
       </div>
+      <Chatbot />
     </MainLayout>
   );
 };

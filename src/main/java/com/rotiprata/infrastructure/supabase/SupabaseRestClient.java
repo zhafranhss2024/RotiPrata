@@ -71,6 +71,10 @@ public class SupabaseRestClient {
         return exchangeList("DELETE", path, query, null, accessToken, typeRef);
     }
 
+    public <T> List<T> rpcList(String functionName, Object body, String accessToken, TypeReference<List<T>> typeRef) {
+        return exchangeList("RPC", "rpc/" + functionName, null, body, accessToken, typeRef);
+    }
+
     private <T> List<T> exchangeList(
         String method,
         String path,
@@ -123,6 +127,16 @@ public class SupabaseRestClient {
                 }
                 responseBody = request
                     .header("Prefer", "return=representation")
+                    .retrieve()
+                    .body(String.class);
+            } else if ("RPC".equals(method)) {
+                var request = restClient.post().uri(uri);
+
+                if (accessToken != null && !accessToken.isBlank()) {
+                    request = request.header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+                }
+                responseBody = request
+                    .body(serialize(body))
                     .retrieve()
                     .body(String.class);
             } else {

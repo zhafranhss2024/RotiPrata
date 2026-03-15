@@ -451,6 +451,7 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
   const [highlightedQuestionId, setHighlightedQuestionId] = useState<string | null>(null);
   const [lessonForm, setLessonForm] = useState<LessonDraftForm>(() => normalizeLessonDraft(null));
   const [questions, setQuestions] = useState<AdminQuizQuestionDraft[]>([]);
+  const [skipEmbedding, setSkipEmbedding] = useState(false);
 
   const questionErrorsByIndex = useMemo(() => {
     const map = new Map<number, string>();
@@ -718,11 +719,16 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
     setDraftQuestion(nextQuestion);
   };
 
-  const handlePublish = async () => {
+  const handlePublish = async (options?: { skip_embedding?: boolean }) => {
     if (!lessonId) return;
     setIsPublishing(true);
     setGlobalError(null);
     try {
+      const lessonPayload = {
+        ...toLessonPayload(lessonForm),
+        ...(options?.skip_embedding !== undefined && { skip_embedding: options.skip_embedding }),
+      };
+
       const result = await publishAdminLesson(lessonId, {
         lesson: toLessonPayload(lessonForm),
         questions,
@@ -1290,7 +1296,20 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
               </ul>
             </div>
           ) : null}
-          <Button onClick={handlePublish} disabled={isPublishing} className="w-full">
+          {/* Skip Embedding Checkbox */}
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="skip-embedding"
+              checked={skipEmbedding}
+              onChange={(e) => setSkipEmbedding(e.target.checked)}
+              className="h-4 w-4 rounded border"
+            />
+            <label htmlFor="skip-embedding" className="text-sm">
+              Skip embedding for this lesson
+            </label>
+          </div>
+          <Button onClick={() => handlePublish({ skip_embedding: skipEmbedding })} disabled={isPublishing} className="w-full">
             {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
             Publish Lesson
           </Button>

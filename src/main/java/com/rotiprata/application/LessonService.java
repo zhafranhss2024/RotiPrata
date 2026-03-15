@@ -23,8 +23,11 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
@@ -50,16 +53,54 @@ public class LessonService {
     private final SupabaseRestClient supabaseRestClient;
     private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final LessonQuizService lessonQuizService;
+    private final EmbeddingService embeddingService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public LessonService(
         SupabaseRestClient supabaseRestClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
-        LessonQuizService lessonQuizService
+        LessonQuizService lessonQuizService,
+        EmbeddingService embeddingService
     ) {
         this.supabaseRestClient = supabaseRestClient;
         this.supabaseAdminRestClient = supabaseAdminRestClient;
         this.lessonQuizService = lessonQuizService;
+        this.embeddingService = embeddingService;
+    }
+
+    public String findRelevantLesson(String accessToken, String question) {
+        float[] qVector = embeddingService.generateEmbedding(question);
+
+        String vectorString = embeddingService.toPgVector(qVector);
+
+        // pgvector query: order by similarity, top 3 lessons
+        Map<String, Object> body = Map.of(
+            "vec", vectorString,
+            "k", 3
+        );
+
+        List<Map<String, Object>> lessons =
+            supabaseRestClient.rpcList(
+                "top_k_lessons",
+                body,
+                accessToken,
+                MAP_LIST
+            );
+
+        // return only text content to feed LLM
+        return lessons.stream()
+                .map(l -> String.join(" ",
+                    Objects.toString(l.get("title"), ""),
+                    Objects.toString(l.get("description"), ""),
+                    Objects.toString(l.get("summary"), ""),
+                    Objects.toString(l.get("definition_content"), ""),
+                    Objects.toString(l.get("usage_examples"), ""),
+                    Objects.toString(l.get("origin_content"), ""),
+                    Objects.toString(l.get("lore_content"), ""),
+                    Objects.toString(l.get("evolution_content"), ""),
+                    Objects.toString(l.get("comparison_content"), "")
+                ))
+                .collect(Collectors.joining("\n\n"));
     }
 
     public List<Map<String, Object>> getLessons(String accessToken) {
@@ -469,10 +510,42 @@ public class LessonService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create lesson");
         }
         Map<String, Object> lesson = created.get(0);
+
         if (!questions.isEmpty()) {
             createQuizWithQuestions(userId, lesson, questions);
         }
-        return lesson;
+
+        Boolean skipEmbedding = parseBoolean(payload.get("skip_embedding"));
+        boolean shouldEmbed = !Boolean.TRUE.equals(skipEmbedding);
+
+        if (publish && shouldEmbed) {
+                String textToEmbed = String.join(" ",
+                    Objects.toString(lesson.get("title"), ""),
+                    Objects.toString(lesson.get("description"), ""),
+                    Objects.toString(lesson.get("summary"), ""),
+                    Objects.toString(lesson.get("definition_content"), ""),
+                    Objects.toString(lesson.get("usage_examples"), ""),
+                    Objects.toString(lesson.get("origin_content"), ""),
+                    Objects.toString(lesson.get("lore_content"), ""),
+                    Objects.toString(lesson.get("evolution_content"), ""),
+                    Objects.toString(lesson.get("comparison_content"), "")
+                );
+
+                float[] vector = embeddingService.generateEmbedding(textToEmbed);
+                String vectorString = embeddingService.toPgVector(vector);
+
+                Map<String, Object> update = new HashMap<>();
+                update.put("embedding", vectorString);
+
+                supabaseAdminRestClient.patchList(
+                    "lessons",
+                    "id=eq." + lesson.get("id"),
+                    update,
+                    MAP_LIST
+                );
+            }
+
+            return lesson;
     }
 
 
@@ -534,7 +607,48 @@ public class LessonService {
         if (updated.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to update lesson");
         }
-        return updated.get(0);
+        
+        Map<String, Object> updatedLesson = updated.get(0);
+
+        // Fields that affect embeddings
+        // List<String> embeddingFields = List.of(
+        //         "title", "description", "summary", "definition_content",
+        //         "usage_examples", "origin_content", "lore_content",
+        //         "evolution_content", "comparison_content"
+        // );
+
+        // // Only re-embed if published AND at least one embedding field changed
+        // boolean shouldReembed = Boolean.TRUE.equals(publishTarget) &&
+        //         patch.keySet().stream().anyMatch(embeddingFields::contains);
+
+        // if (shouldReembed) {
+        //     String textToEmbed = String.join(" ",
+        //             Objects.toString(updatedLesson.get("title"), ""),
+        //             Objects.toString(updatedLesson.get("description"), ""),
+        //             Objects.toString(updatedLesson.get("summary"), ""),
+        //             Objects.toString(updatedLesson.get("definition_content"), ""),
+        //             Objects.toString(updatedLesson.get("usage_examples"), ""),
+        //             Objects.toString(updatedLesson.get("origin_content"), ""),
+        //             Objects.toString(updatedLesson.get("lore_content"), ""),
+        //             Objects.toString(updatedLesson.get("evolution_content"), ""),
+        //             Objects.toString(updatedLesson.get("comparison_content"), "")
+        //     );
+
+        //     float[] vector = embeddingService.generateEmbedding(textToEmbed);
+        //     String vectorString = embeddingService.toPgVector(vector);
+
+        //     Map<String, Object> embeddingUpdate = new HashMap<>();
+        //     embeddingUpdate.put("embedding", vectorString);
+
+        //     supabaseAdminRestClient.patchList(
+        //             "lessons",
+        //             buildQuery(Map.of("id", "eq." + lessonId)),
+        //             embeddingUpdate,
+        //             MAP_LIST
+        //     );
+        // }
+
+        return updatedLesson;
     }
 
     public void deleteLesson(UUID userId, UUID lessonId, String accessToken) {

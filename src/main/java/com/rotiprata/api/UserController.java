@@ -4,12 +4,14 @@ import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
 import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.application.BrowsingService;
+import com.rotiprata.application.ChatService;
 import com.rotiprata.application.LessonQuizService;
 import com.rotiprata.application.LessonService;
 import com.rotiprata.application.UserService;
 import com.rotiprata.domain.Profile;
 import com.rotiprata.domain.ThemePreference;
 import com.rotiprata.security.SecurityUtils;
+
 import jakarta.validation.Valid;
 
 import java.util.List;
@@ -20,6 +22,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import com.rotiprata.api.dto.ChatbotMessageDTO;
+
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -28,17 +32,20 @@ public class UserController {
     private final LessonService lessonService;
     private final LessonQuizService lessonQuizService;
     private final BrowsingService browsingService;
+    private final ChatService chatService;
 
     public UserController(
             UserService userService,
             LessonService lessonService,
             LessonQuizService lessonQuizService,
-            BrowsingService browsingService
+            BrowsingService browsingService,
+            ChatService chatService
     ) {
         this.userService = userService;
         this.lessonService = lessonService;
         this.lessonQuizService = lessonQuizService;
         this.browsingService = browsingService;
+        this.chatService = chatService;
     }
 
     @GetMapping("/me")
@@ -151,5 +158,27 @@ public class UserController {
             "heartsRemaining", hearts.heartsRemaining(),
             "heartsRefillAt", hearts.heartsRefillAt()
         );
+    }
+
+    @PostMapping("/me/chat")
+    public void saveMessages(
+        @AuthenticationPrincipal Jwt jwt, 
+        @RequestBody ChatbotMessageDTO dto
+    ) {
+        chatService.saveMessages(SecurityUtils.getAccessToken(), dto.getMessage(), dto.getRole());
+    }
+
+    @GetMapping("/me/chat")
+    public List<ChatbotMessageDTO> getMessageHistory (@AuthenticationPrincipal Jwt jwt) {
+        String userId = jwt.getSubject();
+        return chatService.getMessageHistory(SecurityUtils.getAccessToken(), userId);
+    }
+
+    @DeleteMapping("/me/chat")
+    public void deleteMessageHistory(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        String userId = jwt.getSubject();
+        chatService.deleteMessageHistory(SecurityUtils.getAccessToken(), userId);
     }
 }

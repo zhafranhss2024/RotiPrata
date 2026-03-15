@@ -53,6 +53,16 @@ import {
 } from "@/mocks/explore";
 import { mockAuthUser, mockRoles } from "@/mocks/auth";
 
+export type ChatResponse = {
+  reply: string;
+};
+
+export type ChatbotMessageDTO = {
+  role: string;
+  message: string;
+  timestamp: string;
+}
+
 export type FeedResponse = {
   items: Content[];
   hasMore: boolean;
@@ -340,6 +350,15 @@ export const searchContent = (query: string, filter?: string | null) =>
     () => [],
     () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
+
+export const sendChatMessage = (message: string) =>
+  apiPost<ChatResponse>(`/chat`, message);
+
+export const getChatHistory = () =>
+  apiGet<ChatbotMessageDTO[]>(`/users/me/chat`);
+
+export const startNewChat = () =>
+  apiDelete<void>(`/users/me/chat`);
 
 export const saveBrowsingHistory = (query: string) => {
   const body = { query, searched_at: new Date().toISOString() }

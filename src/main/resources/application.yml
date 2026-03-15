@@ -7,6 +7,12 @@ spring:
     multipart:
       max-file-size: ${MEDIA_MAX_FILE_SIZE:200MB}
       max-request-size: ${MEDIA_MAX_FILE_SIZE:200MB}
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-4o-mini
 server:
   port: ${PORT:8080}
 

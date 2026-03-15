@@ -31,6 +31,7 @@ import { emitHeartsUpdated } from "@/lib/heartsEvents";
 import { cn } from "@/lib/utils";
 import { MatchPairsBoard } from "@/components/quiz/MatchPairsBoard";
 import { ConversationBoard } from "@/components/quiz/ConversationBoard";
+import Chatbot from '@/components/ui/chatbot';
 
 type ClozeTemplatePart = { kind: "text"; value: string } | { kind: "blank"; blankId: string };
 type ClozeBankOption = {
@@ -1051,6 +1052,7 @@ const LessonQuizPage = () => {
         )}
 
       </div>
+      <Chatbot />
     </MainLayout>
   );
 };
