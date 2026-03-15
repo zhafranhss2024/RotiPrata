@@ -169,8 +169,16 @@ public class UserController {
     }
 
     @GetMapping("/me/chat")
-    public List<ChatbotMessageDTO> getHistory (@AuthenticationPrincipal Jwt jwt) {
+    public List<ChatbotMessageDTO> getMessageHistory (@AuthenticationPrincipal Jwt jwt) {
         String userId = jwt.getSubject();
-        return chatService.getHistory(SecurityUtils.getAccessToken(), userId);
+        return chatService.getMessageHistory(SecurityUtils.getAccessToken(), userId);
+    }
+
+    @DeleteMapping("/me/chat")
+    public void deleteMessageHistory(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        String userId = jwt.getSubject();
+        chatService.deleteMessageHistory(SecurityUtils.getAccessToken(), userId);
     }
 }

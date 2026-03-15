@@ -72,7 +72,6 @@ public class LessonService {
         float[] qVector = embeddingService.generateEmbedding(question);
 
         String vectorString = embeddingService.toPgVector(qVector);
-        System.out.println(vectorString);
 
         // pgvector query: order by similarity, top 3 lessons
         Map<String, Object> body = Map.of(
@@ -88,24 +87,18 @@ public class LessonService {
                 MAP_LIST
             );
 
-        for (Map<String, Object> lesson : lessons) {
-            System.out.println("----- LESSON -----");
-            System.out.println("Title: " + lesson.get("title"));
-            System.out.println("Summary: " + lesson.get("summary"));
-            System.out.println("Description: " + lesson.get("description"));
-            System.out.println("Definition: " + lesson.get("definition_content"));
-            System.out.println("Usage: " + lesson.get("usage_examples"));
-            System.out.println();
-        }
-
         // return only text content to feed LLM
         return lessons.stream()
                 .map(l -> String.join(" ",
-                        Objects.toString(l.get("title"), ""),
-                        Objects.toString(l.get("description"), ""),
-                        Objects.toString(l.get("summary"), ""),
-                        Objects.toString(l.get("definition_content"), ""),
-                        Objects.toString(l.get("usage_examples"), "")
+                    Objects.toString(l.get("title"), ""),
+                    Objects.toString(l.get("description"), ""),
+                    Objects.toString(l.get("summary"), ""),
+                    Objects.toString(l.get("definition_content"), ""),
+                    Objects.toString(l.get("usage_examples"), ""),
+                    Objects.toString(l.get("origin_content"), ""),
+                    Objects.toString(l.get("lore_content"), ""),
+                    Objects.toString(l.get("evolution_content"), ""),
+                    Objects.toString(l.get("comparison_content"), "")
                 ))
                 .collect(Collectors.joining("\n\n"));
     }

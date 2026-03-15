@@ -2,6 +2,7 @@ package com.rotiprata.application;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
@@ -31,23 +32,16 @@ public class ChatService {
 
         saveMessages(accessToken, question, "user");
 
-        System.out.println(question);
         String context = lessonService.findRelevantLesson(accessToken, question);
-        
-        System.out.println("===== QUESTION =====");
-        System.out.println(question);
-
-        System.out.println("===== CONTEXT =====");
-        System.out.println(context);
-
-        System.out.println("====================");
 
         String prompt = """
-            You are a learning assistant.
+        You are a learning assistant.
 
-            Answer the question using the provided context.
-            Explain in your own words in a simple and friendly way, suitable for a learner.
-            If the answer is not in the context, reply with "I don't know".
+        Answer the question using the provided context.
+        Explain in your own words in a simple and friendly way, suitable for a learner.
+        If the answer is not explicitly in the context, you may infer the most likely answer based on clues in the context.
+        If there is truly no way to answer, reply with "I don't know".
+
 
             Context:
             %s
@@ -63,7 +57,6 @@ public class ChatService {
 
         saveMessages(accessToken, result, "assistant");
 
-        System.out.println(result);
         return result;
     }
 
@@ -85,7 +78,7 @@ public class ChatService {
         );
     }
 
-    public List<ChatbotMessageDTO> getHistory(String accessToken, String userId) {
+    public List<ChatbotMessageDTO> getMessageHistory(String accessToken, String userId) {
 
         String query = "user_id=eq." + userId + "&order=timestamp.asc";
 
@@ -94,6 +87,18 @@ public class ChatService {
             query,
             accessToken,
             new TypeReference<List<ChatbotMessageDTO>>() {}
+        );
+    }
+
+    public void deleteMessageHistory(String accessToken, String userId) {
+
+        String query = "user_id=eq." + userId;
+
+        supabaseRestClient.deleteList(
+            "user_chatbot_history", 
+            query, 
+            accessToken, 
+            new TypeReference<List<Map<String, Object>>>() {}
         );
     }
 }

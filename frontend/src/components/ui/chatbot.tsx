@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Input } from "./input.tsx";
-import { sendChatMessage, getChatHistory } from "@/lib/api.ts";
+import { sendChatMessage, getChatHistory, startNewChat } from "@/lib/api.ts";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -25,6 +25,19 @@ const Chatbot = () => {
       inputEl?.focus();
     }, 0);
     (e.currentTarget as HTMLButtonElement).blur();
+  };
+
+  // Handle new chat
+  const handleStartNewChat = async () => {
+    try {
+      await startNewChat(); 
+
+      // reset the UI
+      setMessages([]);
+      setInput("");
+    } catch (error) {
+      console.error("Failed to start new chat:", error);
+    }
   };
 
   // Send user message and get AI reply
@@ -109,7 +122,7 @@ const Chatbot = () => {
       <button
         ref={chatButtonRef}
         onClick={toggleChat}
-        className={`fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center
+        className={`fixed bottom-24 lg:bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center
                     transition-all duration-300 shadow hover:scale-110 focus:outline-none
                     ${isOpen ? "bg-mainAccent text-white" : "bg-mainAlt text-mainAccent"}`}
         aria-label="Open Chat"
@@ -124,15 +137,25 @@ const Chatbot = () => {
           className="fixed bottom-[96px] right-6 w-72 h-96 bg-white dark:bg-[#1c1c1e] shadow-lg rounded-xl flex flex-col border border-gray-200 dark:border-gray-700 overflow-hidden"
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-            <span className="font-medium text-sm text-mainAccent dark:text-white">Chat</span>
-            <button
-              onClick={toggleChat}
-              className="text-gray-400 hover:text-mainAccent dark:hover:text-white font-bold"
-            >
-              ✕
-            </button>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#2a2a2e]">
+            <span className="font-semibold text-sm text-mainAccent dark:text-white">
+              AI Tutor
+            </span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleStartNewChat}
+                className="text-xs font-medium text-blue-500 hover:text-blue-600"
+              >
+                New Chat
+              </button>
+              <button
+                onClick={toggleChat}
+                className="text-gray-400 hover:text-mainAccent dark:hover:text-white text-lg leading-none"
+              >
+                ✕
+              </button>
           </div>
+        </div>
 
           {/* Messages */}
           <div
@@ -140,14 +163,14 @@ const Chatbot = () => {
             className="flex-1 p-3 flex flex-col gap-2 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
           >
             {/* Always show the first message */}
-            <div className="self-start bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white px-3 py-2 rounded-xl max-w-[75%] text-sm break-words">
-              Hi! Your AI tutor is online and full of brainrot. Ask anything about your lessons, I dare you.
+            <div className="self-start bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white px-4 py-2 rounded-2xl max-w-[75%] text-sm break-words shadow-sm">
+              Hi! Your AI tutor is online and full of brainrot. Ask anything about your lessons.
             </div>
 
             {messages.map((msg, idx) => (
               <div
                 key={idx}
-                className={`px-3 py-2 rounded-xl max-w-[75%] text-sm break-words
+                className={`px-4 py-2 rounded-2xl max-w-[75%] text-sm break-words shadow-sm
                   ${msg.role === "user"
                     ? "self-end bg-mainAccent text-white dark:bg-[#d6336c] dark:text-white"
                     : "self-start bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white"
@@ -156,6 +179,12 @@ const Chatbot = () => {
                 {msg.message}
               </div>
             ))}
+
+            {loading && (
+              <div className="self-start bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-2xl text-sm text-gray-500 dark:text-gray-300 animate-pulse">
+                AI is thinking...
+              </div>
+            )}
           </div>
 
           {/* Input */}

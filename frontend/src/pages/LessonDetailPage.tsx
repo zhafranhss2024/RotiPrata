@@ -12,6 +12,7 @@ import {
   saveLesson,
 } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import Chatbot from '@/components/ui/chatbot';
 
 const formatRefill = (value?: string | null) => {
   if (!value) return null;
@@ -310,6 +311,7 @@ const LessonDetailPage = () => {
         </section>
 
       </div>
+      <Chatbot />
     </MainLayout>
   );
 };

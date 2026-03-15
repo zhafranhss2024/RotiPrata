@@ -357,6 +357,9 @@ export const sendChatMessage = (message: string) =>
 export const getChatHistory = () =>
   apiGet<ChatbotMessageDTO[]>(`/users/me/chat`);
 
+export const startNewChat = () =>
+  apiDelete<void>(`/users/me/chat`);
+
 export const saveBrowsingHistory = (query: string) => {
   const body = { query, searched_at: new Date().toISOString() }
   apiPost<void>(`/users/me/history`, body);
