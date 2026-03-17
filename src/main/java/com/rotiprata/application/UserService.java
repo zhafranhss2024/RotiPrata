@@ -1,23 +1,26 @@
 package com.rotiprata.application;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.rotiprata.domain.AppRole;
-import com.rotiprata.domain.Profile;
-import com.rotiprata.domain.ThemePreference;
-import com.rotiprata.domain.UserRole;
-import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
-import com.rotiprata.security.SecurityUtils;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.domain.AppRole;
+import com.rotiprata.domain.Profile;
+import com.rotiprata.domain.ThemePreference;
+import com.rotiprata.domain.UserRole;
+import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
+import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
+import com.rotiprata.security.SecurityUtils;
 
 @Service
 public class UserService {
@@ -26,9 +29,11 @@ public class UserService {
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final SupabaseRestClient supabaseRestClient;
+    private final SupabaseAdminRestClient supabaseAdminRestClient;
 
-    public UserService(SupabaseRestClient supabaseRestClient) {
+    public UserService(SupabaseRestClient supabaseRestClient, SupabaseAdminRestClient supabaseAdminRestClient) {
         this.supabaseRestClient = supabaseRestClient;
+        this.supabaseAdminRestClient = supabaseAdminRestClient;
     }
 
     public Profile getProfile(UUID userId, String accessToken) {
@@ -133,13 +138,15 @@ public class UserService {
         );
         if (!existing.isEmpty()) {
             Profile profile = existing.get(0);
-            boolean needsUpdate = false;
             Map<String, Object> patch = new HashMap<>();
-            if (profile.getDisplayName() == null) {
+            if (displayName != null && !displayName.isBlank() && !displayName.equals(profile.getDisplayName())) {
                 patch.put("display_name", displayName);
-                needsUpdate = true;
             }
-            if (needsUpdate) {
+            boolean normalizedIsGenAlpha = isGenAlpha != null && isGenAlpha;
+            if (profile.getGenAlpha() == null || profile.getGenAlpha() != normalizedIsGenAlpha) {
+                patch.put("is_gen_alpha", normalizedIsGenAlpha);
+            }
+            if (!patch.isEmpty()) {
                 List<Profile> updated = supabaseRestClient.patchList(
                     "profiles",
                     buildQuery(Map.of("user_id", "eq." + userId)),
@@ -159,6 +166,43 @@ public class UserService {
         ensureUserRole(userId, token);
         return created;
     }
+
+    public Profile ensureProfileWithServiceRole(UUID userId, String displayName, Boolean isGenAlpha, boolean allowSuffix) {
+        List<Profile> existing = supabaseAdminRestClient.getList(
+            "profiles",
+            buildQuery(Map.of("user_id", "eq." + userId)),
+            PROFILE_LIST
+        );
+        if (!existing.isEmpty()) {
+            Profile profile = existing.get(0);
+            Map<String, Object> patch = new HashMap<>();
+            if (displayName != null && !displayName.isBlank() && !displayName.equals(profile.getDisplayName())) {
+                patch.put("display_name", displayName);
+            }
+            boolean normalizedIsGenAlpha = isGenAlpha != null && isGenAlpha;
+            if (profile.getGenAlpha() == null || profile.getGenAlpha() != normalizedIsGenAlpha) {
+                patch.put("is_gen_alpha", normalizedIsGenAlpha);
+            }
+            if (!patch.isEmpty()) {
+                List<Profile> updated = supabaseAdminRestClient.patchList(
+                    "profiles",
+                    buildQuery(Map.of("user_id", "eq." + userId)),
+                    patch,
+                    PROFILE_LIST
+                );
+                if (!updated.isEmpty()) {
+                    profile = updated.get(0);
+                }
+            }
+            ensureUserRoleWithServiceRole(userId);
+            return profile;
+        }
+
+        Profile created = createProfileWithServiceRole(userId, displayName, isGenAlpha, allowSuffix);
+        ensureUserRoleWithServiceRole(userId);
+        return created;
+    }
+
 
     public List<AppRole> getRoles(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -193,6 +237,22 @@ public class UserService {
 
     private Profile createProfile(UUID userId, String displayName, Boolean isGenAlpha, String accessToken) {
         return createProfile(userId, displayName, isGenAlpha, accessToken, true);
+    }
+
+    private Profile createProfileWithServiceRole(UUID userId, String displayName, Boolean isGenAlpha, boolean allowSuffix) {
+        String candidate = displayName;
+        try {
+            return insertProfileWithServiceRole(userId, candidate, isGenAlpha);
+        } catch (ResponseStatusException ex) {
+            if (allowSuffix && ex.getStatusCode().value() == HttpStatus.CONFLICT.value()) {
+                String suffix = userId.toString().substring(0, 6);
+                String fallback = candidate + "-" + suffix;
+                if (!fallback.equals(candidate)) {
+                    return insertProfileWithServiceRole(userId, fallback, isGenAlpha);
+                }
+            }
+            throw ex;
+        }
     }
 
     private Profile createProfile(
@@ -250,6 +310,40 @@ public class UserService {
         insert.put("role", AppRole.USER.toJson());
         supabaseRestClient.postList("user_roles", insert, accessToken, USER_ROLE_LIST);
     }
+
+    private Profile insertProfileWithServiceRole(UUID userId, String displayName, Boolean isGenAlpha) {
+        Map<String, Object> insert = new HashMap<>();
+        insert.put("user_id", userId);
+        insert.put("display_name", displayName);
+        insert.put("is_gen_alpha", isGenAlpha != null && isGenAlpha);
+        insert.put("created_at", OffsetDateTime.now());
+        insert.put("updated_at", OffsetDateTime.now());
+
+        List<Profile> created = supabaseAdminRestClient.postList("profiles", insert, PROFILE_LIST);
+        if (created.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create profile");
+        }
+        return created.get(0);
+    }
+
+    private void ensureUserRoleWithServiceRole(UUID userId) {
+        List<UserRole> roles = supabaseAdminRestClient.getList(
+            "user_roles",
+            buildQuery(Map.of(
+                "user_id", "eq." + userId,
+                "select", "id"
+            )),
+            USER_ROLE_LIST
+        );
+        if (!roles.isEmpty()) {
+            return;
+        }
+        Map<String, Object> insert = new HashMap<>();
+        insert.put("user_id", userId);
+        insert.put("role", AppRole.USER.toJson());
+        supabaseAdminRestClient.postList("user_roles", insert, USER_ROLE_LIST);
+    }
+
 
     private String buildUniqueDisplayName(String displayNameHint, String email) {
         String base = null;

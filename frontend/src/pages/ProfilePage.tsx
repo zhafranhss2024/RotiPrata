@@ -107,7 +107,8 @@ const ProfilePage = () => {
     );
   }
 
-  const displayName = profile.display_name || 'User';
+  const username = profile.display_name?.trim() || null;
+  const displayName = username || 'User';
   const displayInitial = displayName ? displayName[0] : 'U';
   const themeOptions: Array<{ value: ThemePreference; label: string }> = [
     { value: 'light', label: 'Light' },
@@ -134,8 +135,8 @@ const ProfilePage = () => {
                   <Badge className="bg-secondary text-secondary-foreground">âœ“ Verified</Badge>
                 )}
               </div>
-              {profile.display_name && (
-                <p className="text-muted-foreground">@{profile.display_name}</p>
+              {username && (
+                <p className="text-muted-foreground">@{username}</p>
               )}
               {profile.bio && <p className="text-sm mt-1">{profile.bio}</p>}
               
@@ -335,5 +336,3 @@ const ProfilePage = () => {
 };
 
 export default ProfilePage;
-
-

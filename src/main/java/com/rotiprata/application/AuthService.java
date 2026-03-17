@@ -1,24 +1,26 @@
 package com.rotiprata.application;
 
-import com.rotiprata.infrastructure.supabase.SupabaseAuthClient;
-import com.rotiprata.infrastructure.supabase.SupabaseAdminClient;
-import com.rotiprata.infrastructure.supabase.SupabaseSessionResponse;
-import com.rotiprata.infrastructure.supabase.SupabaseSignupResponse;
-import com.rotiprata.infrastructure.supabase.SupabaseUser;
-import com.rotiprata.api.dto.AuthSessionResponse;
-import com.rotiprata.api.dto.ForgotPasswordRequest;
-import com.rotiprata.api.dto.LoginRequest;
-import com.rotiprata.api.dto.RegisterRequest;
-import com.rotiprata.api.dto.ResetPasswordRequest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.rotiprata.api.dto.AuthSessionResponse;
+import com.rotiprata.api.dto.ForgotPasswordRequest;
+import com.rotiprata.api.dto.LoginRequest;
+import com.rotiprata.api.dto.RegisterRequest;
+import com.rotiprata.api.dto.ResetPasswordRequest;
+import com.rotiprata.infrastructure.supabase.SupabaseAdminClient;
+import com.rotiprata.infrastructure.supabase.SupabaseAuthClient;
+import com.rotiprata.infrastructure.supabase.SupabaseSessionResponse;
+import com.rotiprata.infrastructure.supabase.SupabaseSignupResponse;
+import com.rotiprata.infrastructure.supabase.SupabaseUser;
 
 @Service
 public class AuthService {
@@ -76,7 +78,9 @@ public class AuthService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Display name already taken");
             }
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("display_name", request.displayName());
+            metadata.put("display_name", normalizedDisplayName);
+            metadata.put("username", normalizedDisplayName);
+            metadata.put("preferred_username", normalizedDisplayName);
             if (request.isGenAlpha() != null) {
                 metadata.put("is_gen_alpha", request.isGenAlpha());
             }
@@ -91,6 +95,14 @@ public class AuthService {
 
             if (response.getSession() == null) {
                 SupabaseUser user = response.getUser();
+                if (user != null && user.getId() != null) {
+                    userService.ensureProfileWithServiceRole(
+                        UUID.fromString(user.getId()),
+                        normalizedDisplayName,
+                        request.isGenAlpha(),
+                        false
+                    );
+                }
                 return new AuthSessionResponse(
                     null,
                     null,
@@ -108,7 +120,7 @@ public class AuthService {
                 UUID userId = UUID.fromString(user.getId());
                 userService.ensureProfile(
                     userId,
-                    request.displayName(),
+                    normalizedDisplayName,
                     request.isGenAlpha(),
                     response.getSession().getAccessToken(),
                     false
