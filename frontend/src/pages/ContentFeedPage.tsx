@@ -1,26 +1,44 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { FeedContainer } from "@/components/feed/FeedContainer";
+import { Button } from "@/components/ui/button";
 import type { Content } from "@/types";
-import { fetchContentById, fetchFeed } from "@/lib/api";
-import { ApiError } from "@/lib/apiClient";
+import { fetchContentById, fetchSimilarContent, SIMILAR_CONTENT_LIMIT } from "@/lib/api";
+import type { ContentViewerLocationState } from "@/lib/contentViewer";
 
 const ContentFeedPage = () => {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [contents, setContents] = useState<Content[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const pinnedContentRef = useRef<Content | null>(null);
   const inFlightRef = useRef(false);
+  const viewerState = (location.state as ContentViewerLocationState | null) ?? null;
+  const queueContents = viewerState?.queueContents ?? null;
+  const hasRouteQueue = Boolean(queueContents?.length && id && queueContents.some((content) => content.id === id));
+  const initialIndex = hasRouteQueue
+    ? Math.max(
+        0,
+        Math.min(
+          typeof viewerState?.initialIndex === "number" ? viewerState.initialIndex : 0,
+          (queueContents?.length ?? 1) - 1
+        )
+      )
+    : 0;
 
-  const mergeDedupById = (existing: Content[], incoming: Content[]) => {
-    const dedup = new Map(existing.map((item) => [item.id, item]));
-    incoming.forEach((item) => dedup.set(item.id, item));
-    return Array.from(dedup.values());
+  const handleBack = () => {
+    const historyIndex =
+      typeof window !== "undefined" && typeof window.history.state?.idx === "number"
+        ? window.history.state.idx
+        : 0;
+    if (historyIndex > 0) {
+      navigate(-1);
+      return;
+    }
+    navigate(viewerState?.returnTo ?? "/");
   };
 
   const loadInitial = useCallback(async () => {
@@ -31,12 +49,17 @@ const ContentFeedPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [content, feed] = await Promise.all([fetchContentById(id), fetchFeed(null)]);
-      pinnedContentRef.current = content;
-      const merged = [content, ...feed.items.filter((item) => item.id !== content.id)];
-      setContents(merged);
-      setHasMore(feed.hasMore);
-      setNextCursor(feed.nextCursor ?? null);
+      const [content, similarVideos] = await Promise.all([
+        fetchContentById(id),
+        fetchSimilarContent(id, SIMILAR_CONTENT_LIMIT),
+      ]);
+      const queueById = new Map<string, Content>([[content.id, content]]);
+      similarVideos.forEach((item) => {
+        if (item.id !== content.id) {
+          queueById.set(item.id, item);
+        }
+      });
+      setContents(Array.from(queueById.values()));
     } catch (err) {
       console.warn("Failed to load content feed", err);
       setError("Unable to load this content right now.");
@@ -52,48 +75,39 @@ const ContentFeedPage = () => {
       setIsLoading(false);
       return;
     }
-    void loadInitial();
-  }, [id, loadInitial]);
 
-  const loadMore = useCallback(async () => {
-    if (!id || isLoading || isLoadingMore || inFlightRef.current || !hasMore || !nextCursor) {
+    if (hasRouteQueue && queueContents) {
+      const dedupedQueue = Array.from(
+        new Map(
+          queueContents
+            .filter((content) => content.content_type === "video")
+            .map((content) => [content.id, content])
+        ).values()
+      );
+      setContents(dedupedQueue);
+      setError(null);
+      setIsLoading(false);
       return;
     }
-    inFlightRef.current = true;
-    setIsLoadingMore(true);
-    try {
-      const data = await fetchFeed(nextCursor);
-      setContents((prev) => mergeDedupById(prev, data.items));
-      setHasMore(data.hasMore);
-      setNextCursor(data.nextCursor ?? null);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 400 && err.code === "validation_error") {
-        const pinned = pinnedContentRef.current;
-        try {
-          const data = await fetchFeed(null);
-          const merged = pinned
-            ? [pinned, ...data.items.filter((item) => item.id !== pinned.id)]
-            : data.items;
-          setContents(merged);
-          setHasMore(data.hasMore);
-          setNextCursor(data.nextCursor ?? null);
-          return;
-        } catch (reloadError) {
-          console.warn("Failed to reset content feed after cursor error", reloadError);
-        }
-      }
-      console.warn("Failed to load more feed", err);
-    } finally {
-      inFlightRef.current = false;
-      setIsLoadingMore(false);
-    }
-  }, [hasMore, id, isLoading, isLoadingMore, nextCursor]);
 
+    void loadInitial();
+  }, [hasRouteQueue, id, loadInitial, queueContents]);
 
   return (
     <MainLayout fullScreen>
+      <div className="sticky top-0 z-30 h-12 flex items-center justify-between gap-2 px-4 border-b border-mainAlt bg-main dark:bg-mainDark">
+        <Button
+          variant="ghost"
+          onClick={handleBack}
+          className="text-mainAccent dark:text-white hover:bg-mainAlt"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          {viewerState?.backLabel ?? "Back"}
+        </Button>
+        <span className="text-sm text-mainAccent">{contents.length} videos</span>
+      </div>
       {error ? (
-        <div className="h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom))] flex items-center justify-center">
+        <div className="h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom)-3rem)] md:h-[calc(100dvh-4rem-3rem)] flex items-center justify-center">
           <div className="text-center p-6">
             <h2 className="text-xl font-semibold mb-2">Unable to load content</h2>
             <p className="text-muted-foreground">{error}</p>
@@ -102,10 +116,10 @@ const ContentFeedPage = () => {
       ) : (
         <FeedContainer
           contents={contents}
-          onLoadMore={loadMore}
-          hasMore={hasMore}
-          isLoading={isLoading || isLoadingMore}
-          initialIndex={0}
+          hasMore={false}
+          isLoading={isLoading}
+          initialIndex={initialIndex}
+          containerClassName="h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom)-3rem)] md:h-[calc(100dvh-4rem-3rem)] md:!mt-0"
         />
       )}
     </MainLayout>

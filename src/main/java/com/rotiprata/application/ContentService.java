@@ -11,6 +11,7 @@ import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -30,6 +31,40 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Service
 public class ContentService {
     private static final Logger log = LoggerFactory.getLogger(ContentService.class);
+    private static final String CONTENT_SELECT = String.join(
+        ",",
+        "id",
+        "creator_id",
+        "title",
+        "description",
+        "content_type",
+        "media_url",
+        "thumbnail_url",
+        "category_id",
+        "status",
+        "learning_objective",
+        "origin_explanation",
+        "definition_literal",
+        "definition_used",
+        "older_version_reference",
+        "educational_value_votes",
+        "view_count",
+        "is_featured",
+        "reviewed_by",
+        "reviewed_at",
+        "review_feedback",
+        "created_at",
+        "updated_at",
+        "is_submitted",
+        "media_status",
+        "likes_count",
+        "comments_count",
+        "saves_count",
+        "shares_count"
+    );
+    private static final int DEFAULT_SIMILAR_LIMIT = 6;
+    private static final int MAX_SIMILAR_LIMIT = 6;
+    private static final int TAG_MATCH_SCAN_LIMIT = 250;
 
     private static final String ID = "id";
     private static final String TITLE = "title";
@@ -100,6 +135,43 @@ public class ContentService {
         return item;
     }
 
+    public List<Map<String, Object>> getSimilarContent(UUID userId, UUID contentId, String accessToken, Integer limit) {
+        String token = requireAccessToken(accessToken);
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        if (contentId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
+        }
+
+        Map<String, Object> currentContent = getContentById(userId, contentId, token);
+        int boundedLimit = normalizeSimilarLimit(limit);
+        List<String> currentTags = normalizeTags(currentContent.get("tags"));
+
+        List<Map<String, Object>> selectedRows = new ArrayList<>();
+        Set<String> selectedIds = new LinkedHashSet<>();
+
+        if (!currentTags.isEmpty()) {
+            Map<String, Integer> sharedTagCounts = fetchSharedTagCounts(contentId, currentTags);
+            if (!sharedTagCounts.isEmpty()) {
+                List<Map<String, Object>> matchedRows = fetchContentRowsByIds(sharedTagCounts.keySet(), token);
+                matchedRows.sort(buildSimilarContentComparator(sharedTagCounts));
+                for (Map<String, Object> row : matchedRows) {
+                    if (selectedRows.size() >= boundedLimit) {
+                        break;
+                    }
+                    String rowId = toStringOrNull(row.get("id"));
+                    if (rowId == null || !selectedIds.add(rowId)) {
+                        continue;
+                    }
+                    selectedRows.add(row);
+                }
+            }
+        }
+
+        return hydrateContentItems(selectedRows, userId, token);
+    }
+
     private List<String> fetchTagsForContent(UUID contentId) {
         if (contentId == null) {
             return List.of();
@@ -123,6 +195,175 @@ public class ContentService {
             }
         }
         return tags;
+    }
+
+    private Map<String, Integer> fetchSharedTagCounts(UUID currentContentId, List<String> tags) {
+        Set<String> currentTagSet = tags.stream()
+            .map(this::normalizeNullableText)
+            .filter(tag -> tag != null && !tag.isBlank())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (currentTagSet.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, Set<String>> uniqueTagsByContentId = new LinkedHashMap<>();
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content_tags",
+            buildQuery(Map.of(
+                "select", "content_id,tag",
+                "content_id", "not.eq." + currentContentId,
+                "order", "created_at.desc",
+                "limit", String.valueOf(TAG_MATCH_SCAN_LIMIT)
+            )),
+            MAP_LIST
+        );
+        for (Map<String, Object> row : rows) {
+            String contentId = toStringOrNull(row.get("content_id"));
+            String matchedTag = normalizeNullableText(toStringOrNull(row.get("tag")));
+            if (contentId == null || matchedTag == null || !currentTagSet.contains(matchedTag)) {
+                continue;
+            }
+            uniqueTagsByContentId.computeIfAbsent(contentId, ignored -> new LinkedHashSet<>()).add(matchedTag);
+        }
+
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        for (Map.Entry<String, Set<String>> entry : uniqueTagsByContentId.entrySet()) {
+            counts.put(entry.getKey(), entry.getValue().size());
+        }
+        return counts;
+    }
+
+    private List<Map<String, Object>> fetchContentRowsByIds(Set<String> ids, String accessToken) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("select", CONTENT_SELECT);
+        params.put("id", "in.(" + String.join(",", ids) + ")");
+        params.put("status", "eq.approved");
+        params.put("is_submitted", "eq.true");
+        params.put("content_type", "eq.video");
+        params.put("media_url", "not.is.null");
+        params.put("limit", String.valueOf(ids.size()));
+
+        return fetchPlayableVideoRowsWithFallback(params, accessToken);
+    }
+
+    private List<Map<String, Object>> fetchPlayableVideoRowsWithFallback(Map<String, String> params, String accessToken) {
+        Map<String, String> requestParams = new LinkedHashMap<>(params);
+        requestParams.putIfAbsent("media_status", "eq.ready");
+
+        try {
+            return supabaseRestClient.getList(
+                "content",
+                buildQuery(requestParams),
+                accessToken,
+                MAP_LIST
+            );
+        } catch (ResponseStatusException ex) {
+            if (!shouldRetryWithoutMediaStatus(ex)) {
+                throw ex;
+            }
+            requestParams.remove("media_status");
+            return supabaseRestClient.getList(
+                "content",
+                buildQuery(requestParams),
+                accessToken,
+                MAP_LIST
+            );
+        }
+    }
+
+    private List<Map<String, Object>> hydrateContentItems(List<Map<String, Object>> items, UUID userId, String accessToken) {
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> hydrated = new ArrayList<>(items);
+        List<Map<String, Object>> decorated = contentEngagementService.decorateItemsWithUserEngagement(hydrated, userId, accessToken);
+        List<Map<String, Object>> enriched = contentCreatorEnrichmentService.enrichWithCreatorProfiles(decorated);
+        attachTagsToItems(enriched);
+        enriched.forEach(this::attachStreamFields);
+        return enriched;
+    }
+
+    private void attachTagsToItems(List<Map<String, Object>> items) {
+        if (items == null || items.isEmpty()) {
+            return;
+        }
+
+        Set<String> contentIds = new LinkedHashSet<>();
+        for (Map<String, Object> item : items) {
+            String contentId = toStringOrNull(item == null ? null : item.get("id"));
+            if (contentId != null && !contentId.isBlank()) {
+                contentIds.add(contentId);
+            }
+        }
+        if (contentIds.isEmpty()) {
+            return;
+        }
+
+        List<Map<String, Object>> tagRows = supabaseAdminRestClient.getList(
+            "content_tags",
+            buildQuery(Map.of(
+                "select", "content_id,tag",
+                "content_id", "in.(" + String.join(",", contentIds) + ")"
+            )),
+            MAP_LIST
+        );
+
+        Map<String, List<String>> tagsByContentId = new LinkedHashMap<>();
+        for (Map<String, Object> row : tagRows) {
+            String contentId = toStringOrNull(row.get("content_id"));
+            String tag = normalizeNullableText(toStringOrNull(row.get("tag")));
+            if (contentId == null || tag == null) {
+                continue;
+            }
+            tagsByContentId.computeIfAbsent(contentId, ignored -> new ArrayList<>()).add(tag);
+        }
+
+        for (Map<String, Object> item : items) {
+            String contentId = toStringOrNull(item.get("id"));
+            item.put("tags", tagsByContentId.getOrDefault(contentId, List.of()));
+        }
+    }
+
+    private Comparator<Map<String, Object>> buildSimilarContentComparator(Map<String, Integer> sharedTagCounts) {
+        return (left, right) -> {
+            String leftId = toStringOrNull(left.get("id"));
+            String rightId = toStringOrNull(right.get("id"));
+            int sharedCompare = Integer.compare(
+                sharedTagCounts.getOrDefault(rightId, 0),
+                sharedTagCounts.getOrDefault(leftId, 0)
+            );
+            if (sharedCompare != 0) {
+                return sharedCompare;
+            }
+
+            OffsetDateTime leftCreatedAt = parseOffsetDateTime(left.get("created_at"));
+            OffsetDateTime rightCreatedAt = parseOffsetDateTime(right.get("created_at"));
+            if (leftCreatedAt != null && rightCreatedAt != null) {
+                int createdAtCompare = rightCreatedAt.compareTo(leftCreatedAt);
+                if (createdAtCompare != 0) {
+                    return createdAtCompare;
+                }
+            } else if (leftCreatedAt != null) {
+                return -1;
+            } else if (rightCreatedAt != null) {
+                return 1;
+            }
+
+            String normalizedLeftId = leftId == null ? "" : leftId;
+            String normalizedRightId = rightId == null ? "" : rightId;
+            return normalizedRightId.compareTo(normalizedLeftId);
+        };
+    }
+
+    private int normalizeSimilarLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return DEFAULT_SIMILAR_LIMIT;
+        }
+        return Math.min(MAX_SIMILAR_LIMIT, limit);
     }
 
     public List<ContentSearchDTO> getFilteredContent(String query, String filter, String accessToken) {
@@ -740,8 +981,38 @@ public class ContentService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    private List<String> normalizeTags(Object value) {
+        if (!(value instanceof List<?> tags)) {
+            return List.of();
+        }
+        List<String> normalized = new ArrayList<>();
+        for (Object tag : tags) {
+            String text = normalizeNullableText(toStringOrNull(tag));
+            if (text != null) {
+                normalized.add(text);
+            }
+        }
+        return normalized;
+    }
+
     private String escapeQuery(String query) {
         return query.replace(",", " ").replace("(", " ").replace(")", " ");
+    }
+
+    private boolean shouldRetryWithoutMediaStatus(ResponseStatusException ex) {
+        String reason = ex.getReason();
+        String message = ex.getMessage();
+        if (reason != null) {
+            String lower = reason.toLowerCase();
+            if (lower.contains("media_status") || lower.contains("pgrst204")) {
+                return true;
+            }
+        }
+        if (message != null) {
+            String lower = message.toLowerCase();
+            return lower.contains("media_status") || lower.contains("pgrst204");
+        }
+        return false;
     }
 
     private String buildQuery(Map<String, String> params) {

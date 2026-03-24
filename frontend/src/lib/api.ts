@@ -52,6 +52,7 @@ import {
   mockTrendingContent,
 } from "@/mocks/explore";
 import { mockAuthUser, mockRoles } from "@/mocks/auth";
+import { buildSimilarContentList, SIMILAR_CONTENT_LIMIT } from "@/lib/similarContent";
 
 export type ChatResponse = {
   reply: string;
@@ -192,6 +193,9 @@ export type ContentPlaybackEventPayload = {
   networkType?: string | null;
   userAgent?: string | null;
 };
+
+const getMockContentById = (contentId: string) =>
+  mockContents.find((content) => content.id === contentId) ?? mockContents[0];
 
 const withMockFallback = async <T>(
   label: string,
@@ -343,6 +347,8 @@ export const fetchFeed = (cursor: string | null = null, limit = 20) =>
 
 export const fetchTrendingContent = () =>
   withMockFallback("trending", () => mockTrendingContent, () => apiGet(`/trending`));
+
+export { SIMILAR_CONTENT_LIMIT };
 
 export const searchContent = (query: string, filter?: string | null) =>
   withMockFallback(
@@ -651,8 +657,15 @@ export const fetchContentMediaStatus = (contentId: string) =>
 export const fetchContentById = (contentId: string) =>
   withMockFallback(
     "content-by-id",
-    () => mockContents[0],
+    () => getMockContentById(contentId),
     () => apiGet<Content>(`/content/${contentId}`)
+  );
+
+export const fetchSimilarContent = (contentId: string, limit = SIMILAR_CONTENT_LIMIT) =>
+  withMockFallback(
+    "content-similar",
+    () => buildSimilarContentList(mockContents, contentId, limit),
+    () => apiGet<Content[]>(`/content/${contentId}/similar?limit=${Math.min(SIMILAR_CONTENT_LIMIT, Math.max(1, Math.floor(limit)))}`)
   );
 
 export const updateDraftContent = (contentId: string, payload: Record<string, unknown>) =>

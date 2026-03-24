@@ -121,6 +121,16 @@ public class ContentController {
         return contentService.getContentById(userId, contentId, SecurityUtils.getAccessToken());
     }
 
+    @GetMapping("/{contentId}/similar")
+    public List<Map<String, Object>> getSimilarContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @RequestParam(value = "limit", required = false) Integer limit
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return contentService.getSimilarContent(userId, contentId, SecurityUtils.getAccessToken(), limit);
+    }
+
     @PostMapping("/{contentId}/view")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void trackView(

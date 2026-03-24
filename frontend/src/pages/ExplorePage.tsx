@@ -11,6 +11,7 @@ import { ArrowLeft, BookOpen, Search, Video } from 'lucide-react';
 import type { Content } from '@/types';
 import { clearBrowsingHistory, fetchBrowsingHistory, fetchFeed, saveBrowsingHistory, searchContent } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { CompactVideoTile } from '@/components/feed/CompactVideoTile';
 
 type SearchKind = 'video' | 'lesson' | 'profile' | 'unknown';
 
@@ -381,35 +382,14 @@ const ExplorePage = () => {
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {videoResults.map((result, index) => (
-                      <button
+                      <CompactVideoTile
                         key={`video-${result.id}`}
-                        type="button"
-                        className="text-left group"
                         onClick={() => openVideoViewer(index)}
-                      >
-                        <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-mainDark border border-mainAlt/70">
-                          {result.thumbnailUrl || result.mediaUrl ? (
-                            <img
-                              src={result.thumbnailUrl ?? result.mediaUrl}
-                              alt={result.title}
-                              className="absolute inset-0 h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="absolute inset-0 bg-mainDark" />
-                          )}
-                          <div className="absolute top-2 left-2">
-                            <Badge variant="secondary" className="bg-black/45 text-white border-0">
-                              Video
-                            </Badge>
-                          </div>
-                          <div className="absolute bottom-0 left-0 right-0 p-3">
-                            <h3 className="text-sm font-semibold text-white line-clamp-2">{result.title}</h3>
-                            {result.snippet ? (
-                              <p className="mt-1 text-xs text-white/75 line-clamp-2">{result.snippet}</p>
-                            ) : null}
-                          </div>
-                        </div>
-                      </button>
+                        title={result.title}
+                        snippet={result.snippet}
+                        thumbnailUrl={result.thumbnailUrl}
+                        mediaUrl={result.mediaUrl}
+                      />
                     ))}
                   </div>
                 )}

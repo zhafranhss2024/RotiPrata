@@ -59,6 +59,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `PATCH /content/{contentId}`
 - `POST /content/{contentId}/submit`
 - `GET /content/{contentId}`
+- `GET /content/{contentId}/similar`
 - `GET /content/{contentId}/media`
 - `GET /content/{contentId}/quiz`
 - `POST /content/{contentId}/quiz/submit`
@@ -158,9 +159,24 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Behavior:
   - Comment is soft-deleted (`is_deleted=true`) and content `comments_count` is refreshed.
 - Common responses:
-  - `204` success
-  - `403` trying to delete another user's comment without admin role
-  - `404` comment/content not found
+- `204` success
+- `403` trying to delete another user's comment without admin role
+- `404` comment/content not found
+
+## Similar Videos Contract
+
+- Endpoint: `GET /content/{contentId}/similar`
+- Auth: required (`Authorization: Bearer <accessToken>`)
+- Query params:
+  - `limit` (optional): default `6`, max `6`
+- Response:
+  - `Content[]`
+- Behavior:
+  - Uses the current content's exact `content_tags` to rank related videos.
+  - Excludes the current content from the response.
+  - Restricts results to approved, submitted, playable videos.
+  - Returns only exact tag matches; if there are none, returns an empty list.
+  - Returns at most 6 items.
 
 ## Playback Event Contract
 
@@ -198,6 +214,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /content/media/start` -> implemented
 - `POST /content/media/start-link` -> implemented
 - `GET /content/{id}` -> implemented
+- `GET /content/{id}/similar?limit=...` -> implemented
 - `GET /content/{id}/media` -> implemented
 - `PATCH /content/{id}` -> implemented
 - `POST /content/{id}/submit` -> implemented
@@ -273,6 +290,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Feed items and `GET /content/{contentId}` now include creator enrichment when profile exists:
   - `creator: { user_id, display_name, avatar_url }`
   - UI should keep fallback `@anonymous` when creator/display name is missing
+- `GET /content/{contentId}/similar` returns a capped related-video list for Learn More and the `/content/:id` related queue flow.
 - Comment deletion authorization:
   - `DELETE /content/{contentId}/comments/{commentId}` allows admins to delete any comment.
   - Non-admin users can delete only comments they authored.
