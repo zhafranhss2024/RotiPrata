@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Input } from "./input.tsx";
 import { sendChatMessage, getChatHistory, startNewChat } from "@/lib/api.ts";
+import { ApiError } from "@/lib/apiClient";
+import { formatRateLimitMessage } from "@/lib/rateLimit";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -64,10 +65,14 @@ const Chatbot = () => {
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, botMessage]);
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof ApiError && (error.status === 429 || error.code === "rate_limited")
+          ? formatRateLimitMessage(error.retryAfterSeconds)
+          : "Something went wrong.";
       const errorMsg: ChatMessage = {
         role: "assistant",
-        message: "Something went wrong.",
+        message,
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, errorMsg]);
