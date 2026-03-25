@@ -491,6 +491,15 @@ export interface UserAchievement {
   earned_at: string;
 }
 
+export interface UserBadge {
+  lessonId: string | null;
+  lessonTitle: string | null;
+  badgeName: string;
+  badgeIconUrl: string | null;
+  earned: boolean;
+  earnedAt: string | null;
+}
+
 export interface SavedContent {
   id: string;
   user_id: string;
@@ -559,6 +568,8 @@ export interface UserAnalytics {
   averageQuizScore: number;
   achievements: UserAchievement[];
 }
+
+export type ProfileContentCollection = "posted" | "saved" | "liked";
 
 export interface AdminAnalytics {
   totalUsers: number;

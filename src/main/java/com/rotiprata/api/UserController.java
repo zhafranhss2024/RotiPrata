@@ -2,10 +2,12 @@ package com.rotiprata.api;
 
 import com.rotiprata.api.dto.SaveHistoryRequestDTO;
 import com.rotiprata.api.dto.ThemePreferenceRequest;
+import com.rotiprata.api.dto.UserBadgeResponse;
 import com.rotiprata.api.dto.UpdateProfileRequest;
 import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.ChatService;
+import com.rotiprata.application.ContentService;
 import com.rotiprata.application.LessonQuizService;
 import com.rotiprata.application.LessonService;
 import com.rotiprata.application.UserService;
@@ -34,19 +36,22 @@ public class UserController {
     private final LessonQuizService lessonQuizService;
     private final BrowsingService browsingService;
     private final ChatService chatService;
+    private final ContentService contentService;
 
     public UserController(
             UserService userService,
             LessonService lessonService,
             LessonQuizService lessonQuizService,
             BrowsingService browsingService,
-            ChatService chatService
+            ChatService chatService,
+            ContentService contentService
     ) {
         this.userService = userService;
         this.lessonService = lessonService;
         this.lessonQuizService = lessonQuizService;
         this.browsingService = browsingService;
         this.chatService = chatService;
+        this.contentService = contentService;
     }
 
     @GetMapping("/me")
@@ -152,6 +157,21 @@ public class UserController {
                 userId,
                 SecurityUtils.getAccessToken()
         );
+    }
+
+    @GetMapping("/me/badges")
+    public List<UserBadgeResponse> badges(@AuthenticationPrincipal Jwt jwt) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return userService.getUserBadges(userId, SecurityUtils.getAccessToken());
+    }
+
+    @GetMapping("/me/content")
+    public List<Map<String, Object>> profileContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam("collection") String collection
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return contentService.getProfileContentCollection(userId, SecurityUtils.getAccessToken(), collection);
     }
 
     @GetMapping("/me/lessons/progress")

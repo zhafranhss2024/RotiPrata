@@ -172,6 +172,23 @@ public class ContentService {
         return hydrateContentItems(selectedRows, userId, token);
     }
 
+    public List<Map<String, Object>> getProfileContentCollection(UUID userId, String accessToken, String collection) {
+        String token = requireAccessToken(accessToken);
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
+        }
+        String normalized = normalizeNullableText(collection);
+        if (normalized == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Collection is required");
+        }
+        return switch (normalized.toLowerCase()) {
+            case "posted" -> getPostedProfileContent(userId, token);
+            case "saved" -> getInteractionVideoCollection(userId, token, "content_saves");
+            case "liked" -> getInteractionVideoCollection(userId, token, "content_likes");
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid profile content collection");
+        };
+    }
+
     private List<String> fetchTagsForContent(UUID contentId) {
         if (contentId == null) {
             return List.of();
@@ -248,6 +265,57 @@ public class ContentService {
         params.put("limit", String.valueOf(ids.size()));
 
         return fetchPlayableVideoRowsWithFallback(params, accessToken);
+    }
+
+    private List<Map<String, Object>> getPostedProfileContent(UUID userId, String accessToken) {
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "content",
+            buildQuery(Map.of(
+                "select", CONTENT_SELECT,
+                "creator_id", "eq." + userId,
+                "order", "created_at.desc"
+            )),
+            MAP_LIST
+        );
+        return hydrateContentItems(rows, userId, accessToken);
+    }
+
+    private List<Map<String, Object>> getInteractionVideoCollection(UUID userId, String accessToken, String table) {
+        List<Map<String, Object>> interactionRows = supabaseAdminRestClient.getList(
+            table,
+            buildQuery(Map.of(
+                "select", "content_id,created_at",
+                "user_id", "eq." + userId,
+                "order", "created_at.desc"
+            )),
+            MAP_LIST
+        );
+        if (interactionRows.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> orderedIds = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (Map<String, Object> row : interactionRows) {
+            String contentId = toStringOrNull(row.get("content_id"));
+            if (contentId != null && seen.add(contentId)) {
+                orderedIds.add(contentId);
+            }
+        }
+        if (orderedIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> contentRows = fetchContentRowsByIds(new LinkedHashSet<>(orderedIds), accessToken);
+        List<Map<String, Object>> hydrated = hydrateContentItems(contentRows, userId, accessToken);
+        Map<String, Integer> orderIndexById = new LinkedHashMap<>();
+        for (int index = 0; index < orderedIds.size(); index++) {
+            orderIndexById.put(orderedIds.get(index), index);
+        }
+        hydrated.sort(
+            Comparator.comparingInt(item -> orderIndexById.getOrDefault(toStringOrNull(item.get("id")), Integer.MAX_VALUE))
+        );
+        return hydrated;
     }
 
     private List<Map<String, Object>> fetchPlayableVideoRowsWithFallback(Map<String, String> params, String accessToken) {

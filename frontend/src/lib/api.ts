@@ -20,8 +20,9 @@ import type {
   Quiz,
   QuizQuestion,
   ThemePreference,
-  UserAchievement,
+  UserBadge,
   WizardStepKey,
+  ProfileContentCollection,
 } from "@/types";
 import {
   apiDelete,
@@ -44,7 +45,7 @@ import {
   mockLessonSections,
   mockLessonStats,
 } from "@/mocks/lessons";
-import { mockProfile, mockAchievements } from "@/mocks/profile";
+import { mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
 import { mockAdminStats, mockFlags, mockModerationQueue } from "@/mocks/admin";
 import {
   mockAiSuggestions,
@@ -830,11 +831,18 @@ export const fetchProfile = () =>
 export const updateProfile = (payload: { display_name?: string; is_gen_alpha?: boolean }) =>
   apiPut<Profile>(`/users/me`, payload);
 
-export const fetchAchievements = () =>
+export const fetchUserBadges = () =>
   withMockFallback(
-    "achievements",
-    () => mockAchievements,
-    () => apiGet<UserAchievement[]>(`/users/me/achievements`)
+    "badges",
+    () => mockProfileBadges,
+    () => apiGet<UserBadge[]>(`/users/me/badges`)
+  );
+
+export const fetchProfileContentCollection = (collection: ProfileContentCollection) =>
+  withMockFallback(
+    `profile-content-${collection}`,
+    () => mockProfileCollections[collection],
+    () => apiGet<Content[]>(`/users/me/content?collection=${encodeURIComponent(collection)}`)
   );
 
 export const fetchThemePreference = () =>

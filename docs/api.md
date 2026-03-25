@@ -210,7 +210,8 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /users/me/stats` -> implemented
 - `GET /users/me/lessons/progress` -> implemented
 - `GET /users/me/hearts` -> implemented
-- `GET /users/me/achievements` -> missing
+- `GET /users/me/badges` -> implemented
+- `GET /users/me/content?collection=posted|saved|liked` -> implemented
 
 ### Content
 - `POST /content/media/start` -> implemented
@@ -286,7 +287,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 
 - `GET /trending`
 - `GET /recommendations`
-- `GET /users/me/achievements`
 
 ## Compatibility Notes
 
@@ -302,6 +302,10 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - Authenticated only.
   - User id comes from the JWT subject on the server, not from request body data.
   - Supports `display_name` and `is_gen_alpha`.
+- `GET /users/me/badges` returns lesson badges derived from earned lesson rewards plus locked published lesson badges.
+- `GET /users/me/content?collection=posted|saved|liked` powers the profile content tabs:
+  - `posted` includes the user’s own uploads across statuses and content types
+  - `saved` and `liked` return approved submitted video content only
 - `/users/me` may include `timezone` for login streak day-boundary preference.
 - `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.

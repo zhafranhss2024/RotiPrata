@@ -1,56 +1,80 @@
-﻿import React, { useEffect, useState } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
-import { 
-  Settings, 
-  Laptop,
-  Moon, 
-  Sun, 
-  LogOut,
-  Trophy,
-  Flame,
-  Star,
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Bookmark,
   BookOpen,
-  ChevronRight,
-  Edit,
-  Shield,
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { useAuthContext } from '@/contexts/AuthContext';
-import { useThemeContext } from '@/contexts/ThemeContext';
-import type { Profile, ThemePreference, UserAchievement } from '@/types';
-import { fetchAchievements, fetchProfile, fetchUserStats } from '@/lib/api';
+  Clapperboard,
+  Flame,
+  Heart,
+  Settings,
+  Star,
+  Trophy,
+} from "lucide-react";
 
-// Backend: /api/users/me, /api/users/me/stats, /api/users/me/achievements
-// Dummy data is returned when mocks are enabled.
+import { MainLayout } from "@/components/layout/MainLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ContentDetailSheet } from "@/components/feed/ContentDetailSheet";
+import { ProfileContentTile } from "@/components/profile/ProfileContentTile";
+import { useAuthContext } from "@/contexts/AuthContext";
+import {
+  fetchProfile,
+  fetchProfileContentCollection,
+  fetchUserBadges,
+  fetchUserStats,
+} from "@/lib/api";
+import type { Content, Profile, ProfileContentCollection, UserBadge } from "@/types";
+
+const COLLECTION_ORDER: ProfileContentCollection[] = ["posted", "saved", "liked"];
 
 const ProfilePage = () => {
-  const { isAuthenticated, logout, isAdmin } = useAuthContext();
-  const { theme, resolvedTheme, setTheme } = useThemeContext();
+  const navigate = useNavigate();
+  const { isAuthenticated, isAdmin } = useAuthContext();
+
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [achievements, setAchievements] = useState<UserAchievement[]>([]);
+  const [badges, setBadges] = useState<UserBadge[]>([]);
   const [stats, setStats] = useState({
     lessonsEnrolled: 0,
     lessonsCompleted: 0,
     quizzesTaken: 0,
-    averageScore: 0,
-    conceptsMastered: 0,
+    hoursLearned: 0,
   });
+  const [activeCollection, setActiveCollection] = useState<ProfileContentCollection>("posted");
+  const [collectionItems, setCollectionItems] = useState<Record<ProfileContentCollection, Content[]>>({
+    posted: [],
+    saved: [],
+    liked: [],
+  });
+  const [loadedCollections, setLoadedCollections] = useState<Record<ProfileContentCollection, boolean>>({
+    posted: false,
+    saved: false,
+    liked: false,
+  });
+  const [collectionErrors, setCollectionErrors] = useState<Record<ProfileContentCollection, string | null>>({
+    posted: null,
+    saved: null,
+    liked: null,
+  });
+  const [loadingCollection, setLoadingCollection] = useState(false);
+  const [selectedContent, setSelectedContent] = useState<Content | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      return;
+    }
+
     fetchProfile()
       .then(setProfile)
-      .catch((error) => console.warn('Failed to load profile', error));
+      .catch((error) => console.warn("Failed to load profile", error));
 
-    fetchAchievements()
-      .then(setAchievements)
-      .catch((error) => console.warn('Failed to load achievements', error));
+    fetchUserBadges()
+      .then(setBadges)
+      .catch((error) => console.warn("Failed to load badges", error));
 
     fetchUserStats()
       .then((userStats) =>
@@ -58,15 +82,56 @@ const ProfilePage = () => {
           lessonsEnrolled: userStats.lessonsEnrolled,
           lessonsCompleted: userStats.lessonsCompleted,
           quizzesTaken: userStats.quizzesTaken || 0,
-          averageScore: userStats.averageScore || 0,
-          conceptsMastered: userStats.conceptsMastered,
+          hoursLearned: userStats.hoursLearned || 0,
         })
       )
-      .catch((error) => console.warn('Failed to load user stats', error));
+      .catch((error) => console.warn("Failed to load user stats", error));
   }, [isAuthenticated]);
 
-  const handleLogout = async () => {
-    await logout();
+  useEffect(() => {
+    if (!isAuthenticated || loadedCollections[activeCollection]) {
+      return;
+    }
+
+    setLoadingCollection(true);
+    setCollectionErrors((prev) => ({ ...prev, [activeCollection]: null }));
+    fetchProfileContentCollection(activeCollection)
+      .then((items) => {
+        setCollectionItems((prev) => ({ ...prev, [activeCollection]: items }));
+        setLoadedCollections((prev) => ({ ...prev, [activeCollection]: true }));
+      })
+      .catch((error) => {
+        console.warn(`Failed to load ${activeCollection} content`, error);
+        setCollectionErrors((prev) => ({
+          ...prev,
+          [activeCollection]: `Unable to load ${activeCollection} content right now.`,
+        }));
+      })
+      .finally(() => setLoadingCollection(false));
+  }, [activeCollection, isAuthenticated, loadedCollections]);
+
+  const earnedBadges = useMemo(() => badges.filter((badge) => badge.earned), [badges]);
+  const activeItems = collectionItems[activeCollection];
+  const displayName = profile?.display_name?.trim() || "User";
+  const displayInitial = displayName ? displayName[0] : "U";
+
+  const openContent = (content: Content) => {
+    if (content.content_type === "video") {
+      const queueContents = activeItems.filter((item) => item.content_type === "video");
+      const initialIndex = queueContents.findIndex((item) => item.id === content.id);
+      navigate(`/content/${content.id}`, {
+        state: {
+          queueContents,
+          initialIndex: Math.max(initialIndex, 0),
+          returnTo: "/profile",
+          backLabel: "Back to Profile",
+        },
+      });
+      return;
+    }
+
+    setSelectedContent(content);
+    setIsDetailOpen(true);
   };
 
   if (!isAuthenticated) {
@@ -75,14 +140,14 @@ const ProfilePage = () => {
         <div className="container max-w-md mx-auto px-4 py-16 text-center">
           <div className="mb-8">
             <div className="w-20 h-20 mx-auto mb-4 gradient-primary rounded-full flex items-center justify-center">
-              <span className="text-4xl">ðŸ¥ž</span>
+              <span className="text-xl font-bold text-white">RP</span>
             </div>
             <h1 className="text-2xl font-bold mb-2">Join Rotiprata</h1>
             <p className="text-muted-foreground">
-              Create an account to track your progress, earn badges, and learn Gen Alpha culture!
+              Create an account to track progress, earn lesson badges, and build your brainrot profile.
             </p>
           </div>
-          
+
           <div className="space-y-3">
             <Button asChild className="w-full" size="lg">
               <Link to="/login">Sign In</Link>
@@ -106,216 +171,160 @@ const ProfilePage = () => {
     );
   }
 
-  const displayName = profile.display_name?.trim() || 'User';
-  const displayInitial = displayName ? displayName[0] : 'U';
-  const themeOptions: Array<{ value: ThemePreference; label: string }> = [
-    { value: 'light', label: 'Light' },
-    { value: 'dark', label: 'Dark' },
-    { value: 'system', label: 'System' },
-  ];
-
   return (
     <MainLayout>
-      <div className="container max-w-2xl mx-auto px-4 py-6 md:py-8 pb-safe">
-        {/* Profile Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <Avatar className="w-20 h-20">
-              <AvatarImage src={profile.avatar_url || undefined} />
-              <AvatarFallback className="gradient-primary text-white text-2xl">
-                {displayInitial}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold">{displayName}</h1>
-                {profile.is_verified && (
-                  <Badge className="bg-secondary text-secondary-foreground">âœ“ Verified</Badge>
-                )}
+      <div className="container max-w-4xl mx-auto px-4 py-6 md:py-8 pb-safe space-y-6">
+        <Card className="overflow-hidden border-mainAlt/80 bg-main shadow-sm">
+          <CardContent className="p-5 md:p-6">
+            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+              <div className="flex items-start gap-4">
+                <Avatar className="h-24 w-24 border-4 border-mainAlt/70 shadow-sm">
+                  <AvatarImage src={profile.avatar_url || undefined} />
+                  <AvatarFallback className="bg-gradient-to-br from-[#ff4d88] via-[#ff6d6d] to-[#ffb56b] text-3xl text-white">
+                    {displayInitial}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-bold">{displayName}</h1>
+                    {profile.is_verified ? <Badge className="bg-secondary text-secondary-foreground">Verified</Badge> : null}
+                    {isAdmin() ? <Badge variant="destructive">Admin</Badge> : null}
+                  </div>
+                  <p className="text-sm text-muted-foreground">@{displayName.toLowerCase().replace(/\s+/g, "_")}</p>
+                  {profile.bio ? <p className="max-w-xl text-sm leading-6">{profile.bio}</p> : null}
+                </div>
               </div>
-              {profile.bio && <p className="text-sm mt-1">{profile.bio}</p>}
-              
-              {/* Role badges */}
-              <div className="flex gap-2 mt-2">
-                {isAdmin() && (
-                  <Badge variant="destructive">Admin</Badge>
-                )}
+
+              <div className="flex items-center gap-2">
+                <Button asChild variant="ghost" size="icon" className="rounded-full">
+                  <Link to="/profile/settings" aria-label="Open profile settings">
+                    <Settings className="h-5 w-5" />
+                  </Link>
+                </Button>
               </div>
             </div>
-          </div>
-          
-          <Link to="/profile/edit">
-            <Button variant="ghost" size="icon">
-              <Edit className="h-5 w-5" />
-            </Button>
-          </Link>
-        </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-          <Card>
-            <CardContent className="p-3 text-center">
-              <Flame className="h-6 w-6 mx-auto mb-1 text-destructive" />
-              <p className="text-2xl font-bold">{profile.current_streak}</p>
-              <p className="text-xs text-muted-foreground">Day Streak</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <Trophy className="h-6 w-6 mx-auto mb-1 text-warning" />
-              <p className="text-2xl font-bold">{achievements.length}</p>
-              <p className="text-xs text-muted-foreground">Badges</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-3 text-center">
-              <Star className="h-6 w-6 mx-auto mb-1 text-primary" />
-              <p className="text-2xl font-bold">{profile.reputation_points}</p>
-              <p className="text-xs text-muted-foreground">XP</p>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="mt-6 grid grid-cols-3 gap-3">
+              <div className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center">
+                <Flame className="mx-auto mb-2 h-5 w-5 text-destructive" />
+                <p className="text-2xl font-bold">{profile.current_streak}</p>
+                <p className="text-xs text-muted-foreground">Day Streak</p>
+              </div>
+              <Link
+                to="/profile/badges"
+                className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center transition hover:border-primary/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Open badges page"
+              >
+                <Trophy className="mx-auto mb-2 h-5 w-5 text-yellow-500" />
+                <p className="text-2xl font-bold">{earnedBadges.length}</p>
+                <p className="text-xs text-muted-foreground">Badges</p>
+              </Link>
+              <div className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center">
+                <Star className="mx-auto mb-2 h-5 w-5 text-primary" />
+                <p className="text-2xl font-bold">{profile.reputation_points}</p>
+                <p className="text-xs text-muted-foreground">XP</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Progress Overview */}
-        <Card className="mb-6">
+        <Card className="border-mainAlt/80 bg-main shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-lg">
               <BookOpen className="h-5 w-5" />
               Learning Progress
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <div className="flex justify-between text-sm mb-1">
+              <div className="mb-1 flex justify-between text-sm">
                 <span>Lessons Completed</span>
-                <span>{stats.lessonsCompleted}/{stats.lessonsEnrolled}</span>
+                <span>
+                  {stats.lessonsCompleted}/{stats.lessonsEnrolled}
+                </span>
               </div>
-              <Progress
-                value={stats.lessonsEnrolled ? (stats.lessonsCompleted / stats.lessonsEnrolled) * 100 : 0}
-              />
+              <Progress value={stats.lessonsEnrolled ? (stats.lessonsCompleted / stats.lessonsEnrolled) * 100 : 0} />
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
               <div>
                 <p className="text-muted-foreground">Quizzes Taken</p>
                 <p className="font-semibold">{stats.quizzesTaken}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Average Score</p>
-                <p className="font-semibold">{stats.averageScore}%</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Concepts Mastered</p>
-                <p className="font-semibold">{stats.conceptsMastered}</p>
+                <p className="text-muted-foreground">Hours Learned</p>
+                <p className="font-semibold">{stats.hoursLearned}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Longest Streak</p>
                 <p className="font-semibold">{profile.longest_streak} days</p>
               </div>
+              <div>
+                <p className="text-muted-foreground">Lessons Enrolled</p>
+                <p className="font-semibold">{stats.lessonsEnrolled}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Achievements */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Trophy className="h-5 w-5" />
-                Achievements
-              </CardTitle>
-              <Link to="/profile/achievements" className="text-sm text-primary">
-                View All
-              </Link>
-            </div>
+        <Card className="border-mainAlt/80 bg-main shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Your Content</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-              {achievements.map((achievement) => (
-                <div key={achievement.id} className="flex-shrink-0 text-center">
-                  <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center mb-2">
-                    <span className="text-2xl">ðŸ†</span>
-                  </div>
-                  <p className="text-xs font-medium max-w-16 truncate">{achievement.achievement_name}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+            <Tabs value={activeCollection} onValueChange={(value) => setActiveCollection(value as ProfileContentCollection)}>
+              <TabsList className="grid h-12 w-full grid-cols-3 rounded-full bg-muted/70 p-1">
+                <TabsTrigger value="posted" className="rounded-full">
+                  <Clapperboard className="mr-2 h-4 w-4" />
+                  Posted
+                </TabsTrigger>
+                <TabsTrigger value="saved" className="rounded-full">
+                  <Bookmark className="mr-2 h-4 w-4" />
+                  Saved
+                </TabsTrigger>
+                <TabsTrigger value="liked" className="rounded-full">
+                  <Heart className="mr-2 h-4 w-4" />
+                  Liked
+                </TabsTrigger>
+              </TabsList>
 
-        {/* Settings Menu */}
-        <Card>
-          <CardContent className="p-0">
-            {/* Theme */}
-            <div className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {theme === 'system' ? (
-                    <Laptop className="h-5 w-5" />
-                  ) : resolvedTheme === 'dark' ? (
-                    <Moon className="h-5 w-5" />
+              {COLLECTION_ORDER.map((collection) => (
+                <TabsContent key={collection} value={collection} className="mt-5">
+                  {loadingCollection && collection === activeCollection && !loadedCollections[collection] ? (
+                    <div className="rounded-3xl border border-dashed border-mainAlt/80 px-4 py-10 text-center text-sm text-muted-foreground">
+                      Loading {collection} content...
+                    </div>
+                  ) : collectionErrors[collection] ? (
+                    <div className="rounded-3xl border border-dashed border-mainAlt/80 px-4 py-10 text-center text-sm text-muted-foreground">
+                      {collectionErrors[collection]}
+                    </div>
+                  ) : collectionItems[collection].length === 0 ? (
+                    <div className="rounded-3xl border border-dashed border-mainAlt/80 px-4 py-10 text-center text-sm text-muted-foreground">
+                      {collection === "posted"
+                        ? "No uploads yet. Create your first post to fill this grid."
+                        : collection === "saved"
+                          ? "No saved videos yet."
+                          : "No liked videos yet."}
+                    </div>
                   ) : (
-                    <Sun className="h-5 w-5" />
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                      {collectionItems[collection].map((content) => (
+                        <ProfileContentTile
+                          key={content.id}
+                          content={content}
+                          showStatus={collection === "posted"}
+                          onClick={() => openContent(content)}
+                        />
+                      ))}
+                    </div>
                   )}
-                  <span>Theme</span>
-                </div>
-                <Badge variant="secondary">
-                  {theme === 'system' ? `System (${resolvedTheme === 'dark' ? 'Dark' : 'Light'})` : theme === 'dark' ? 'Dark' : 'Light'}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {themeOptions.map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    size="sm"
-                    variant={theme === option.value ? 'default' : 'outline'}
-                    onClick={() => setTheme(option.value)}
-                    className="w-full"
-                  >
-                    {option.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            
-            <Separator />
-            
-            {/* Settings */}
-            <Link to="/profile/settings" className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-              <div className="flex items-center gap-3">
-                <Settings className="h-5 w-5" />
-                <span>Settings</span>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            </Link>
-            
-            {/* Admin Panel (if admin) */}
-            {isAdmin() && (
-              <>
-                <Separator />
-                <Link to="/admin" className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <Shield className="h-5 w-5 text-destructive" />
-                    <span>Admin Panel</span>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </Link>
-              </>
-            )}
-            
-            <Separator />
-            
-            {/* Logout */}
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center gap-3 p-4 text-destructive hover:bg-muted/50 transition-colors"
-            >
-              <LogOut className="h-5 w-5" />
-              <span>Log Out</span>
-            </button>
+                </TabsContent>
+              ))}
+            </Tabs>
           </CardContent>
         </Card>
       </div>
+
+      <ContentDetailSheet content={selectedContent} open={isDetailOpen} onOpenChange={setIsDetailOpen} />
     </MainLayout>
   );
 };
