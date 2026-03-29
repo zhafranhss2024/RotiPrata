@@ -6,7 +6,9 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
+import com.rotiprata.infrastructure.openai.OpenAiRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
+import com.rotiprata.application.ModerationService;
 
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -21,14 +23,20 @@ public class ChatService {
     private final OpenAiChatModel openAiChatModel;
     private final LessonService lessonService;
     private final SupabaseRestClient supabaseRestClient;
+    private final ModerationService moderationService;
 
-    public ChatService(OpenAiChatModel openAiChatModel, LessonService lessonService, SupabaseRestClient supabaseRestClient) {
+    public ChatService(OpenAiChatModel openAiChatModel, LessonService lessonService, SupabaseRestClient supabaseRestClient, ModerationService moderationService) {
         this.openAiChatModel = openAiChatModel;
         this.lessonService = lessonService;
         this.supabaseRestClient = supabaseRestClient;
+        this.moderationService = moderationService;
     }
   
     public String ask(String accessToken, String question) {
+
+        if (moderationService.isFlagged(question)) {
+            return "Your question contains inappropriate content and cannot be processed.";
+        }
 
         saveMessages(accessToken, question, "user");
 
@@ -42,7 +50,6 @@ public class ChatService {
         If the answer is not explicitly in the context, you may infer the most likely answer based on clues in the context.
         If there is truly no way to answer, reply with "I don't know".
 
-
             Context:
             %s
 
@@ -54,6 +61,10 @@ public class ChatService {
                         .getResult()
                         .getOutput()
                         .getText();
+        
+        if (moderationService.isFlagged(result)) {
+            result = "The assistant's response was flagged for inappropriate content.";
+        }
 
         saveMessages(accessToken, result, "assistant");
 
