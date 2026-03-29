@@ -42,7 +42,6 @@ public class ModerationService {
         if (!(firstResultObj instanceof Map<?, ?> firstResult)) return false;
 
         Object flagged = firstResult.get("flagged");
-        System.out.println("moderation service: " + flagged);
         return flagged instanceof Boolean b && b;
     }
 }

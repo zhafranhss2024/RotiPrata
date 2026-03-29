@@ -23,13 +23,27 @@ public class OpenAiRestClient {
             RestClient.Builder builder
     ) {
         this.restClient = builder
-                .baseUrl(baseUrl)
+                .baseUrl(normalizeBaseUrl(baseUrl))
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .build();
 
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        String trimmed = baseUrl == null ? "" : baseUrl.trim();
+        if (trimmed.isEmpty()) {
+            return "https://api.openai.com/v1";
+        }
+        if (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        if (trimmed.endsWith("/v1")) {
+            return trimmed;
+        }
+        return trimmed + "/v1";
     }
 
     public <T> T post(String path, Object body, TypeReference<T> typeRef) {
