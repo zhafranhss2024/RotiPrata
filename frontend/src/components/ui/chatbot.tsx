@@ -16,6 +16,7 @@ const Chatbot = () => {
   const [input, setInput] = useState("");                 // user input
   const [loading, setLoading] = useState(false);          // AI response pending
   const [messagesLoaded, setMessagesLoaded] = useState(false); // initial load flag
+  const [error, setError] = useState(""); // error message
 
   // ------------------------
   // Refs
@@ -59,7 +60,15 @@ const Chatbot = () => {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
+    if (loading) return;
+
+    const validation = validateInput(input);
+    if (!validation.valid) {
+      setError(validation.error); // or show inline error in chat UI
+      return;
+    }
+
+    setError("");
 
     // Append user message
     const userMessage: ChatMessage = { role: "user", message: input, timestamp: new Date().toISOString() };
@@ -76,6 +85,16 @@ const Chatbot = () => {
     }
 
     setLoading(false);
+  };
+
+  // ------------------------
+  // Frontend validation
+  // ------------------------
+  const validateInput = (text: string) => {
+    if (!text.trim()) return { valid: false, error: "Message cannot be empty." };
+    if (text.length > 250) return { valid: false, error: "Message too long." };
+    // Add more checks here if needed (profanity, forbidden words, etc.)
+    return { valid: true };
   };
 
   // ------------------------
@@ -158,6 +177,20 @@ const Chatbot = () => {
             <button onClick={toggleChat} className="text-gray-400 hover:text-mainAccent dark:hover:text-white text-lg leading-none">✕</button>
           </div>
         </div>
+        
+        {/* ERROR BANNER */}
+        <div className={`transition-all duration-300 overflow-hidden
+                        ${error ? "max-h-10 opacity-100" : "max-h-0 opacity-0"}`}>
+          <div className="flex items-center justify-between bg-red-100 text-red-600 px-3 py-2 text-sm">
+            <span>{error}</span>
+            <button
+              onClick={() => setError("")}
+              className="ml-2 text-red-500 hover:text-red-700"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
 
         {/* Messages */}
         <div ref={messagesRef} className="flex-1 p-3 flex flex-col gap-2 overflow-y-scroll scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
@@ -184,36 +217,38 @@ const Chatbot = () => {
             </div>
           )}
         </div>
-
+        
         {/* Input area */}
-        <div className="flex p-2 border-t border-gray-200 dark:border-gray-700 gap-2">
-          <textarea
-            id="chat-input"
-            value={input}
-            onChange={e => setInput(e.target.value.slice(0, 250))}
-            onKeyDown={e => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                if (input.trim() && !loading) handleSend();
-              }
-            }}
-            placeholder="Type a message..."
-            className="flex-1 resize-none rounded-xl border border-gray-300 dark:border-gray-600
-                       px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-mainAccent
-                       bg-white dark:bg-[#2a2a2e] text-gray-900 dark:text-white
-                       max-h-[4.5rem] overflow-y-auto"
-            rows={2}
-          />
-          <button
-            onClick={handleSend}
-            disabled={loading || input.trim() === ""}
-            className={`px-3 py-2 rounded-full text-sm flex-shrink-0
-                       ${loading || input.trim() === ""
-                         ? "bg-gray-400 cursor-not-allowed text-gray-200"
-                         : "bg-[#ff5c8d] hover:bg-[#d6336c] text-white"}`}
-          >
-            ➤
-          </button>
+        <div className="flex flex-col p-2 border-t border-gray-200 dark:border-gray-700 gap-1">
+          <div className="flex gap-2">
+            <textarea
+              id="chat-input"
+              value={input}
+              onChange={e => setInput(e.target.value.slice(0, 250))}
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  if (input.trim() && !loading) handleSend();
+                }
+              }}
+              placeholder="Type a message..."
+              className="flex-1 resize-none rounded-xl border border-gray-300 dark:border-gray-600
+                        px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-mainAccent
+                        bg-white dark:bg-[#2a2a2e] text-gray-900 dark:text-white
+                        max-h-[4.5rem] overflow-y-auto"
+              rows={2}
+            />
+            <button
+              onClick={handleSend}
+              disabled={loading || input.trim() === ""}
+              className={`px-3 py-2 rounded-full text-sm flex-shrink-0
+                        ${loading || input.trim() === ""
+                          ? "bg-gray-400 cursor-not-allowed text-gray-200"
+                          : "bg-[#ff5c8d] hover:bg-[#d6336c] text-white"}`}
+            >
+              ➤
+            </button>
+          </div>
         </div>
       </div>
     </>
