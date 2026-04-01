@@ -17,6 +17,8 @@ import LessonDetailPage from "./pages/LessonDetailPage";
 import LessonSectionPage from "./pages/LessonSectionPage";
 import LessonQuizPage from "./pages/LessonQuizPage";
 import ProfilePage from "./pages/ProfilePage";
+import ProfileBadgesPage from "./pages/ProfileBadgesPage";
+import ProfileSettingsPage from "./pages/ProfileSettingsPage";
 import EditProfilePage from "./pages/EditProfilePage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -103,6 +105,22 @@ const App = () => (
                 element={
                   <RequireAuth>
                     <ProfilePage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/profile/badges"
+                element={
+                  <RequireAuth>
+                    <ProfileBadgesPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/profile/settings"
+                element={
+                  <RequireAuth>
+                    <ProfileSettingsPage />
                   </RequireAuth>
                 }
               />

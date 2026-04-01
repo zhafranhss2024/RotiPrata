@@ -19,6 +19,8 @@ export const mockLessons: Lesson[] = [
     badge_name: "Slang Starter",
     badge_icon_url: null,
     difficulty_level: 1,
+    category_id: "1",
+    path_order: 1,
     is_published: true,
     completion_count: 1234,
     origin_content: null,
@@ -43,6 +45,8 @@ export const mockLessons: Lesson[] = [
     badge_name: "Skibidi Scholar",
     badge_icon_url: null,
     difficulty_level: 2,
+    category_id: "2",
+    path_order: 1,
     is_published: true,
     completion_count: 856,
     origin_content: null,
@@ -67,6 +71,8 @@ export const mockLessons: Lesson[] = [
     badge_name: "Internet Expert",
     badge_icon_url: null,
     difficulty_level: 3,
+    category_id: null,
+    path_order: null,
     is_published: true,
     completion_count: 432,
     origin_content: null,
@@ -99,6 +105,8 @@ export const mockLessonDetail: Lesson = {
   badge_name: "Slang Starter",
   badge_icon_url: null,
   difficulty_level: 1,
+  category_id: "1",
+  path_order: 1,
   is_published: true,
   completion_count: 1234,
   origin_content:
@@ -251,27 +259,77 @@ export const mockLessonStats = {
 
 
 export const mockLessonHub: LessonHubResponse = {
-  units: [
+  categories: [
     {
-      unitId: "unit-1",
-      title: "Unit 1",
-      orderIndex: 1,
-      accentColor: "green",
-      lessons: mockLessons.map((lesson, index) => {
-        const progress = mockLessonProgressByLessonId[lesson.id] ?? 0;
-        return {
-          lessonId: lesson.id,
-          title: lesson.title,
-          difficultyLevel: lesson.difficulty_level,
-          estimatedMinutes: lesson.estimated_minutes,
-          xpReward: lesson.xp_reward,
-          completionCount: lesson.completion_count,
-          progressPercentage: progress,
-          completed: progress >= 100,
-          current: index === 0,
-          visuallyLocked: index > 0 && progress < 100,
-        };
-      }),
+      categoryId: "2",
+      name: "Memes",
+      type: "meme",
+      color: "#4ECDC4",
+      isVirtual: false,
+      lessons: [
+        {
+          lessonId: "2",
+          title: "Meme History: Skibidi Universe",
+          difficultyLevel: 2,
+          estimatedMinutes: 20,
+          xpReward: 200,
+          completionCount: 856,
+          progressPercentage: mockLessonProgressByLessonId["2"] ?? 0,
+          completed: false,
+          current: true,
+          visuallyLocked: false,
+        },
+      ],
+    },
+    {
+      categoryId: "1",
+      name: "Slang",
+      type: "slang",
+      color: "#FF6B6B",
+      isVirtual: false,
+      lessons: [
+        {
+          lessonId: "1",
+          title: "Gen Alpha Slang 101",
+          difficultyLevel: 1,
+          estimatedMinutes: 15,
+          xpReward: 150,
+          completionCount: 1234,
+          progressPercentage: mockLessonProgressByLessonId["1"] ?? 0,
+          completed: false,
+          current: true,
+          visuallyLocked: false,
+        },
+      ],
+    },
+    {
+      categoryId: "4",
+      name: "Social Practices",
+      type: "social_practice",
+      color: "#96CEB4",
+      isVirtual: false,
+      lessons: [],
+    },
+    {
+      categoryId: null,
+      name: "Uncategorized",
+      type: "other",
+      color: "#6b7280",
+      isVirtual: true,
+      lessons: [
+        {
+          lessonId: "3",
+          title: "Understanding Internet Culture",
+          difficultyLevel: 3,
+          estimatedMinutes: 30,
+          xpReward: 300,
+          completionCount: 432,
+          progressPercentage: mockLessonProgressByLessonId["3"] ?? 0,
+          completed: false,
+          current: true,
+          visuallyLocked: false,
+        },
+      ],
     },
   ],
   summary: {

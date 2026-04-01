@@ -1,6 +1,9 @@
 package com.rotiprata.api;
 
 import com.rotiprata.api.dto.AdminLessonDraftResponse;
+import com.rotiprata.api.dto.AdminLessonCategoryMoveRequest;
+import com.rotiprata.api.dto.AdminLessonCategoryMoveResponse;
+import com.rotiprata.api.dto.AdminLessonPathOrderRequest;
 import com.rotiprata.api.dto.AdminPublishLessonResponse;
 import com.rotiprata.api.dto.AdminStepSaveRequest;
 import com.rotiprata.api.dto.AdminStepSaveResponse;
@@ -216,6 +219,25 @@ public class LessonController {
     public void deleteLesson(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
         UUID userId = SecurityUtils.getUserId(jwt);
         lessonService.deleteLesson(userId, lessonId, SecurityUtils.getAccessToken());
+    }
+
+    @PutMapping("/admin/lessons/path-order")
+    public List<Map<String, Object>> reorderLessonPath(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestBody AdminLessonPathOrderRequest request
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.reorderLessonPath(userId, request, SecurityUtils.getAccessToken());
+    }
+
+    @PutMapping("/admin/lessons/{lessonId}/move-category")
+    public AdminLessonCategoryMoveResponse moveLessonToCategory(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @RequestBody AdminLessonCategoryMoveRequest request
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.moveLessonToCategory(userId, lessonId, request, SecurityUtils.getAccessToken());
     }
 
     @GetMapping("/admin/lessons/{lessonId}/quiz")

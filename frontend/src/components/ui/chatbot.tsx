@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { sendChatMessage, getChatHistory, startNewChat } from "@/lib/api.ts";
+import { ApiError } from "@/lib/apiClient";
+import { formatRateLimitMessage } from "@/lib/rateLimit";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -80,8 +82,17 @@ const Chatbot = () => {
       const res = await sendChatMessage(userMessage.message);
       const botMessage: ChatMessage = { role: "assistant", message: res.reply, timestamp: new Date().toISOString() };
       setMessages(prev => [...prev, botMessage]);
-    } catch {
-      setMessages(prev => [...prev, { role: "assistant", message: "Something went wrong.", timestamp: new Date().toISOString() }]);
+    } catch (error) {
+      const message =
+        error instanceof ApiError && (error.status === 429 || error.code === "rate_limited")
+          ? formatRateLimitMessage(error.retryAfterSeconds)
+          : "Something went wrong.";
+      const errorMsg: ChatMessage = {
+        role: "assistant",
+        message,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMsg]);
     }
 
     setLoading(false);
