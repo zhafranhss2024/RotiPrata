@@ -1,4 +1,5 @@
-﻿import type { Profile, UserAchievement } from "@/types";
+import type { Content, Profile, ProfileContentCollection, UserBadge } from "@/types";
+import { mockContents } from "@/mocks/content";
 
 /**
  * DUMMY DATA: Used when VITE_USE_MOCKS=true or when API calls fail in auto mode.
@@ -10,7 +11,7 @@ export const mockProfile: Profile = {
   user_id: "user1",
   display_name: "Brain Rot Learner",
   avatar_url: null,
-  bio: "Learning Gen Alpha culture one skibidi at a time",
+  bio: "Posting chaos, saving brainrot, and collecting lesson badges.",
   date_of_birth: "1990-05-15",
   is_gen_alpha: false,
   theme_preference: "system",
@@ -24,35 +25,95 @@ export const mockProfile: Profile = {
   updated_at: now,
 };
 
-export const mockAchievements: UserAchievement[] = [
+export const mockProfileBadges: UserBadge[] = [
   {
-    id: "1",
-    user_id: "user1",
-    achievement_name: "First Steps",
-    achievement_type: "milestone",
-    icon_url: null,
-    description: "Complete your first lesson",
-    earned_at: now,
+    lessonId: "lesson-1",
+    lessonTitle: "What is \"No Cap\"?",
+    badgeName: "Slang Starter",
+    badgeIconUrl: null,
+    earned: true,
+    earnedAt: now,
   },
   {
-    id: "2",
-    user_id: "user1",
-    achievement_name: "Quiz Master",
-    achievement_type: "skill",
-    icon_url: null,
-    description: "Score 100% on 3 quizzes",
-    earned_at: now,
+    lessonId: "lesson-2",
+    lessonTitle: "Italian Brainrot",
+    badgeName: "Skibidi Scholar",
+    badgeIconUrl: null,
+    earned: true,
+    earnedAt: new Date(Date.now() - 86400000).toISOString(),
   },
   {
-    id: "3",
-    user_id: "user1",
-    achievement_name: "5 Day Streak",
-    achievement_type: "streak",
-    icon_url: null,
-    description: "Learn for 5 days in a row",
-    earned_at: now,
+    lessonId: "lesson-3",
+    lessonTitle: "What is the \"67\" Meme?",
+    badgeName: "Meme Historian",
+    badgeIconUrl: null,
+    earned: false,
+    earnedAt: null,
+  },
+  {
+    lessonId: "lesson-4",
+    lessonTitle: "Deadass",
+    badgeName: "Truth Teller",
+    badgeIconUrl: null,
+    earned: false,
+    earnedAt: null,
   },
 ];
+
+const postedVideo: Content = {
+  ...mockContents[0],
+  id: "profile-post-video",
+  creator_id: "user1",
+  title: "Skibidi recap edit",
+  description: "My chaotic recap of the week in brainrot.",
+  status: "approved",
+  is_submitted: true,
+  creator: mockProfile,
+};
+
+const postedImage: Content = {
+  ...mockContents[2],
+  id: "profile-post-image",
+  creator_id: "user1",
+  title: "Ohio starter pack",
+  description: "Reaction image dump from my explore saves.",
+  status: "pending",
+  is_submitted: true,
+  creator: mockProfile,
+};
+
+const postedText: Content = {
+  ...mockContents[1],
+  id: "profile-post-text",
+  creator_id: "user1",
+  title: "Rizz glossary notes",
+  description: "Text post of phrases I keep hearing in the feed.",
+  status: "rejected",
+  is_submitted: true,
+  creator: mockProfile,
+};
+
+const savedVideo: Content = {
+  ...mockContents[0],
+  id: "profile-saved-video",
+  creator_id: "user2",
+  title: "Gyat explained fast",
+  description: "A saved video for later rewatch.",
+};
+
+const likedVideo: Content = {
+  ...mockContents[0],
+  id: "profile-liked-video",
+  creator_id: "user3",
+  title: "Meme iceberg speedrun",
+  description: "A liked video from the main feed.",
+};
+
+export const mockProfileCollections: Record<ProfileContentCollection, Content[]> = {
+  posted: [postedVideo, postedImage, postedText],
+  saved: [savedVideo],
+  liked: [likedVideo],
+};
 
 export const mockProfileStats = {
   lessonsEnrolled: 5,

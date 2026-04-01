@@ -59,6 +59,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `PATCH /content/{contentId}`
 - `POST /content/{contentId}/submit`
 - `GET /content/{contentId}`
+- `GET /content/{contentId}/similar`
 - `GET /content/{contentId}/media`
 - `GET /content/{contentId}/quiz`
 - `POST /content/{contentId}/quiz/submit`
@@ -104,6 +105,8 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### Admin Lessons and Quiz Builder (`LessonController`)
 - `GET /admin/lessons`
 - `GET /admin/lessons/{lessonId}`
+- `PUT /admin/lessons/{lessonId}/move-category`
+- `PUT /admin/lessons/path-order`
 - `POST /admin/lessons/draft`
 - `PUT /admin/lessons/{lessonId}/draft/step/{stepKey}`
 - `POST /admin/lessons/{lessonId}/publish`
@@ -158,9 +161,24 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Behavior:
   - Comment is soft-deleted (`is_deleted=true`) and content `comments_count` is refreshed.
 - Common responses:
-  - `204` success
-  - `403` trying to delete another user's comment without admin role
-  - `404` comment/content not found
+- `204` success
+- `403` trying to delete another user's comment without admin role
+- `404` comment/content not found
+
+## Similar Videos Contract
+
+- Endpoint: `GET /content/{contentId}/similar`
+- Auth: required (`Authorization: Bearer <accessToken>`)
+- Query params:
+  - `limit` (optional): default `6`, max `6`
+- Response:
+  - `Content[]`
+- Behavior:
+  - Uses the current content's exact `content_tags` to rank related videos.
+  - Excludes the current content from the response.
+  - Restricts results to approved, submitted, playable videos.
+  - Returns only exact tag matches; if there are none, returns an empty list.
+  - Returns at most 6 items.
 
 ## Playback Event Contract
 
@@ -192,12 +210,14 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /users/me/stats` -> implemented
 - `GET /users/me/lessons/progress` -> implemented
 - `GET /users/me/hearts` -> implemented
-- `GET /users/me/achievements` -> missing
+- `GET /users/me/badges` -> implemented
+- `GET /users/me/content?collection=posted|saved|liked` -> implemented
 
 ### Content
 - `POST /content/media/start` -> implemented
 - `POST /content/media/start-link` -> implemented
 - `GET /content/{id}` -> implemented
+- `GET /content/{id}/similar?limit=...` -> implemented
 - `GET /content/{id}/media` -> implemented
 - `PATCH /content/{id}` -> implemented
 - `POST /content/{id}/submit` -> implemented
@@ -218,7 +238,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### Lessons learner flow
 - `GET /lessons` -> implemented
 - `GET /lessons/feed` -> implemented
-- `GET /lessons/hub` -> implemented
+- `GET /lessons/hub` -> implemented (category-based response)
 - `GET /lessons/search` -> implemented
 - `GET /lessons/{id}` -> implemented
 - `GET /lessons/{id}/sections` -> implemented
@@ -250,6 +270,8 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `PUT /admin/flags/{id}/resolve` -> implemented
 - `GET /admin/lessons` -> implemented
 - `GET /admin/lessons/{id}` -> implemented
+- `PUT /admin/lessons/{id}/move-category` -> implemented
+- `PUT /admin/lessons/path-order` -> implemented
 - `POST /admin/lessons/draft` -> implemented
 - `PUT /admin/lessons/{id}/draft/step/{step}` -> implemented
 - `POST /admin/lessons/{id}/publish` -> implemented
@@ -265,7 +287,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 
 - `GET /trending`
 - `GET /recommendations`
-- `GET /users/me/achievements`
 
 ## Compatibility Notes
 
@@ -273,6 +294,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Feed items and `GET /content/{contentId}` now include creator enrichment when profile exists:
   - `creator: { user_id, display_name, avatar_url }`
   - UI should keep fallback `@anonymous` when creator/display name is missing
+- `GET /content/{contentId}/similar` returns a capped related-video list for Learn More and the `/content/:id` related queue flow.
 - Comment deletion authorization:
   - `DELETE /content/{contentId}/comments/{commentId}` allows admins to delete any comment.
   - Non-admin users can delete only comments they authored.
@@ -280,8 +302,17 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - Authenticated only.
   - User id comes from the JWT subject on the server, not from request body data.
   - Supports `display_name` and `is_gen_alpha`.
+- `GET /users/me/badges` returns lesson badges derived from earned lesson rewards plus locked published lesson badges.
+- `GET /users/me/content?collection=posted|saved|liked` powers the profile content tabs:
+  - `posted` includes the user’s own uploads across statuses and content types
+  - `saved` and `liked` return approved submitted video content only
 - `/users/me` may include `timezone` for login streak day-boundary preference.
 - `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.
 - Learner quiz endpoints do not expose `correct_answer`; grading is server-side.
 - `PUT /lessons/{lessonId}/progress` exists for backward compatibility; section completion + quiz flow is the primary path.
+- `GET /lessons/hub` now returns `summary` plus `categories[]`, where each category includes `categoryId`, `name`, `type`, `color`, `isVirtual`, and ordered `lessons[]`.
+- Real categories are returned even when they have no lessons; legacy published lessons without `category_id` are grouped into a synthetic `Uncategorized` category.
+- Lesson authoring now persists `category_id` on `lessons`; `path_order` is assigned automatically when a lesson is published and then managed from the Manage Lessons path board.
+- `PUT /admin/lessons/path-order` accepts `{ categoryId, lessonIds }` and rewrites contiguous `path_order` values inside the selected category bucket.
+- `PUT /admin/lessons/{lessonId}/move-category` accepts `{ sourceCategoryId, targetCategoryId, sourceLessonIds, targetLessonIds }`, updates `category_id`, and normalizes path order in both affected categories.

@@ -12,6 +12,7 @@ import {
 import type {
   AdminQuizQuestionDraft,
   AdminValidationError,
+  Category,
   Lesson,
   QuizQuestion,
   WizardStepKey,
@@ -20,6 +21,7 @@ import {
   createAdminLessonDraft,
   fetchAdminLessonById,
   fetchAdminLessonQuizQuestions,
+  fetchCategories,
   publishAdminLesson,
   saveAdminLessonDraftStep,
 } from "@/lib/api";
@@ -29,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AdminQuestionEditor } from "@/features/admin/quiz-builder/AdminQuestionEditor";
 
 type Props = {
@@ -41,6 +44,7 @@ type LessonDraftForm = {
   title: string;
   description: string;
   summary: string;
+  category_id: string;
   learning_objectives: string[];
   estimated_minutes: number;
   xp_reward: number;
@@ -260,6 +264,7 @@ const normalizeLessonDraft = (lesson: Partial<Lesson> | Record<string, unknown> 
   title: toString(lesson?.title),
   description: toString(lesson?.description),
   summary: toString(lesson?.summary),
+  category_id: toString(lesson?.category_id),
   learning_objectives: toStringList(lesson?.learning_objectives),
   estimated_minutes: Number(lesson?.estimated_minutes ?? 15),
   xp_reward: Number(lesson?.xp_reward ?? 100),
@@ -387,6 +392,7 @@ const toLessonPayload = (form: LessonDraftForm) => ({
   title: form.title,
   description: form.description,
   summary: form.summary,
+  category_id: form.category_id || null,
   learning_objectives: form.learning_objectives.map((item) => item.trim()).filter(Boolean),
   estimated_minutes: Number(form.estimated_minutes || 0),
   xp_reward: Number(form.xp_reward || 0),
@@ -443,6 +449,7 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
 
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [lessonId, setLessonId] = useState<string | null>(lessonIdProp ?? null);
   const [openQuestionId, setOpenQuestionId] = useState<string | null>(null);
   const [quizBuilderStage, setQuizBuilderStage] = useState<QuizBuilderStage>("choose_type");
@@ -480,6 +487,23 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
     const timeout = window.setTimeout(() => setHighlightedQuestionId(null), 600);
     return () => window.clearTimeout(timeout);
   }, [highlightedQuestionId]);
+
+  useEffect(() => {
+    let active = true;
+    fetchCategories()
+      .then((loaded) => {
+        if (!active) return;
+        setCategories(loaded);
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.warn("Failed to load lesson categories", error);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -730,7 +754,7 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
       };
 
       const result = await publishAdminLesson(lessonId, {
-        lesson: toLessonPayload(lessonForm),
+        lesson: lessonPayload,
         questions,
       });
       if (!result.success) {
@@ -830,6 +854,28 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
           />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select
+              value={lessonForm.category_id || "__none__"}
+              onValueChange={(value) => {
+                setLessonForm((prev) => ({ ...prev, category_id: value === "__none__" ? "" : value }));
+                markStepUnsaved("basics");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No category</SelectItem>
+                {categories.map((category) => (
+                  <SelectItem key={category.id} value={category.id}>
+                    {category.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label>Estimated Minutes</Label>
             <Input
@@ -1273,6 +1319,12 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
               <p className="text-sm text-muted-foreground">Questions</p>
               <p className="font-medium">{questions.length}</p>
             </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm text-muted-foreground">Category</p>
+              <p className="font-medium">
+                {categories.find((category) => category.id === lessonForm.category_id)?.name || "Not selected"}
+              </p>
+            </div>
           </div>
           <div className="rounded-lg border p-3 space-y-2">
             {STEPS.map((step) => (
@@ -1309,7 +1361,11 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
               Skip embedding for this lesson
             </label>
           </div>
-          <Button onClick={() => handlePublish({ skip_embedding: skipEmbedding })} disabled={isPublishing} className="w-full">
+          <Button
+            onClick={() => handlePublish({ skip_embedding: skipEmbedding })}
+            disabled={isPublishing}
+            className="w-full"
+          >
             {isPublishing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
             Publish Lesson
           </Button>

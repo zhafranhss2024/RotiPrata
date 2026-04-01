@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Flame, FolderTree, Lock, Star, Check } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { Check, Flame, Lock, Star } from 'lucide-react';
-import type { LessonHubLesson, LessonHubResponse } from '@/types';
+import type { LessonHubCategory, LessonHubLesson, LessonHubResponse } from '@/types';
 import { fetchLessonHub } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import Chatbot from '@/components/ui/chatbot';
+import { Button } from '@/components/ui/button';
 
 const HORIZONTAL_SWING = 92;
 const NODE_STEP_HEIGHT = 132;
@@ -13,17 +14,18 @@ const PATH_WIDTH = 320;
 const PATH_CENTER_X = PATH_WIDTH / 2;
 const NODE_CONNECTOR_GAP = 42;
 const LESSON_LABEL_HEIGHT = 32;
+const UNCATEGORIZED_KEY = '__uncategorized__';
 
 const nodeOffsetX = (index: number) => (index % 2 === 0 ? -HORIZONTAL_SWING : HORIZONTAL_SWING);
+
 const resolveLessonLabel = (title: string | null | undefined, index: number) => {
   const normalized = title?.trim();
-  if (normalized) {
-    return normalized;
-  }
-  return `Lesson ${index + 1}`;
+  return normalized || `Lesson ${index + 1}`;
 };
 
-const DottedPath = ({ lessonCount }: { lessonCount: number }) => {
+const categoryKey = (category: LessonHubCategory) => category.categoryId ?? UNCATEGORIZED_KEY;
+
+const DottedPath = ({ lessonCount, strokeColor }: { lessonCount: number; strokeColor: string }) => {
   if (lessonCount < 2) return null;
   const points = Array.from({ length: lessonCount }, (_, index) => ({
     x: PATH_CENTER_X + nodeOffsetX(index),
@@ -75,7 +77,7 @@ const DottedPath = ({ lessonCount }: { lessonCount: number }) => {
           y1={segment.y1}
           x2={segment.x2}
           y2={segment.y2}
-          stroke="rgba(98, 157, 255, 0.75)"
+          stroke={strokeColor}
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeDasharray="2 10"
@@ -90,10 +92,7 @@ const LessonNode = ({ lesson, index }: { lesson: LessonHubLesson; index: number 
   const isCompleted = lesson.completed;
   const isLocked = lesson.visuallyLocked;
   const lessonLabel = resolveLessonLabel(lesson.title, index);
-  const ringProgress = Math.max(
-    0,
-    Math.min(100, Math.round(isCompleted ? 100 : lesson.progressPercentage ?? 0))
-  );
+  const ringProgress = Math.max(0, Math.min(100, Math.round(isCompleted ? 100 : lesson.progressPercentage ?? 0)));
   const ringFillDeg = `${ringProgress * 3.6}deg`;
 
   const classes = isLocked
@@ -119,21 +118,21 @@ const LessonNode = ({ lesson, index }: { lesson: LessonHubLesson; index: number 
           style={{ background: `conic-gradient(#fe2c55 ${ringFillDeg}, rgba(246, 139, 155, 0.35) ${ringFillDeg} 360deg)` }}
         >
           <div
-          className={cn(
-            'h-16 w-[68px] rounded-full border-2 flex items-center justify-center transition-transform hover:scale-[1.03] active:translate-y-[5px] active:shadow-none',
-            classes
-          )}
-        >
-          {isCompleted ? (
-            <Check className="h-6 w-6" />
-          ) : isLocked ? (
-            <Lock className="h-5 w-5" />
-          ) : isCurrent ? (
-            <Star className="h-6 w-6 fill-current" />
-          ) : (
-            <span className="text-lg">{index + 1}</span>
-          )}
-        </div>
+            className={cn(
+              'h-16 w-[68px] rounded-full border-2 flex items-center justify-center transition-transform hover:scale-[1.03] active:translate-y-[5px] active:shadow-none',
+              classes
+            )}
+          >
+            {isCompleted ? (
+              <Check className="h-6 w-6" />
+            ) : isLocked ? (
+              <Lock className="h-5 w-5" />
+            ) : isCurrent ? (
+              <Star className="h-6 w-6 fill-current" />
+            ) : (
+              <span className="text-lg">{index + 1}</span>
+            )}
+          </div>
         </div>
         <span
           className="mt-2 block h-8 w-full overflow-hidden text-center text-[11px] leading-4 text-mainAccent dark:text-white/90 break-words"
@@ -150,6 +149,7 @@ const LessonsPage = () => {
   const [hub, setHub] = useState<LessonHubResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -172,6 +172,19 @@ const LessonsPage = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!hub?.categories?.length) {
+      setSelectedCategoryId(null);
+      return;
+    }
+    const availableKeys = new Set(hub.categories.map(categoryKey));
+    if (selectedCategoryId && availableKeys.has(selectedCategoryId)) {
+      return;
+    }
+    const preferredCategory = hub.categories.find((category) => category.lessons.length > 0) ?? hub.categories[0];
+    setSelectedCategoryId(categoryKey(preferredCategory));
+  }, [hub, selectedCategoryId]);
+
   const summary = useMemo(
     () => ({
       totalLessons: hub?.summary.totalLessons ?? 0,
@@ -181,12 +194,20 @@ const LessonsPage = () => {
     [hub]
   );
 
+  const activeCategory = useMemo(
+    () => hub?.categories.find((category) => categoryKey(category) === selectedCategoryId) ?? hub?.categories[0] ?? null,
+    [hub, selectedCategoryId]
+  );
+
+  const activeColor = activeCategory?.color ?? '#629dff';
+  const activeTitle = activeCategory?.name ?? 'Lesson Paths';
+
   return (
     <MainLayout>
       <div className="mx-auto w-full max-w-4xl px-4 pt-2 pb-24 lg:pt-4 lg:pb-8 space-y-4">
         <section className="p-2">
-          <p className="text-mainAccent text-xs uppercase tracking-wide">Lesson Path</p>
-          <h1 className="text-3xl text-mainAccent dark:text-white leading-tight mt-1">Keep Moving Forward</h1>
+          <p className="text-mainAccent text-xs uppercase tracking-wide">Lesson Paths</p>
+          <h1 className="text-3xl text-mainAccent dark:text-white leading-tight mt-1">{activeTitle}</h1>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="inline-flex items-center gap-1 rounded-full bg-mainAlt/40 px-3 py-1 text-xs text-mainAccent dark:text-white/90">
               Lessons {summary.totalLessons}
@@ -212,30 +233,82 @@ const LessonsPage = () => {
           </div>
         )}
 
-        {!isLoading && error && (
-          <div className="rounded-2xl p-4 text-sm text-statusStrong">{error}</div>
-        )}
+        {!isLoading && error && <div className="rounded-2xl p-4 text-sm text-statusStrong">{error}</div>}
 
         {!isLoading && !error && hub && (
           <div className="space-y-6">
-            {hub.units.map((unit) => (
-              <section key={unit.unitId} className="space-y-3">
-                <div className="py-5 overflow-visible">
+            <section className="rounded-3xl border border-mainAlt/35 bg-white/60 p-4 shadow-sm dark:bg-black/20">
+              <div className="flex flex-wrap gap-2">
+                {hub.categories.map((category) => {
+                  const key = categoryKey(category);
+                  const isActive = key === categoryKey(activeCategory ?? category);
+                  return (
+                    <Button
+                      key={key}
+                      type="button"
+                      variant={isActive ? 'default' : 'outline'}
+                      onClick={() => setSelectedCategoryId(key)}
+                      className={cn(
+                        'rounded-full',
+                        isActive ? 'text-white' : 'text-mainAccent dark:text-white'
+                      )}
+                      style={isActive ? { backgroundColor: category.color ?? activeColor } : undefined}
+                    >
+                      {category.name}
+                    </Button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {activeCategory ? (
+              <section
+                key={categoryKey(activeCategory)}
+                className="space-y-3 rounded-3xl border border-mainAlt/30 bg-gradient-to-b from-white/70 to-mainAlt/10 p-4 shadow-sm dark:from-black/20 dark:to-black/10"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-mainAccent/70 dark:text-white/60">
+                      {activeCategory.isVirtual ? 'Legacy path' : 'Category path'}
+                    </p>
+                    <h2 className="text-xl font-semibold text-mainAccent dark:text-white">{activeCategory.name}</h2>
+                  </div>
                   <div
-                    className="relative mx-auto"
-                    style={{
-                      width: PATH_WIDTH,
-                      height: unit.lessons.length * NODE_STEP_HEIGHT + LESSON_LABEL_HEIGHT,
-                    }}
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs text-mainAccent dark:text-white"
+                    style={{ backgroundColor: `${activeColor}22` }}
                   >
-                    <DottedPath lessonCount={unit.lessons.length} />
-                    {unit.lessons.map((lesson, index) => (
-                      <LessonNode key={lesson.lessonId} lesson={lesson} index={index} />
-                    ))}
+                    <FolderTree className="h-3.5 w-3.5" />
+                    {activeCategory.lessons.length} lesson{activeCategory.lessons.length === 1 ? '' : 's'}
                   </div>
                 </div>
+
+                {activeCategory.lessons.length === 0 ? (
+                  <div
+                    className="rounded-2xl border border-dashed border-mainAlt/50 bg-mainAlt/10 px-4 py-10 text-center"
+                  >
+                    <p className="text-base font-semibold text-mainAccent dark:text-white">No lessons here yet</p>
+                    <p className="mt-2 text-sm text-mainAccent/70 dark:text-white/70">
+                      This category is ready, but its learning path has not been built yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="py-5 overflow-visible">
+                    <div
+                      className="relative mx-auto"
+                      style={{
+                        width: PATH_WIDTH,
+                        height: activeCategory.lessons.length * NODE_STEP_HEIGHT + LESSON_LABEL_HEIGHT,
+                      }}
+                    >
+                      <DottedPath lessonCount={activeCategory.lessons.length} strokeColor={activeColor} />
+                      {activeCategory.lessons.map((lesson, index) => (
+                        <LessonNode key={lesson.lessonId} lesson={lesson} index={index} />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
-            ))}
+            ) : null}
           </div>
         )}
       </div>

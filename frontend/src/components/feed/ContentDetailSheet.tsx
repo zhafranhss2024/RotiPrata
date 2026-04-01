@@ -1,11 +1,15 @@
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BookOpen, Clock, History } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { Content } from "@/types";
+import { fetchSimilarContent, SIMILAR_CONTENT_LIMIT } from "@/lib/api";
+import { CompactVideoTile } from "./CompactVideoTile";
+import type { ContentViewerLocationState } from "@/lib/contentViewer";
 
 interface ContentDetailSheetProps {
   content: Content | null;
@@ -14,7 +18,79 @@ interface ContentDetailSheetProps {
 }
 
 export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetailSheetProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const requestVersionRef = useRef(0);
+  const [similarVideos, setSimilarVideos] = useState<Content[]>([]);
+  const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
+
+  useEffect(() => {
+    if (!open || !content?.id) {
+      setIsLoadingSimilar(false);
+      setSimilarVideos([]);
+      return;
+    }
+
+    requestVersionRef.current += 1;
+    const requestVersion = requestVersionRef.current;
+    setIsLoadingSimilar(true);
+
+    fetchSimilarContent(content.id, SIMILAR_CONTENT_LIMIT)
+      .then((items) => {
+        if (requestVersion !== requestVersionRef.current) {
+          return;
+        }
+        setSimilarVideos(
+          items
+            .filter((item) => item.id !== content.id)
+            .slice(0, SIMILAR_CONTENT_LIMIT)
+        );
+      })
+      .catch((error) => {
+        if (requestVersion !== requestVersionRef.current) {
+          return;
+        }
+        console.warn("Failed to load similar videos", error);
+        setSimilarVideos([]);
+      })
+      .finally(() => {
+        if (requestVersion === requestVersionRef.current) {
+          setIsLoadingSimilar(false);
+        }
+      });
+  }, [content?.id, open]);
+
+  const visibleSimilarVideos = useMemo(
+    () =>
+      similarVideos
+        .filter((item) => item.id !== content?.id)
+        .slice(0, SIMILAR_CONTENT_LIMIT),
+    [content?.id, similarVideos]
+  );
+
   if (!content) return null;
+
+  const buildBackLabel = () => {
+    if (location.pathname === "/") {
+      return "Back to Feed";
+    }
+    if (location.pathname.startsWith("/explore")) {
+      return "Back to Explore";
+    }
+    return "Back";
+  };
+
+  const handleSimilarVideoClick = (contentId: string, index: number) => {
+    onOpenChange(false);
+    navigate(`/content/${contentId}`, {
+      state: {
+        queueContents: visibleSimilarVideos,
+        initialIndex: index,
+        returnTo: `${location.pathname}${location.search}`,
+        backLabel: buildBackLabel(),
+      } satisfies ContentViewerLocationState,
+    });
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -93,6 +169,50 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
               </div>
             </div>
           )}
+
+          <div className="mx-auto w-full max-w-4xl">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h3 className="font-semibold text-sm text-muted-foreground">Similar Videos</h3>
+                <p className="text-sm text-muted-foreground">
+                  Keep scrolling through related videos after you open one.
+                </p>
+              </div>
+              <Badge variant="outline">Top {SIMILAR_CONTENT_LIMIT}</Badge>
+            </div>
+
+            {isLoadingSimilar ? (
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2 sm:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] sm:gap-3 md:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div
+                    key={`similar-skeleton-${index}`}
+                    className="rounded-2xl border border-border/60 bg-muted/30 p-3"
+                  >
+                    <Skeleton className="aspect-[9/16] w-full rounded-xl" />
+                    <Skeleton className="mt-3 h-4 w-5/6" />
+                    <Skeleton className="mt-2 h-3 w-2/3" />
+                  </div>
+                ))}
+              </div>
+            ) : visibleSimilarVideos.length > 0 ? (
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2 sm:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] sm:gap-3 md:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]">
+                {visibleSimilarVideos.map((video, index) => (
+                  <CompactVideoTile
+                    key={video.id}
+                    title={video.title}
+                    snippet={video.description}
+                    thumbnailUrl={video.thumbnail_url}
+                    mediaUrl={video.stream_type === "hls" ? null : video.media_url}
+                    onClick={() => handleSimilarVideoClick(video.id, index)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                No similar videos available right now.
+              </div>
+            )}
+          </div>
 
           <div className="bg-surfaceSoft border border-mainAlt/70 rounded-xl p-4">
             <div className="flex items-center gap-3 mb-3">

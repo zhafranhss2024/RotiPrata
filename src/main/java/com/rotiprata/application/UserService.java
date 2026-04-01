@@ -1,9 +1,15 @@
 package com.rotiprata.application;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -14,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.dto.UserBadgeResponse;
 import com.rotiprata.domain.AppRole;
 import com.rotiprata.domain.Profile;
 import com.rotiprata.domain.ThemePreference;
@@ -26,6 +33,7 @@ import com.rotiprata.security.SecurityUtils;
 public class UserService {
     private static final TypeReference<List<Profile>> PROFILE_LIST = new TypeReference<>() {};
     private static final TypeReference<List<UserRole>> USER_ROLE_LIST = new TypeReference<>() {};
+    private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final SupabaseRestClient supabaseRestClient;
@@ -273,6 +281,100 @@ public class UserService {
         return updated.get(0);
     }
 
+    public List<UserBadgeResponse> getUserBadges(UUID userId, String accessToken) {
+        String token = requireAccessToken(accessToken);
+
+        List<Map<String, Object>> rewardRows = supabaseAdminRestClient.getList(
+            "user_lesson_rewards",
+            buildQuery(Map.of(
+                "select", "lesson_id,badge_name,awarded_at",
+                "user_id", "eq." + userId,
+                "order", "awarded_at.desc"
+            )),
+            MAP_LIST
+        );
+
+        LinkedHashMap<String, Map<String, Object>> rewardByLessonId = new LinkedHashMap<>();
+        Set<String> earnedLessonIds = new LinkedHashSet<>();
+        for (Map<String, Object> row : rewardRows) {
+            String lessonId = stringValue(row.get("lesson_id"));
+            if (lessonId == null || lessonId.isBlank() || rewardByLessonId.containsKey(lessonId)) {
+                continue;
+            }
+            rewardByLessonId.put(lessonId, row);
+            earnedLessonIds.add(lessonId);
+        }
+
+        Map<String, Map<String, Object>> earnedLessonMeta = fetchLessonsByIds(earnedLessonIds);
+
+        List<Map<String, Object>> publishedBadgeLessons = supabaseAdminRestClient.getList(
+            "lessons",
+            buildQuery(Map.of(
+                "select", "id,title,badge_name,badge_icon_url",
+                "is_active", "eq.true",
+                "archived_at", "is.null",
+                "is_published", "eq.true",
+                "badge_name", "not.is.null",
+                "order", "title.asc"
+            )),
+            MAP_LIST
+        );
+
+        List<UserBadgeResponse> earnedBadges = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Object>> entry : rewardByLessonId.entrySet()) {
+            String lessonId = entry.getKey();
+            Map<String, Object> reward = entry.getValue();
+            Map<String, Object> lesson = earnedLessonMeta.get(lessonId);
+            String badgeName = stringValue(lesson == null ? null : lesson.get("badge_name"));
+            if (badgeName == null) {
+                badgeName = stringValue(reward.get("badge_name"));
+            }
+            if (badgeName == null || badgeName.isBlank()) {
+                continue;
+            }
+            earnedBadges.add(
+                new UserBadgeResponse(
+                    parseUuid(lessonId),
+                    stringValue(lesson == null ? null : lesson.get("title")),
+                    badgeName,
+                    stringValue(lesson == null ? null : lesson.get("badge_icon_url")),
+                    true,
+                    parseOffsetDateTime(reward.get("awarded_at"))
+                )
+            );
+        }
+
+        List<UserBadgeResponse> lockedBadges = new ArrayList<>();
+        for (Map<String, Object> lesson : publishedBadgeLessons) {
+            String lessonId = stringValue(lesson.get("id"));
+            if (lessonId == null || earnedLessonIds.contains(lessonId)) {
+                continue;
+            }
+            String badgeName = stringValue(lesson.get("badge_name"));
+            if (badgeName == null || badgeName.isBlank()) {
+                continue;
+            }
+            lockedBadges.add(
+                new UserBadgeResponse(
+                    parseUuid(lessonId),
+                    stringValue(lesson.get("title")),
+                    badgeName,
+                    stringValue(lesson.get("badge_icon_url")),
+                    false,
+                    null
+                )
+            );
+        }
+
+        earnedBadges.sort(Comparator.comparing(UserBadgeResponse::earnedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+        lockedBadges.sort(Comparator.comparing(UserBadgeResponse::badgeName, Comparator.nullsLast(String::compareToIgnoreCase)));
+
+        List<UserBadgeResponse> allBadges = new ArrayList<>(earnedBadges.size() + lockedBadges.size());
+        allBadges.addAll(earnedBadges);
+        allBadges.addAll(lockedBadges);
+        return allBadges;
+    }
+
     private Profile createProfile(UUID userId, String displayName, Boolean isGenAlpha, String accessToken) {
         return createProfile(userId, displayName, isGenAlpha, accessToken, true);
     }
@@ -433,6 +535,57 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
         }
         return accessToken;
+    }
+
+    private Map<String, Map<String, Object>> fetchLessonsByIds(Set<String> lessonIds) {
+        if (lessonIds == null || lessonIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Map<String, Object>> lessonRows = supabaseAdminRestClient.getList(
+            "lessons",
+            buildQuery(Map.of(
+                "select", "id,title,badge_name,badge_icon_url",
+                "id", "in.(" + String.join(",", lessonIds) + ")"
+            )),
+            MAP_LIST
+        );
+        Map<String, Map<String, Object>> byId = new LinkedHashMap<>();
+        for (Map<String, Object> row : lessonRows) {
+            String lessonId = stringValue(row.get("id"));
+            if (lessonId != null) {
+                byId.put(lessonId, row);
+            }
+        }
+        return byId;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    private UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private OffsetDateTime parseOffsetDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof OffsetDateTime offsetDateTime) {
+            return offsetDateTime;
+        }
+        try {
+            return OffsetDateTime.parse(Objects.toString(value, null));
+        } catch (RuntimeException ex) {
+            return null;
+        }
     }
 
 }

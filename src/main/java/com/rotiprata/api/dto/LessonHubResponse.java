@@ -3,6 +3,6 @@ package com.rotiprata.api.dto;
 import java.util.List;
 
 public record LessonHubResponse(
-    List<LessonHubUnitResponse> units,
+    List<LessonHubCategoryResponse> categories,
     LessonHubSummaryResponse summary
 ) {}

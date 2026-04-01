@@ -3,6 +3,9 @@ package com.rotiprata.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.dto.AdminLessonDraftResponse;
+import com.rotiprata.api.dto.AdminLessonCategoryMoveRequest;
+import com.rotiprata.api.dto.AdminLessonCategoryMoveResponse;
+import com.rotiprata.api.dto.AdminLessonPathOrderRequest;
 import com.rotiprata.api.dto.AdminLessonWizardStep;
 import com.rotiprata.api.dto.AdminPublishLessonResponse;
 import com.rotiprata.api.dto.AdminStepSaveRequest;
@@ -10,19 +13,21 @@ import com.rotiprata.api.dto.AdminStepSaveResponse;
 import com.rotiprata.api.dto.AdminValidationError;
 import com.rotiprata.api.dto.LessonFeedRequest;
 import com.rotiprata.api.dto.LessonFeedResponse;
+import com.rotiprata.api.dto.LessonHubCategoryResponse;
 import com.rotiprata.api.dto.LessonHubLessonResponse;
 import com.rotiprata.api.dto.LessonHubResponse;
 import com.rotiprata.api.dto.LessonHubSummaryResponse;
-import com.rotiprata.api.dto.LessonHubUnitResponse;
 import com.rotiprata.api.dto.LessonProgressResponse;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -39,6 +44,9 @@ public class LessonService {
     private static final int DEFAULT_LESSON_FEED_PAGE = 1;
     private static final int DEFAULT_LESSON_FEED_PAGE_SIZE = 12;
     private static final int MAX_LESSON_FEED_PAGE_SIZE = 50;
+    private static final String UNCATEGORIZED_COLOR = "#6b7280";
+    private static final String UNCATEGORIZED_NAME = "Uncategorized";
+    private static final String UNCATEGORIZED_TYPE = "other";
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
     private static final Set<String> SUPPORTED_QUIZ_TYPES = Set.of(
         "multiple_choice",
@@ -157,67 +165,58 @@ public class LessonService {
                 "select", "*",
                 "is_active", "eq.true",
                 "archived_at", "is.null",
-                "is_published", "eq.true",
-                "order", "created_at.asc"
+                "is_published", "eq.true"
             )),
             token,
             MAP_LIST
         );
+        List<Map<String, Object>> sortedLessons = sortLessonsForPath(lessons);
+        List<Map<String, Object>> categories = fetchOrderedCategories();
 
         Map<String, Integer> progressByLesson = getUserLessonProgress(userId, token);
         int completedLessons = 0;
-        int currentIndex = -1;
-        for (int i = 0; i < lessons.size(); i++) {
-            String lessonId = stringValue(lessons.get(i).get("id"));
+        for (Map<String, Object> lesson : sortedLessons) {
+            String lessonId = stringValue(lesson.get("id"));
             int progress = lessonId == null ? 0 : progressByLesson.getOrDefault(lessonId, 0);
             if (progress >= 100) {
                 completedLessons += 1;
-                continue;
             }
-            if (currentIndex < 0) {
-                currentIndex = i;
-            }
-        }
-        if (currentIndex < 0 && !lessons.isEmpty()) {
-            currentIndex = lessons.size() - 1;
         }
 
-        final String[] palette = new String[] { "green", "blue", "orange", "pink" };
-        final int unitSize = 6;
-        List<LessonHubUnitResponse> units = new ArrayList<>();
-        for (int start = 0, unitNumber = 1; start < lessons.size(); start += unitSize, unitNumber++) {
-            int end = Math.min(start + unitSize, lessons.size());
-            List<LessonHubLessonResponse> unitLessons = new ArrayList<>();
-            for (int i = start; i < end; i++) {
-                Map<String, Object> lesson = lessons.get(i);
-                String lessonIdRaw = stringValue(lesson.get("id"));
-                UUID lessonId = lessonIdRaw == null ? null : UUID.fromString(lessonIdRaw);
-                int progress = lessonIdRaw == null ? 0 : progressByLesson.getOrDefault(lessonIdRaw, 0);
-                boolean completed = progress >= 100;
-                boolean current = i == currentIndex;
-                boolean visuallyLocked = !completed && currentIndex >= 0 && i > currentIndex;
-                unitLessons.add(
-                    new LessonHubLessonResponse(
-                        lessonId,
-                        stringValue(lesson.get("title")),
-                        parseInteger(lesson.get("difficulty_level")),
-                        parseInteger(lesson.get("estimated_minutes")),
-                        parseInteger(lesson.get("xp_reward")),
-                        parseInteger(lesson.get("completion_count")),
-                        progress,
-                        completed,
-                        current,
-                        visuallyLocked
-                    )
-                );
+        Map<String, List<Map<String, Object>>> lessonsByCategory = new HashMap<>();
+        List<Map<String, Object>> uncategorizedLessons = new ArrayList<>();
+        for (Map<String, Object> lesson : sortedLessons) {
+            String categoryId = stringValue(lesson.get("category_id"));
+            if (categoryId == null) {
+                uncategorizedLessons.add(lesson);
+                continue;
             }
-            units.add(
-                new LessonHubUnitResponse(
-                    "unit-" + unitNumber,
-                    "Unit " + unitNumber,
-                    unitNumber,
-                    palette[(unitNumber - 1) % palette.length],
-                    unitLessons
+            lessonsByCategory.computeIfAbsent(categoryId, ignored -> new ArrayList<>()).add(lesson);
+        }
+
+        List<LessonHubCategoryResponse> hubCategories = new ArrayList<>();
+        for (Map<String, Object> category : categories) {
+            String categoryId = stringValue(category.get("id"));
+            hubCategories.add(
+                new LessonHubCategoryResponse(
+                    categoryId == null ? null : UUID.fromString(categoryId),
+                    stringValue(category.get("name")),
+                    stringValue(category.get("type")),
+                    stringValue(category.get("color")),
+                    false,
+                    buildHubLessons(lessonsByCategory.getOrDefault(categoryId, List.of()), progressByLesson)
+                )
+            );
+        }
+        if (!uncategorizedLessons.isEmpty()) {
+            hubCategories.add(
+                new LessonHubCategoryResponse(
+                    null,
+                    UNCATEGORIZED_NAME,
+                    UNCATEGORIZED_TYPE,
+                    UNCATEGORIZED_COLOR,
+                    true,
+                    buildHubLessons(uncategorizedLessons, progressByLesson)
                 )
             );
         }
@@ -229,8 +228,8 @@ public class LessonService {
             // Best-effort summary stat.
         }
         return new LessonHubResponse(
-            units,
-            new LessonHubSummaryResponse(lessons.size(), completedLessons, streak)
+            hubCategories,
+            new LessonHubSummaryResponse(sortedLessons.size(), completedLessons, streak)
         );
     }
 
@@ -238,16 +237,15 @@ public class LessonService {
     public List<Map<String, Object>> getAdminLessons(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
         ensureAdmin(userId, token);
-        return supabaseAdminRestClient.getList(
+        return sortLessonsForPath(supabaseAdminRestClient.getList(
             "lessons",
             buildQuery(Map.of(
                 "select", "*",
                 "is_active", "eq.true",
-                "archived_at", "is.null",
-                "order", "created_at.desc"
+                "archived_at", "is.null"
             )),
             MAP_LIST
-        );
+        ));
     }
 
     public Map<String, Object> getAdminLessonById(UUID userId, UUID lessonId, String accessToken) {
@@ -272,6 +270,7 @@ public class LessonService {
         copyIfPresent(input, draftPayload, "xp_reward");
         copyIfPresent(input, draftPayload, "difficulty_level");
         copyIfPresent(input, draftPayload, "badge_name");
+        copyIfPresent(input, draftPayload, "category_id");
 
         Map<String, Object> lesson = createLesson(userId, draftPayload, token);
         UUID lessonId = UUID.fromString(lesson.get("id").toString());
@@ -371,6 +370,7 @@ public class LessonService {
 
         Map<String, Object> publishPatch = new LinkedHashMap<>();
         applyEditableLessonFields(mergedLesson, publishPatch);
+        publishPatch.put("path_order", resolvePathOrderForPublish(lessonId, lesson, mergedLesson));
         publishPatch.put("is_published", true);
         publishPatch.put("is_active", true);
         publishPatch.put("updated_at", OffsetDateTime.now());
@@ -492,12 +492,16 @@ public class LessonService {
         copyIfPresent(payload, insert, "xp_reward");
         copyIfPresent(payload, insert, "badge_name");
         copyIfPresent(payload, insert, "difficulty_level");
+        copyIfPresent(payload, insert, "category_id");
         copyIfPresent(payload, insert, "origin_content");
         copyIfPresent(payload, insert, "definition_content");
         copyIfPresent(payload, insert, "usage_examples");
         copyIfPresent(payload, insert, "lore_content");
         copyIfPresent(payload, insert, "evolution_content");
         copyIfPresent(payload, insert, "comparison_content");
+        if (publish) {
+            insert.put("path_order", nextPathOrderForCategory(parseUuid(insert.get("category_id")), null));
+        }
         insert.put("is_published", publish);
         insert.put("is_active", true);
         insert.put("archived_at", null);
@@ -554,6 +558,7 @@ public class LessonService {
         ensureAdmin(userId, token);
 
         Map<String, Object> lesson = getAdminLessonById(lessonId);
+        UUID previousCategoryId = parseUuid(lesson.get("category_id"));
 
         Map<String, Object> patch = new LinkedHashMap<>();
         copyIfPresent(payload, patch, "title");
@@ -564,6 +569,7 @@ public class LessonService {
         copyIfPresent(payload, patch, "xp_reward");
         copyIfPresent(payload, patch, "badge_name");
         copyIfPresent(payload, patch, "difficulty_level");
+        copyIfPresent(payload, patch, "category_id");
         copyIfPresent(payload, patch, "origin_content");
         copyIfPresent(payload, patch, "definition_content");
         copyIfPresent(payload, patch, "usage_examples");
@@ -578,6 +584,8 @@ public class LessonService {
 
         Map<String, Object> merged = new LinkedHashMap<>(lesson);
         merged.putAll(patch);
+        UUID nextCategoryId = parseUuid(merged.get("category_id"));
+        boolean categoryChanged = !Objects.equals(previousCategoryId, nextCategoryId);
 
         Boolean requestedPublish = parseBoolean(patch.get("is_published"));
         Boolean currentPublish = parseBoolean(lesson.get("is_published"));
@@ -594,7 +602,10 @@ public class LessonService {
             } else {
                 validateLessonFields(merged);
                 ensureLessonHasQuestions(lessonId);
+                patch.put("path_order", resolvePathOrderForPublish(lessonId, lesson, merged));
             }
+        } else if (categoryChanged) {
+            patch.put("path_order", null);
         }
         patch.put("updated_at", OffsetDateTime.now());
 
@@ -607,8 +618,11 @@ public class LessonService {
         if (updated.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to update lesson");
         }
-        
+
         Map<String, Object> updatedLesson = updated.get(0);
+        if (categoryChanged) {
+            normalizeCategoryBucket(previousCategoryId);
+        }
 
         // Fields that affect embeddings
         // List<String> embeddingFields = List.of(
@@ -649,6 +663,134 @@ public class LessonService {
         // }
 
         return updatedLesson;
+    }
+
+    public List<Map<String, Object>> reorderLessonPath(
+        UUID userId,
+        AdminLessonPathOrderRequest request,
+        String accessToken
+    ) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+        if (request == null || request.lessonIds() == null || request.lessonIds().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lesson order payload is required");
+        }
+
+        List<Map<String, Object>> bucketLessons = getAdminLessonsByCategoryBucket(request.categoryId());
+        Map<String, Map<String, Object>> lessonsById = bucketLessons.stream()
+            .filter(lesson -> stringValue(lesson.get("id")) != null)
+            .collect(Collectors.toMap(lesson -> stringValue(lesson.get("id")), lesson -> lesson));
+
+        List<String> submittedIds = request.lessonIds().stream()
+            .filter(Objects::nonNull)
+            .map(UUID::toString)
+            .distinct()
+            .toList();
+        if (submittedIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one lesson id is required");
+        }
+
+        boolean hasOutsideLesson = submittedIds.stream().anyMatch(id -> !lessonsById.containsKey(id));
+        if (hasOutsideLesson) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lessons do not belong to the selected category");
+        }
+
+        List<String> normalizedIds = new ArrayList<>(submittedIds);
+        for (Map<String, Object> lesson : bucketLessons) {
+            String lessonId = stringValue(lesson.get("id"));
+            if (lessonId != null && !normalizedIds.contains(lessonId)) {
+                normalizedIds.add(lessonId);
+            }
+        }
+
+        for (int index = 0; index < normalizedIds.size(); index++) {
+            String lessonId = normalizedIds.get(index);
+            supabaseAdminRestClient.patchList(
+                "lessons",
+                buildQuery(Map.of("id", "eq." + lessonId)),
+                Map.of(
+                    "path_order", index + 1,
+                    "updated_at", OffsetDateTime.now()
+                ),
+                MAP_LIST
+            );
+        }
+
+        return getAdminLessonsByCategoryBucket(request.categoryId());
+    }
+
+    public AdminLessonCategoryMoveResponse moveLessonToCategory(
+        UUID userId,
+        UUID lessonId,
+        AdminLessonCategoryMoveRequest request,
+        String accessToken
+    ) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Move payload is required");
+        }
+
+        Map<String, Object> lesson = getAdminLessonById(lessonId);
+        UUID currentCategoryId = parseUuid(lesson.get("category_id"));
+        UUID sourceCategoryId = request.sourceCategoryId();
+        UUID targetCategoryId = request.targetCategoryId();
+        if (!Objects.equals(currentCategoryId, sourceCategoryId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lesson source category is out of date");
+        }
+        if (Objects.equals(sourceCategoryId, targetCategoryId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a different category");
+        }
+
+        List<Map<String, Object>> sourceBucketLessons = getAdminLessonsByCategoryBucket(sourceCategoryId);
+        List<Map<String, Object>> targetBucketLessons = getAdminLessonsByCategoryBucket(targetCategoryId);
+        String movedLessonId = lessonId.toString();
+
+        List<String> sourceAvailableIds = sourceBucketLessons.stream()
+            .map(item -> stringValue(item.get("id")))
+            .filter(Objects::nonNull)
+            .filter(id -> !movedLessonId.equals(id))
+            .toList();
+        List<String> targetAvailableIds = targetBucketLessons.stream()
+            .map(item -> stringValue(item.get("id")))
+            .filter(Objects::nonNull)
+            .toList();
+
+        List<String> submittedSourceIds = normalizeSubmittedLessonIds(request.sourceLessonIds());
+        List<String> submittedTargetIds = normalizeSubmittedLessonIds(request.targetLessonIds());
+        if (!sameMembers(sourceAvailableIds, submittedSourceIds)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Source category lesson order is invalid");
+        }
+
+        List<String> expectedTargetIds = new ArrayList<>(targetAvailableIds);
+        expectedTargetIds.add(movedLessonId);
+        if (!sameMembers(expectedTargetIds, submittedTargetIds) || !submittedTargetIds.contains(movedLessonId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target category lesson order is invalid");
+        }
+
+        Map<String, Object> movePatch = new LinkedHashMap<>();
+        movePatch.put("category_id", targetCategoryId);
+        movePatch.put("path_order", submittedTargetIds.indexOf(movedLessonId) + 1);
+        movePatch.put("updated_at", OffsetDateTime.now());
+        supabaseAdminRestClient.patchList(
+            "lessons",
+            buildQuery(Map.of("id", "eq." + lessonId)),
+            movePatch,
+            MAP_LIST
+        );
+
+        applySequentialPathOrder(submittedSourceIds);
+        applySequentialPathOrder(submittedTargetIds);
+
+        List<Map<String, Object>> updatedSourceLessons = getAdminLessonsByCategoryBucket(sourceCategoryId);
+        List<Map<String, Object>> updatedTargetLessons = getAdminLessonsByCategoryBucket(targetCategoryId);
+        return new AdminLessonCategoryMoveResponse(
+            sourceCategoryId,
+            targetCategoryId,
+            updatedSourceLessons,
+            updatedTargetLessons,
+            getAdminLessonById(lessonId)
+        );
     }
 
     public void deleteLesson(UUID userId, UUID lessonId, String accessToken) {
@@ -1494,6 +1636,7 @@ public class LessonService {
         requireField(lesson, "title", errors);
         requireField(lesson, "summary", errors);
         requireField(lesson, "description", errors);
+        requireField(lesson, "category_id", errors);
         requireField(lesson, "origin_content", errors);
         requireField(lesson, "definition_content", errors);
         requireField(lesson, "lore_content", errors);
@@ -1726,6 +1869,7 @@ public class LessonService {
             copyIfPresent(lessonPatch, patch, "xp_reward");
             copyIfPresent(lessonPatch, patch, "badge_name");
             copyIfPresent(lessonPatch, patch, "difficulty_level");
+            copyIfPresent(lessonPatch, patch, "category_id");
         } else if (step == AdminLessonWizardStep.CONTENT) {
             copyIfPresent(lessonPatch, patch, "learning_objectives");
             copyIfPresent(lessonPatch, patch, "origin_content");
@@ -1758,6 +1902,7 @@ public class LessonService {
         copyIfPresent(source, patch, "xp_reward");
         copyIfPresent(source, patch, "badge_name");
         copyIfPresent(source, patch, "difficulty_level");
+        copyIfPresent(source, patch, "category_id");
         copyIfPresent(source, patch, "origin_content");
         copyIfPresent(source, patch, "definition_content");
         copyIfPresent(source, patch, "usage_examples");
@@ -1916,7 +2061,8 @@ public class LessonService {
             "estimated_minutes",
             "xp_reward",
             "difficulty_level",
-            "badge_name"
+            "badge_name",
+            "category_id"
         ).contains(field);
     }
 
@@ -2039,6 +2185,194 @@ public class LessonService {
             return options;
         }
         return new LinkedHashMap<>();
+    }
+
+    private List<Map<String, Object>> fetchOrderedCategories() {
+        return supabaseAdminRestClient.getList(
+            "categories",
+            buildQuery(Map.of("select", "*", "order", "name.asc")),
+            MAP_LIST
+        );
+    }
+
+    private List<Map<String, Object>> getAdminLessonsByCategoryBucket(UUID categoryId) {
+        LinkedHashMap<String, String> params = new LinkedHashMap<>();
+        params.put("select", "*");
+        params.put("is_active", "eq.true");
+        params.put("archived_at", "is.null");
+        if (categoryId == null) {
+            params.put("category_id", "is.null");
+        } else {
+            params.put("category_id", "eq." + categoryId);
+        }
+        return sortLessonsForPath(supabaseAdminRestClient.getList("lessons", buildQuery(params), MAP_LIST));
+    }
+
+    private int resolvePathOrderForPublish(UUID lessonId, Map<String, Object> existingLesson, Map<String, Object> mergedLesson) {
+        UUID currentCategoryId = parseUuid(existingLesson.get("category_id"));
+        UUID targetCategoryId = parseUuid(mergedLesson.get("category_id"));
+        Integer currentPathOrder = parseInteger(existingLesson.get("path_order"));
+        boolean wasPublished = Boolean.TRUE.equals(parseBoolean(existingLesson.get("is_published")));
+        boolean categoryChanged = !Objects.equals(currentCategoryId, targetCategoryId);
+
+        if (targetCategoryId == null) {
+            return currentPathOrder != null && currentPathOrder > 0 ? currentPathOrder : 1;
+        }
+        if (!wasPublished) {
+            if (categoryChanged || currentPathOrder == null || currentPathOrder < 1) {
+                return nextPathOrderForCategory(targetCategoryId, lessonId);
+            }
+            return currentPathOrder;
+        }
+        if (categoryChanged) {
+            return nextPathOrderForCategory(targetCategoryId, lessonId);
+        }
+        return currentPathOrder != null && currentPathOrder > 0
+            ? currentPathOrder
+            : nextPathOrderForCategory(targetCategoryId, lessonId);
+    }
+
+    private int nextPathOrderForCategory(UUID categoryId, UUID excludedLessonId) {
+        if (categoryId == null) {
+            return 1;
+        }
+        return getAdminLessonsByCategoryBucket(categoryId).stream()
+            .filter(lesson -> {
+                String lessonId = stringValue(lesson.get("id"));
+                return excludedLessonId == null || lessonId == null || !excludedLessonId.toString().equals(lessonId);
+            })
+            .map(lesson -> parseInteger(lesson.get("path_order")))
+            .filter(Objects::nonNull)
+            .max(Integer::compareTo)
+            .orElse(0) + 1;
+    }
+
+    private List<String> normalizeSubmittedLessonIds(List<UUID> lessonIds) {
+        if (lessonIds == null || lessonIds.isEmpty()) {
+            return List.of();
+        }
+        return lessonIds.stream()
+            .filter(Objects::nonNull)
+            .map(UUID::toString)
+            .distinct()
+            .toList();
+    }
+
+    private boolean sameMembers(List<String> expectedIds, List<String> submittedIds) {
+        if (expectedIds.size() != submittedIds.size()) {
+            return false;
+        }
+        return new HashSet<>(expectedIds).equals(new HashSet<>(submittedIds));
+    }
+
+    private void applySequentialPathOrder(List<String> lessonIds) {
+        for (int index = 0; index < lessonIds.size(); index++) {
+            String currentLessonId = lessonIds.get(index);
+            if (currentLessonId == null) {
+                continue;
+            }
+            Map<String, Object> patch = new LinkedHashMap<>();
+            patch.put("path_order", index + 1);
+            patch.put("updated_at", OffsetDateTime.now());
+            supabaseAdminRestClient.patchList(
+                "lessons",
+                buildQuery(Map.of("id", "eq." + currentLessonId)),
+                patch,
+                MAP_LIST
+            );
+        }
+    }
+
+    private void normalizeCategoryBucket(UUID categoryId) {
+        applySequentialPathOrder(
+            getAdminLessonsByCategoryBucket(categoryId).stream()
+                .map(lesson -> stringValue(lesson.get("id")))
+                .filter(Objects::nonNull)
+                .toList()
+        );
+    }
+
+    private UUID parseUuid(Object value) {
+        String raw = stringValue(value);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    private List<LessonHubLessonResponse> buildHubLessons(
+        List<Map<String, Object>> lessons,
+        Map<String, Integer> progressByLesson
+    ) {
+        List<Map<String, Object>> orderedLessons = sortLessonsForPath(lessons);
+        List<LessonHubLessonResponse> hubLessons = new ArrayList<>();
+        int currentIndex = -1;
+        for (int index = 0; index < orderedLessons.size(); index++) {
+            String lessonId = stringValue(orderedLessons.get(index).get("id"));
+            int progress = lessonId == null ? 0 : progressByLesson.getOrDefault(lessonId, 0);
+            if (progress < 100) {
+                currentIndex = index;
+                break;
+            }
+        }
+        if (currentIndex < 0 && !orderedLessons.isEmpty()) {
+            currentIndex = orderedLessons.size() - 1;
+        }
+
+        for (int index = 0; index < orderedLessons.size(); index++) {
+            Map<String, Object> lesson = orderedLessons.get(index);
+            String lessonIdRaw = stringValue(lesson.get("id"));
+            UUID lessonId = lessonIdRaw == null ? null : UUID.fromString(lessonIdRaw);
+            int progress = lessonIdRaw == null ? 0 : progressByLesson.getOrDefault(lessonIdRaw, 0);
+            boolean completed = progress >= 100;
+            boolean current = index == currentIndex;
+            boolean visuallyLocked = !completed && currentIndex >= 0 && index > currentIndex;
+            hubLessons.add(
+                new LessonHubLessonResponse(
+                    lessonId,
+                    stringValue(lesson.get("title")),
+                    parseInteger(lesson.get("difficulty_level")),
+                    parseInteger(lesson.get("estimated_minutes")),
+                    parseInteger(lesson.get("xp_reward")),
+                    parseInteger(lesson.get("completion_count")),
+                    progress,
+                    completed,
+                    current,
+                    visuallyLocked
+                )
+            );
+        }
+        return hubLessons;
+    }
+
+    private List<Map<String, Object>> sortLessonsForPath(List<Map<String, Object>> lessons) {
+        if (lessons == null || lessons.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> sorted = new ArrayList<>(lessons);
+        sorted.sort(
+            Comparator
+                .comparing((Map<String, Object> lesson) -> parseInteger(lesson.get("path_order")), Comparator.nullsLast(Integer::compareTo))
+                .thenComparing((Map<String, Object> lesson) -> parseCreatedAt(lesson.get("created_at")), Comparator.nullsLast(OffsetDateTime::compareTo))
+                .thenComparing(lesson -> stringValue(lesson.get("title")), Comparator.nullsLast(String::compareToIgnoreCase))
+        );
+        return sorted;
+    }
+
+    private OffsetDateTime parseCreatedAt(Object value) {
+        String timestamp = stringValue(value);
+        if (timestamp == null) {
+            return null;
+        }
+        try {
+            return OffsetDateTime.parse(timestamp);
+        } catch (Exception ex) {
+            return null;
+        }
     }
 
     private record LessonProgressState(

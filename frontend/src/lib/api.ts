@@ -1,5 +1,6 @@
 import type {
   AdminLessonDraftResponse,
+  AdminLessonCategoryMoveResult,
   AdminPublishLessonResult,
   AdminQuizQuestionDraft,
   AdminStepValidationResult,
@@ -19,8 +20,9 @@ import type {
   Quiz,
   QuizQuestion,
   ThemePreference,
-  UserAchievement,
+  UserBadge,
   WizardStepKey,
+  ProfileContentCollection,
 } from "@/types";
 import {
   apiDelete,
@@ -43,7 +45,7 @@ import {
   mockLessonSections,
   mockLessonStats,
 } from "@/mocks/lessons";
-import { mockProfile, mockAchievements } from "@/mocks/profile";
+import { mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
 import { mockAdminStats, mockFlags, mockModerationQueue } from "@/mocks/admin";
 import {
   mockAiSuggestions,
@@ -52,6 +54,7 @@ import {
   mockTrendingContent,
 } from "@/mocks/explore";
 import { mockAuthUser, mockRoles } from "@/mocks/auth";
+import { buildSimilarContentList, SIMILAR_CONTENT_LIMIT } from "@/lib/similarContent";
 
 export type ChatResponse = {
   reply: string;
@@ -192,6 +195,9 @@ export type ContentPlaybackEventPayload = {
   networkType?: string | null;
   userAgent?: string | null;
 };
+
+const getMockContentById = (contentId: string) =>
+  mockContents.find((content) => content.id === contentId) ?? mockContents[0];
 
 const withMockFallback = async <T>(
   label: string,
@@ -344,6 +350,8 @@ export const fetchFeed = (cursor: string | null = null, limit = 20) =>
 export const fetchTrendingContent = () =>
   withMockFallback("trending", () => mockTrendingContent, () => apiGet(`/trending`));
 
+export { SIMILAR_CONTENT_LIMIT };
+
 export const searchContent = (query: string, filter?: string | null) =>
   withMockFallback(
     "search",
@@ -379,7 +387,10 @@ export const fetchLessonFeed = (params: LessonFeedParams = {}) =>
     () => {
       const page = normalizeLessonFeedPage(params.page);
       const pageSize = normalizeLessonFeedPageSize(params.pageSize);
-      const filtered = filterLessonsLocally(mockLessons, params);
+      const filtered = filterLessonsLocally(
+        mockLessons.filter((lesson) => lesson.is_published),
+        params
+      );
       const offset = (page - 1) * pageSize;
       const pageRows = filtered.slice(offset, offset + pageSize + 1);
       const hasMore = pageRows.length > pageSize;
@@ -390,12 +401,98 @@ export const fetchLessonFeed = (params: LessonFeedParams = {}) =>
   );
 
 export const fetchLessons = () =>
-  withMockFallback("lessons", () => mockLessons, () => apiGet<Lesson[]>(`/lessons`));
+  withMockFallback(
+    "lessons",
+    () => mockLessons.filter((lesson) => lesson.is_published),
+    () => apiGet<Lesson[]>(`/lessons`)
+  );
 
 export const fetchLessonHub = () =>
   withMockFallback(
     "lesson-hub",
-    () => mockLessonHub,
+    () => {
+      const publishedLessons = mockLessons.filter((lesson) => lesson.is_published);
+      const categories = mockCategories
+        .slice()
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map((category) => {
+          const lessons = publishedLessons
+            .filter((lesson) => lesson.category_id === category.id)
+            .sort((left, right) => {
+              const leftOrder = left.path_order ?? Number.MAX_SAFE_INTEGER;
+              const rightOrder = right.path_order ?? Number.MAX_SAFE_INTEGER;
+              if (leftOrder !== rightOrder) {
+                return leftOrder - rightOrder;
+              }
+              return new Date(left.created_at ?? 0).getTime() - new Date(right.created_at ?? 0).getTime();
+            })
+            .map((lesson, index) => ({
+              lessonId: lesson.id,
+              title: lesson.title,
+              difficultyLevel: lesson.difficulty_level,
+              estimatedMinutes: lesson.estimated_minutes,
+              xpReward: lesson.xp_reward,
+              completionCount: lesson.completion_count,
+              progressPercentage: mockLessonProgressByLessonId[lesson.id] ?? 0,
+              completed: (mockLessonProgressByLessonId[lesson.id] ?? 0) >= 100,
+              current: index === 0,
+              visuallyLocked: index > 0,
+            }));
+
+          return {
+            categoryId: category.id,
+            name: category.name,
+            type: category.type,
+            color: category.color,
+            isVirtual: false,
+            lessons,
+          };
+        });
+
+      const uncategorizedLessons = publishedLessons
+        .filter((lesson) => lesson.category_id === null)
+        .sort((left, right) => {
+          const leftOrder = left.path_order ?? Number.MAX_SAFE_INTEGER;
+          const rightOrder = right.path_order ?? Number.MAX_SAFE_INTEGER;
+          if (leftOrder !== rightOrder) {
+            return leftOrder - rightOrder;
+          }
+          return new Date(left.created_at ?? 0).getTime() - new Date(right.created_at ?? 0).getTime();
+        })
+        .map((lesson, index) => ({
+          lessonId: lesson.id,
+          title: lesson.title,
+          difficultyLevel: lesson.difficulty_level,
+          estimatedMinutes: lesson.estimated_minutes,
+          xpReward: lesson.xp_reward,
+          completionCount: lesson.completion_count,
+          progressPercentage: mockLessonProgressByLessonId[lesson.id] ?? 0,
+          completed: (mockLessonProgressByLessonId[lesson.id] ?? 0) >= 100,
+          current: index === 0,
+          visuallyLocked: index > 0,
+        }));
+
+      return {
+        categories: uncategorizedLessons.length > 0
+          ? [
+              ...categories,
+              {
+                categoryId: null,
+                name: "Uncategorized",
+                type: "other",
+                color: "#6b7280",
+                isVirtual: true,
+                lessons: uncategorizedLessons,
+              },
+            ]
+          : categories,
+        summary: {
+          totalLessons: publishedLessons.length,
+          completedLessons: publishedLessons.filter((lesson) => (mockLessonProgressByLessonId[lesson.id] ?? 0) >= 100).length,
+          currentStreak: mockLessonHub.summary.currentStreak,
+        },
+      };
+    },
     () => apiGet<LessonHubResponse>(`/lessons/hub`),
     { allowAutoFallback: false }
   );
@@ -403,7 +500,20 @@ export const fetchLessonHub = () =>
 export const searchLessons = (query: string) =>
   withMockFallback(
     "lesson-search",
-    () => mockLessons,
+    () =>
+      mockLessons.filter((lesson) => {
+        if (!lesson.is_published) {
+          return false;
+        }
+        const normalizedQuery = query.trim().toLowerCase();
+        if (!normalizedQuery) {
+          return true;
+        }
+        const title = lesson.title?.toLowerCase() ?? "";
+        const description = lesson.description?.toLowerCase() ?? "";
+        const summary = lesson.summary?.toLowerCase() ?? "";
+        return title.includes(normalizedQuery) || description.includes(normalizedQuery) || summary.includes(normalizedQuery);
+      }),
     () => apiGet<Lesson[]>(`/lessons/search?q=${encodeURIComponent(query)}`)
   );
 
@@ -651,8 +761,15 @@ export const fetchContentMediaStatus = (contentId: string) =>
 export const fetchContentById = (contentId: string) =>
   withMockFallback(
     "content-by-id",
-    () => mockContents[0],
+    () => getMockContentById(contentId),
     () => apiGet<Content>(`/content/${contentId}`)
+  );
+
+export const fetchSimilarContent = (contentId: string, limit = SIMILAR_CONTENT_LIMIT) =>
+  withMockFallback(
+    "content-similar",
+    () => buildSimilarContentList(mockContents, contentId, limit),
+    () => apiGet<Content[]>(`/content/${contentId}/similar?limit=${Math.min(SIMILAR_CONTENT_LIMIT, Math.max(1, Math.floor(limit)))}`)
   );
 
 export const updateDraftContent = (contentId: string, payload: Record<string, unknown>) =>
@@ -714,11 +831,18 @@ export const fetchProfile = () =>
 export const updateProfile = (payload: { display_name?: string; is_gen_alpha?: boolean }) =>
   apiPut<Profile>(`/users/me`, payload);
 
-export const fetchAchievements = () =>
+export const fetchUserBadges = () =>
   withMockFallback(
-    "achievements",
-    () => mockAchievements,
-    () => apiGet<UserAchievement[]>(`/users/me/achievements`)
+    "badges",
+    () => mockProfileBadges,
+    () => apiGet<UserBadge[]>(`/users/me/badges`)
+  );
+
+export const fetchProfileContentCollection = (collection: ProfileContentCollection) =>
+  withMockFallback(
+    `profile-content-${collection}`,
+    () => mockProfileCollections[collection],
+    () => apiGet<Content[]>(`/users/me/content?collection=${encodeURIComponent(collection)}`)
   );
 
 export const fetchThemePreference = () =>
@@ -1031,11 +1155,104 @@ export const publishAdminLesson = (
   );
 
 export const updateLesson = (lessonId: string, payload: Record<string, unknown>) =>
-  apiPut<Lesson>(`/admin/lessons/${lessonId}`, payload);
+  withMockFallback(
+    "admin-lesson-update",
+    () => {
+      const lesson = mockLessons.find((item) => item.id === lessonId);
+      if (!lesson) {
+        throw new Error("Lesson not found");
+      }
+      Object.assign(lesson, payload, { updated_at: new Date().toISOString() });
+      if (mockLessonDetail.id === lessonId) {
+        Object.assign(mockLessonDetail, payload, { updated_at: lesson.updated_at });
+      }
+      return lesson;
+    },
+    () => apiPut<Lesson>(`/admin/lessons/${lessonId}`, payload),
+    { allowAutoFallback: false }
+  );
 
 export const deleteLesson = (lessonId: string) => apiDelete<void>(`/admin/lessons/${lessonId}`);
 
 export const createLesson = (payload: Record<string, unknown>) => apiPost<Lesson>(`/admin/lessons`, payload);
+
+export const reorderAdminLessonPath = (categoryId: string | null, lessonIds: string[]) =>
+  withMockFallback(
+    "admin-lesson-path-order",
+    () => {
+      const bucket = mockLessons
+        .filter((lesson) => (categoryId === null ? lesson.category_id === null : lesson.category_id === categoryId))
+        .sort((left, right) => (left.path_order ?? Number.MAX_SAFE_INTEGER) - (right.path_order ?? Number.MAX_SAFE_INTEGER));
+      const orderedIds = [...lessonIds];
+      bucket.forEach((lesson) => {
+        if (!orderedIds.includes(lesson.id)) {
+          orderedIds.push(lesson.id);
+        }
+      });
+      return orderedIds
+        .map((id, index) => {
+          const lesson = mockLessons.find((item) => item.id === id);
+          if (!lesson) return null;
+          lesson.path_order = index + 1;
+          return lesson;
+        })
+        .filter((lesson): lesson is Lesson => Boolean(lesson));
+    },
+    () => apiPut<Lesson[]>(`/admin/lessons/path-order`, { categoryId, lessonIds }),
+    { allowAutoFallback: false }
+  );
+
+export const moveAdminLessonToCategory = (
+  lessonId: string,
+  payload: {
+    sourceCategoryId: string | null;
+    targetCategoryId: string | null;
+    sourceLessonIds: string[];
+    targetLessonIds: string[];
+  }
+) =>
+  withMockFallback(
+    "admin-lesson-category-move",
+    () => {
+      const movedLesson = mockLessons.find((lesson) => lesson.id === lessonId);
+      if (!movedLesson) {
+        throw new Error("Lesson not found");
+      }
+
+      movedLesson.category_id = payload.targetCategoryId;
+      payload.sourceLessonIds.forEach((id, index) => {
+        const lesson = mockLessons.find((item) => item.id === id);
+        if (lesson) {
+          lesson.path_order = index + 1;
+        }
+      });
+      payload.targetLessonIds.forEach((id, index) => {
+        const lesson = mockLessons.find((item) => item.id === id);
+        if (lesson) {
+          lesson.category_id = payload.targetCategoryId;
+          lesson.path_order = index + 1;
+        }
+      });
+
+      const sourceLessons = mockLessons.filter((lesson) => lesson.category_id === payload.sourceCategoryId);
+      const targetLessons = mockLessons.filter((lesson) => lesson.category_id === payload.targetCategoryId);
+      return {
+        sourceCategoryId: payload.sourceCategoryId,
+        targetCategoryId: payload.targetCategoryId,
+        sourceLessons,
+        targetLessons,
+        movedLesson,
+      } as AdminLessonCategoryMoveResult;
+    },
+    () =>
+      apiPut<AdminLessonCategoryMoveResult>(`/admin/lessons/${lessonId}/move-category`, {
+        sourceCategoryId: payload.sourceCategoryId,
+        targetCategoryId: payload.targetCategoryId,
+        sourceLessonIds: payload.sourceLessonIds,
+        targetLessonIds: payload.targetLessonIds,
+      }),
+    { allowAutoFallback: false }
+  );
 
 export const createLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
   apiPost<Quiz>(`/admin/lessons/${lessonId}/quiz`, { questions });
