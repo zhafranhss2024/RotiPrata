@@ -31,6 +31,7 @@ import CreateLessonPage from "./pages/admin/CreateLessonPage";
 import AdminLessonsPage from "./pages/admin/AdminLessonsPage";
 import EditLessonPage from "./pages/admin/EditLessonPage";
 import NotFound from "./pages/NotFound";
+import AdminAnalytic from "./pages/admin/Analytics"
 
 const queryClient = new QueryClient();
 
@@ -178,6 +179,15 @@ const App = () => (
                 element={
                   <RequireAdmin>
                     <EditLessonPage />
+                  </RequireAdmin>
+                }
+              />
+
+              <Route
+                path="/admin/analytics"
+                element={
+                  <RequireAdmin>
+                    <AdminAnalytic />
                   </RequireAdmin>
                 }
               />
