@@ -5,6 +5,7 @@ import java.util.UUID;
 public record LessonHubLessonResponse(
     UUID lessonId,
     String title,
+    String summary,
     Integer difficultyLevel,
     Integer estimatedMinutes,
     Integer xpReward,

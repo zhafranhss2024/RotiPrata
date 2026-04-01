@@ -2335,6 +2335,7 @@ public class LessonService {
                 new LessonHubLessonResponse(
                     lessonId,
                     stringValue(lesson.get("title")),
+                    stringValue(lesson.get("summary")),
                     parseInteger(lesson.get("difficulty_level")),
                     parseInteger(lesson.get("estimated_minutes")),
                     parseInteger(lesson.get("xp_reward")),

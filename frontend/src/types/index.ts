@@ -100,7 +100,6 @@ export interface Lesson {
   badge_icon_url: string | null;
   difficulty_level: number;
   category_id: string | null;
-  path_order: number | null;
   is_published: boolean;
   is_active?: boolean;
   archived_at?: string | null;
@@ -118,6 +117,7 @@ export interface Lesson {
 export interface LessonHubLesson {
   lessonId: string;
   title: string;
+  summary?: string | null;
   difficultyLevel: number | null;
   estimatedMinutes: number | null;
   xpReward: number | null;
@@ -178,6 +178,17 @@ export interface LessonProgressDetail {
 export interface LessonHeartsStatus {
   heartsRemaining: number;
   heartsRefillAt: string | null;
+}
+
+export interface LeaderboardEntry {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  reputationPoints: number;
+  currentStreak: number;
+  longestStreak: number;
+  totalHoursLearned: number;
+  rank: number;
 }
 
 export type LessonQuizQuestionType =
@@ -438,20 +449,47 @@ export interface AdminPublishLessonResult {
   lessonSnapshot: Record<string, unknown>;
 }
 
-export interface AdminLessonCategoryMoveResult {
-  sourceCategoryId: string | null;
-  targetCategoryId: string | null;
-  sourceLessons: Lesson[];
-  targetLessons: Lesson[];
-  movedLesson: Lesson;
-}
-
 export interface AdminLessonWizardState {
   lessonId: string;
   activeStep: WizardStepKey;
   stepStatus: Record<WizardStepKey, "saved" | "unsaved" | "invalid" | "saving">;
   lesson: Lesson;
   questions: AdminQuizQuestionDraft[];
+}
+
+export interface AdminBreakdownItem {
+  label: string;
+  count: number;
+}
+
+export interface AdminUserSummary {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  reputationPoints: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastActivityDate: string | null;
+  totalHoursLearned: number;
+  roles: AppRole[];
+}
+
+export interface AdminAnalytics {
+  totalUsers: number;
+  activeUsers: number;
+  totalContent: number;
+  pendingModeration: number;
+  totalLessons: number;
+  publishedLessons: number;
+  approvedContent: number;
+  rejectedContent: number;
+  openFlags: number;
+  adminUsers: number;
+  contentApprovalRate: number;
+  contentStatusBreakdown: AdminBreakdownItem[];
+  contentCategoryBreakdown: AdminBreakdownItem[];
+  lessonCategoryBreakdown: AdminBreakdownItem[];
+  topCreators: AdminBreakdownItem[];
 }
 
 export interface UserLessonProgress {
