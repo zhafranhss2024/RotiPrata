@@ -31,7 +31,7 @@ import CreateLessonPage from "./pages/admin/CreateLessonPage";
 import AdminLessonsPage from "./pages/admin/AdminLessonsPage";
 import EditLessonPage from "./pages/admin/EditLessonPage";
 import NotFound from "./pages/NotFound";
-import AdminAnalytic from "./pages/admin/Analytics"
+import AdminAnalytic from "./pages/admin/AdminAnalytics"
 
 const queryClient = new QueryClient();
 

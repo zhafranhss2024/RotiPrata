@@ -201,6 +201,10 @@ export type FlagByDate = {
   count: number;
 }
 
+export interface AvgReviewTimeDTO {
+  avgReviewTime: number;
+}
+
 const getMockContentById = (contentId: string) =>
   mockContents.find((content) => content.id === contentId) ?? mockContents[0];
 
@@ -1265,6 +1269,9 @@ export const createLessonQuiz = (lessonId: string, questions: Partial<QuizQuesti
 export const replaceAdminLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
   apiPut<QuizQuestion[]>(`/admin/lessons/${lessonId}/quiz`, { questions });
 
-export const fetchFlagFromDb = (month: string, year: string) =>
+export const getFlaggedContentStats = (month: string, year: string) =>
   apiGet<FlagByDate[]>(`/admin/analytics/flags?month=${month}&year=${year}`);
+
+export const getAvgReviewTimeStats = (month: string, year: string) =>
+  apiGet<AvgReviewTimeDTO>(`/admin/analytics/avg-review-time?month=${month}&year=${year}`);
 

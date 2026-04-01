@@ -40,4 +40,27 @@ public class AnalyticsService {
 
         return aggregated;
     }
+
+    public double getAverageReviewTimeByMonthAndYear(String accessToken, String month, String year) {
+        // Fetch raw flagged content
+        List<Map<String, Object>> rawFlags = contentService.getFlaggedContentByMonthAndYear(accessToken, month, year);
+
+        // Filter resolved flags and compute time difference in minutes
+        List<Long> reviewTimes = rawFlags.stream()
+            .filter(f -> f.get("resolved_at") != null)
+            .map(f -> {
+                String created = (String) f.get("created_at");
+                String resolved = (String) f.get("resolved_at");
+
+                long createdMillis = java.time.Instant.parse(created).toEpochMilli();
+                long resolvedMillis = java.time.Instant.parse(resolved).toEpochMilli();
+
+                return (resolvedMillis - createdMillis) / (1000 * 60); // minutes
+            })
+            .toList();
+
+        // Compute average
+        if (reviewTimes.isEmpty()) return 0;
+        return reviewTimes.stream().mapToLong(Long::longValue).average().orElse(0);
+    }
 }

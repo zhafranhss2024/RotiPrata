@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { fetchFlagFromDb, FlagByDate } from "@/lib/api";
+import { getFlaggedContentStats, getAvgReviewTimeStats, FlagByDate } from "@/lib/api";
 
 // Types
 type TopItem = { name: string; count: number };
@@ -45,27 +45,34 @@ const AdminAnalytics = () => {
   };
 
   useEffect(() => {
-    const loadFlags = async () => {
+    const loadAnalytics = async () => {
       const [yearStr, monthStr] = selectedMonth.split("-");
       const year = Number(yearStr);
       const month = Number(monthStr);
 
       try {
-        const data = await fetchFlagFromDb(monthStr, yearStr);
-        const formattedData = formatFlagDataForMonth(data, year, month);
-        setFlagTrend(formattedData);
+        // Fetch flagged content for the chart
+        const flagData = await getFlaggedContentStats(monthStr, yearStr);
+        const formattedFlagData = formatFlagDataForMonth(flagData, year, month);
+        setFlagTrend(formattedFlagData);
 
+        // Fetch average review time
+        const avgReview = await getAvgReviewTimeStats(monthStr, yearStr);
+        setAvgReviewTime(avgReview.avgReviewTime);
+
+        // Set formatted month/year for display
         const monthYearStr = new Date(year, month - 1, 1).toLocaleDateString("en-GB", {
           month: "long",
           year: "numeric",
         });
         setMonthYear(monthYearStr);
+
       } catch (err) {
-        console.error("Failed to fetch flags:", err);
+        console.error("Failed to fetch analytics:", err);
       }
     };
 
-    loadFlags();
+    loadAnalytics();
   }, [selectedMonth]);
 
   useEffect(() => {
@@ -78,8 +85,6 @@ const AdminAnalytics = () => {
       { name: "Post #123", count: 15 },
       { name: "Post #456", count: 11 },
     ]);
-
-    setAvgReviewTime(4.5);
 
     setAuditLogs([
       { admin: "Admin1", action: "DELETE_CONTENT", targetId: 123, time: "10:00" },
@@ -98,7 +103,7 @@ const AdminAnalytics = () => {
           {/* Controls */}
           <div className="flex gap-4 items-center mb-6">
             <label className="font-semibold text-gray-700 dark:text-gray-300">
-              Select Month:
+              Period:
             </label>
 
             {/* Month */}
@@ -165,7 +170,7 @@ const AdminAnalytics = () => {
                 </h2>
 
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={flagTrend} margin={{ top: 10, right: 20, left: 0, bottom: 40 }}>
+                  <BarChart data={flagTrend} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
                     <XAxis dataKey="day" tick={{ fill: "#9CA3AF", fontSize: 12 }} 
                     label={{ 
                       value: "Day", 
@@ -193,9 +198,19 @@ const AdminAnalytics = () => {
             </Card>
 
             <Card className="bg-white dark:bg-gray-800 shadow-sm rounded-2xl flex items-center justify-center">
-              <CardContent>
+              <CardContent className="flex flex-col items-center justify-center">
                 <h2 className="text-lg font-semibold mb-2">Average Review Time</h2>
-                <p className="text-4xl font-bold">{avgReviewTime} mins</p>
+                <p
+                  className={`text-4xl font-bold ${
+                    avgReviewTime > 20
+                      ? "text-red-500"
+                      : avgReviewTime > 10
+                      ? "text-amber-500"
+                      : "text-indigo-600"
+                  }`}
+                >
+                  {avgReviewTime > 0 ? `${avgReviewTime} mins` : "N/A"}
+                </p>
               </CardContent>
             </Card>
           </div>

@@ -10,6 +10,7 @@ import com.rotiprata.application.AnalyticsService;
 
 import java.util.Map;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -33,7 +34,29 @@ public class AdminAnalyticsController {
         @RequestParam String month,
         @RequestParam String year
     ) {
-        // parse month/year
+        validateMonthYear(month, year);
+
+        String accessToken = jwt.getTokenValue();
+        return analyticsService.getFlaggedContentByMonthAndYear(accessToken, month, year);
+    }
+
+    @GetMapping("/avg-review-time")
+    public Map<String, Object> getAvgReviewTime(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam String month,
+        @RequestParam String year
+    ) {
+        validateMonthYear(month, year);
+
+        String accessToken = jwt.getTokenValue();
+        double avgMinutes = analyticsService.getAverageReviewTimeByMonthAndYear(accessToken, month, year);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("avgReviewTime", avgMinutes);
+        return result;
+    }
+
+    private void validateMonthYear(String month, String year) {
         int m = Integer.parseInt(month);
         int y = Integer.parseInt(year);
 
@@ -41,8 +64,5 @@ public class AdminAnalyticsController {
         if (y > today.getYear() || (y == today.getYear() && m > today.getMonthValue())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot request future month");
         }
-
-        String accessToken = jwt.getTokenValue();
-        return analyticsService.getFlaggedContentByMonthAndYear(accessToken, month, year);
     }
 }
