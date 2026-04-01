@@ -1,4 +1,6 @@
 import type {
+  AdminContentFlagReportPage,
+  AdminContentFlagGroup,
   AdminLessonDraftResponse,
   AdminLessonCategoryMoveResult,
   AdminPublishLessonResult,
@@ -7,7 +9,7 @@ import type {
   AppRole,
   Category,
   Content,
-  ContentFlag,
+  LeaderboardResponse,
   Lesson,
   LessonHubResponse,
   LessonHeartsStatus,
@@ -45,7 +47,7 @@ import {
   mockLessonSections,
   mockLessonStats,
 } from "@/mocks/lessons";
-import { mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
+import { buildMockLeaderboardResponse, mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
 import { mockAdminStats, mockFlags, mockModerationQueue } from "@/mocks/admin";
 import {
   mockAiSuggestions,
@@ -838,6 +840,16 @@ export const fetchUserBadges = () =>
     () => apiGet<UserBadge[]>(`/users/me/badges`)
   );
 
+export const fetchLeaderboard = (page = 1, pageSize = 20, query = "") =>
+  withMockFallback(
+    "leaderboard",
+    () => buildMockLeaderboardResponse(page, pageSize, query),
+    () =>
+      apiGet<LeaderboardResponse>(
+        `/users/leaderboard?page=${Math.max(1, Math.floor(page))}&pageSize=${Math.max(1, Math.floor(pageSize))}&query=${encodeURIComponent(query)}`
+      )
+  );
+
 export const fetchProfileContentCollection = (collection: ProfileContentCollection) =>
   withMockFallback(
     `profile-content-${collection}`,
@@ -979,7 +991,37 @@ export const fetchContentFlags = () =>
   withMockFallback(
     "admin-flags",
     () => mockFlags,
-    () => apiGet<ContentFlag[]>(`/admin/flags`).then(normalizeNestedContentTags)
+    () => apiGet<AdminContentFlagGroup[]>(`/admin/flags`).then(normalizeNestedContentTags)
+  );
+
+export const fetchFlagReports = (flagId: string, page = 1, query = "") =>
+  withMockFallback(
+    "admin-flag-reports",
+    () => {
+      const flag = mockFlags.find((item) => item.id === flagId);
+      const normalizedQuery = query.trim().toLowerCase().replace(/^@/, "");
+      const filtered = (flag?.reports ?? []).filter((report) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+        const displayName = report.reporter?.display_name?.toLowerCase() ?? "";
+        return displayName.includes(normalizedQuery);
+      });
+      const pageSize = 5;
+      const start = Math.max(0, page - 1) * pageSize;
+      const items = filtered.slice(start, start + pageSize);
+      return {
+        items,
+        page,
+        page_size: pageSize,
+        has_next: start + pageSize < filtered.length,
+        query,
+      } satisfies AdminContentFlagReportPage;
+    },
+    () =>
+      apiGet<AdminContentFlagReportPage>(
+        `/admin/flags/${flagId}/reports?page=${Math.max(1, Math.floor(page))}&query=${encodeURIComponent(query)}`
+      )
   );
 
 export const approveContent = (contentId: string) => apiPut<void>(`/admin/content/${contentId}/approve`);

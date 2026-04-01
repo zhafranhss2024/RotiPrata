@@ -27,6 +27,26 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  xp: number;
+  currentStreak: number;
+  isCurrentUser: boolean;
+}
+
+export interface LeaderboardResponse {
+  items: LeaderboardEntry[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+  totalCount: number;
+  query: string;
+  currentUser: LeaderboardEntry | null;
+}
+
 export interface UserRole {
   id: string;
   user_id: string;
@@ -520,17 +540,33 @@ export interface BrowsingHistory {
   lesson?: Lesson;
 }
 
-export interface ContentFlag {
+export interface AdminContentFlagReport {
   id: string;
-  content_id: string;
   reported_by: string;
+  reporter?: Pick<Profile, 'user_id' | 'display_name' | 'avatar_url'>;
   reason: string;
   description: string | null;
-  status: string;
-  resolved_by: string | null;
-  resolved_at: string | null;
   created_at: string;
+}
+
+export interface AdminContentFlagGroup {
+  id: string;
+  content_id: string;
+  status: string;
+  created_at: string;
+  report_count: number;
+  notes_count: number;
+  reasons: string[];
+  reports?: AdminContentFlagReport[];
   content?: Content;
+}
+
+export interface AdminContentFlagReportPage {
+  items: AdminContentFlagReport[];
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  query: string;
 }
 
 export interface ModerationQueueItem {

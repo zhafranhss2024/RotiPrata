@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  Award,
   Bookmark,
   BookOpen,
   Clapperboard,
@@ -8,7 +9,6 @@ import {
   Heart,
   Settings,
   Star,
-  Trophy,
 } from "lucide-react";
 
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -24,6 +24,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import {
   fetchProfile,
   fetchProfileContentCollection,
+  fetchLeaderboard,
   fetchUserBadges,
   fetchUserStats,
 } from "@/lib/api";
@@ -43,6 +44,7 @@ const ProfilePage = () => {
     quizzesTaken: 0,
     hoursLearned: 0,
   });
+  const [leaderboardRank, setLeaderboardRank] = useState<number | null>(null);
   const [activeCollection, setActiveCollection] = useState<ProfileContentCollection>("posted");
   const [collectionItems, setCollectionItems] = useState<Record<ProfileContentCollection, Content[]>>({
     posted: [],
@@ -86,6 +88,10 @@ const ProfilePage = () => {
         })
       )
       .catch((error) => console.warn("Failed to load user stats", error));
+
+    fetchLeaderboard(1, 1, "")
+      .then((response) => setLeaderboardRank(response.currentUser?.rank ?? null))
+      .catch((error) => console.warn("Failed to load leaderboard rank", error));
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -204,7 +210,7 @@ const ProfilePage = () => {
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
               <div className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center">
                 <Flame className="mx-auto mb-2 h-5 w-5 text-destructive" />
                 <p className="text-2xl font-bold">{profile.current_streak}</p>
@@ -215,7 +221,7 @@ const ProfilePage = () => {
                 className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center transition hover:border-primary/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Open badges page"
               >
-                <Trophy className="mx-auto mb-2 h-5 w-5 text-yellow-500" />
+                <Award className="mx-auto mb-2 h-5 w-5 text-yellow-500" />
                 <p className="text-2xl font-bold">{earnedBadges.length}</p>
                 <p className="text-xs text-muted-foreground">Badges</p>
               </Link>
@@ -224,6 +230,17 @@ const ProfilePage = () => {
                 <p className="text-2xl font-bold">{profile.reputation_points}</p>
                 <p className="text-xs text-muted-foreground">XP</p>
               </div>
+              <Link
+                to="/leaderboard"
+                className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center transition hover:border-primary/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Open leaderboard page"
+              >
+                <div className="mx-auto mb-2 text-2xl leading-none">🏆</div>
+                <p className="text-2xl font-bold">{leaderboardRank ? `#${leaderboardRank}` : "View"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {leaderboardRank ? "Global rank" : "See the top XP ranks"}
+                </p>
+              </Link>
             </div>
           </CardContent>
         </Card>

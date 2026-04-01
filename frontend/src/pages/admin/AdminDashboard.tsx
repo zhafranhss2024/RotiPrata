@@ -31,13 +31,20 @@ import {
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { Content, ModerationQueueItem, ContentFlag, Category, QuizQuestion } from '@/types';
+import type { AdminContentFlagGroup, AdminContentFlagReport, Content, ModerationQueueItem, Category, QuizQuestion } from '@/types';
+import {
+  getFlagDescriptionCount,
+  getFlagReasonSummary,
+  getFlagReasons,
+  getFlagReportCount,
+} from '@/pages/admin/flagModeration';
 import {
   approveContent,
   fetchAdminStats,
   fetchCategories,
   fetchAdminContentQuiz,
   fetchContentFlags,
+  fetchFlagReports,
   fetchModerationQueue,
   fetchTags,
   takeDownFlag,
@@ -56,6 +63,7 @@ const MAX_OBJECTIVE = 160;
 const MAX_LONG_TEXT = 500;
 const MAX_OLDER_REFERENCE = 160;
 const MAX_TAG = 30;
+const FLAG_REPORTS_PAGE_SIZE = 5;
 
 const stripControlCharacters = (value: string) =>
   Array.from(value)
@@ -153,13 +161,18 @@ const AdminDashboard = () => {
     contentApprovalRate: 0,
   });
   const [moderationQueue, setModerationQueue] = useState<(ModerationQueueItem & { content: Content })[]>([]);
-  const [flags, setFlags] = useState<ContentFlag[]>([]);
+  const [flags, setFlags] = useState<AdminContentFlagGroup[]>([]);
   const [selectedModerationItem, setSelectedModerationItem] = useState<(ModerationQueueItem & { content: Content }) | null>(null);
-  const [selectedFlag, setSelectedFlag] = useState<ContentFlag | null>(null);
-  const [flagTakeDownTarget, setFlagTakeDownTarget] = useState<ContentFlag | null>(null);
+  const [selectedFlag, setSelectedFlag] = useState<AdminContentFlagGroup | null>(null);
+  const [flagTakeDownTarget, setFlagTakeDownTarget] = useState<AdminContentFlagGroup | null>(null);
   const [flagTakeDownReason, setFlagTakeDownReason] = useState('');
   const [flagTakeDownAttempted, setFlagTakeDownAttempted] = useState(false);
   const [isTakingDownFlag, setIsTakingDownFlag] = useState(false);
+  const [selectedFlagReports, setSelectedFlagReports] = useState<AdminContentFlagReport[]>([]);
+  const [selectedFlagReportsPage, setSelectedFlagReportsPage] = useState(1);
+  const [selectedFlagReportsHasNext, setSelectedFlagReportsHasNext] = useState(false);
+  const [selectedFlagReportsLoading, setSelectedFlagReportsLoading] = useState(false);
+  const [selectedFlagReporterSearch, setSelectedFlagReporterSearch] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [editForm, setEditForm] = useState({
     title: '',
@@ -229,6 +242,10 @@ const AdminDashboard = () => {
   }, [quizQuestions]);
   const isQuizValid = !quizValidationError;
   const canApprove = isSaved && isFormValid && !quizDirty && isQuizValid;
+  const totalFlagReports = useMemo(
+    () => flags.reduce((sum, flag) => sum + getFlagReportCount(flag), 0),
+    [flags]
+  );
 
   useEffect(() => {
     fetchAdminStats()
@@ -311,6 +328,44 @@ const AdminDashboard = () => {
   }, [selectedModerationItem?.content_id]);
 
   useEffect(() => {
+    if (!selectedFlag) {
+      setSelectedFlagReports([]);
+      setSelectedFlagReportsPage(1);
+      setSelectedFlagReportsHasNext(false);
+      setSelectedFlagReporterSearch('');
+      setSelectedFlagReportsLoading(false);
+      return;
+    }
+
+    let active = true;
+    setSelectedFlagReportsLoading(true);
+    fetchFlagReports(selectedFlag.id, selectedFlagReportsPage, selectedFlagReporterSearch)
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        setSelectedFlagReports(response.items ?? []);
+        setSelectedFlagReportsHasNext(Boolean(response.has_next));
+      })
+      .catch((error) => {
+        console.warn('Failed to load flag reports', error);
+        if (active) {
+          setSelectedFlagReports([]);
+          setSelectedFlagReportsHasNext(false);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setSelectedFlagReportsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedFlag?.id, selectedFlagReportsPage, selectedFlagReporterSearch]);
+
+  useEffect(() => {
     if (!selectedModerationItem) {
       return;
     }
@@ -389,7 +444,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleOpenFlagTakeDown = (flag: ContentFlag) => {
+  const handleOpenFlagTakeDown = (flag: AdminContentFlagGroup) => {
     setSelectedFlag(null);
     setFlagTakeDownTarget(flag);
     setFlagTakeDownReason('');
@@ -680,7 +735,8 @@ const AdminDashboard = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">{flags.length}</p>
-                      <p className="text-sm text-muted-foreground">Open Flags</p>
+                      <p className="text-sm text-muted-foreground">Flagged Items</p>
+                      <p className="text-xs text-muted-foreground">{totalFlagReports} reports</p>
                     </div>
                   </div>
                 </CardContent>
@@ -782,6 +838,9 @@ const AdminDashboard = () => {
                   <Flag className="h-5 w-5" />
                   Flagged Content ({flags.length})
                 </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {totalFlagReports} total reports across {flags.length} grouped item{flags.length === 1 ? '' : 's'}.
+                </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 {flags.length === 0 ? (
@@ -805,7 +864,8 @@ const AdminDashboard = () => {
                       )}
                       <div className="flex-1">
                         <div className="mb-1 flex flex-wrap items-center gap-2">
-                          <Badge variant="destructive">{flag.reason}</Badge>
+                          <Badge variant="destructive">{getFlagReasonSummary(flag)}</Badge>
+                          <Badge variant="secondary">{getFlagReportCount(flag)} reports</Badge>
                           {flag.content?.content_type ? (
                             <Badge variant="outline" className="capitalize">
                               {flag.content.content_type}
@@ -822,14 +882,23 @@ const AdminDashboard = () => {
                         <p className="text-sm text-muted-foreground">
                           Creator: @{flag.content?.creator?.display_name ?? 'anonymous'}
                         </p>
-                        {flag.description ? (
-                          <p className="mt-2 text-sm text-muted-foreground">Reporter note: {flag.description}</p>
-                        ) : (
-                          <p className="mt-2 text-sm text-muted-foreground">No additional reporter note.</p>
-                        )}
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Reasons: {getFlagReasons(flag).join(', ') || 'No reason provided.'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Reporter notes: {getFlagDescriptionCount(flag)} of {getFlagReportCount(flag)} reports
+                        </p>
                       </div>
                       <div className="flex gap-2 self-start">
-                        <Button size="sm" variant="outline" onClick={() => setSelectedFlag(flag)}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedFlagReportsPage(1);
+                            setSelectedFlagReporterSearch('');
+                            setSelectedFlag(flag);
+                          }}
+                        >
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
@@ -1339,6 +1408,8 @@ const AdminDashboard = () => {
           onOpenChange={(open) => {
             if (!open) {
               setSelectedFlag(null);
+              setSelectedFlagReportsPage(1);
+              setSelectedFlagReporterSearch('');
             }
           }}
         >
@@ -1353,7 +1424,8 @@ const AdminDashboard = () => {
               <div className="grid gap-6">
                 <div className="grid gap-3 rounded-lg border border-border/70 p-4">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="destructive">{selectedFlag.reason}</Badge>
+                    <Badge variant="destructive">{getFlagReasonSummary(selectedFlag)}</Badge>
+                    <Badge variant="secondary">{getFlagReportCount(selectedFlag)} reports</Badge>
                     {selectedFlag.content?.content_type ? (
                       <Badge variant="outline" className="capitalize">
                         {selectedFlag.content.content_type}
@@ -1371,14 +1443,95 @@ const AdminDashboard = () => {
                       Creator: @{selectedFlag.content?.creator?.display_name ?? 'anonymous'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Reported on {new Date(selectedFlag.created_at).toLocaleString()}
+                      Latest report on {new Date(selectedFlag.created_at).toLocaleString()}
                     </p>
                   </div>
-                  {selectedFlag.description ? (
-                    <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
-                      Reporter note: {selectedFlag.description}
+                  <div className="grid gap-3 rounded-md bg-muted/40 p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Submitted reports</p>
+                        <p className="text-xs text-muted-foreground">
+                          Showing {selectedFlagReports.length} of {selectedFlag.report_count} reports
+                        </p>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label htmlFor="flag-report-search">Search reporter</Label>
+                        <Input
+                          id="flag-report-search"
+                          value={selectedFlagReporterSearch}
+                          onChange={(event) => {
+                            setSelectedFlagReporterSearch(sanitizeInputValue(event.target.value, 80));
+                            setSelectedFlagReportsPage(1);
+                          }}
+                          placeholder="Search by username"
+                        />
+                      </div>
                     </div>
-                  ) : null}
+                    <div className="grid gap-3">
+                      {selectedFlagReportsLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading reports...
+                        </div>
+                      ) : selectedFlagReports.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          {selectedFlagReporterSearch.trim()
+                            ? 'No reports match that username.'
+                            : 'No submitted reports found.'}
+                        </p>
+                      ) : (
+                        selectedFlagReports.map((report: AdminContentFlagReport, index) => (
+                          <div key={report.id} className="rounded-md border border-border/70 bg-background px-3 py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="destructive">{report.reason}</Badge>
+                              <Badge variant="outline">
+                                Report {(selectedFlagReportsPage - 1) * FLAG_REPORTS_PAGE_SIZE + index + 1}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(report.created_at).toLocaleString()}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Reporter: @{report.reporter?.display_name ?? report.reported_by}
+                            </p>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              {normalizeText(report.description ?? '', MAX_LONG_TEXT)
+                                ? `Reporter note: ${report.description}`
+                                : 'No additional reporter note.'}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Page {selectedFlagReportsPage}
+                        {!selectedFlagReporterSearch.trim()
+                          ? ` of ${Math.max(1, Math.ceil(selectedFlag.report_count / FLAG_REPORTS_PAGE_SIZE))}`
+                          : ''}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={selectedFlagReportsLoading || selectedFlagReportsPage <= 1}
+                          onClick={() => setSelectedFlagReportsPage((current) => Math.max(1, current - 1))}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={selectedFlagReportsLoading || !selectedFlagReportsHasNext}
+                          onClick={() => setSelectedFlagReportsPage((current) => current + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                   <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
                     {selectedFlag.content?.content_type === 'video' && selectedFlag.content.media_url ? (
                       <video

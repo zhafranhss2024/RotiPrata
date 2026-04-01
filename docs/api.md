@@ -35,6 +35,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### Users (`UserController`)
 - `GET /users/me`
 - `PUT /users/me`
+- `GET /users/leaderboard`
 - `GET /users/me/roles`
 - `GET /users/me/preferences`
 - `PUT /users/me/preferences`
@@ -100,6 +101,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `PUT /admin/content/{contentId}/quiz`
 - `PUT /admin/content/{contentId}/reject`
 - `GET /admin/flags`
+- `GET /admin/flags/{flagId}/reports`
 - `PUT /admin/flags/{flagId}/resolve`
 - `PUT /admin/flags/{flagId}/take-down`
 
@@ -150,7 +152,27 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Behavior:
   - Updates login streak once per day per user.
   - Day boundary uses valid request timezone first, then stored profile timezone, then UTC fallback.
-  - This endpoint is idempotent for same-day repeated calls (`touchedToday=true`).
+- This endpoint is idempotent for same-day repeated calls (`touchedToday=true`).
+
+## Leaderboard Contract
+
+- Endpoint: `GET /users/leaderboard`
+- Auth: required (`Authorization: Bearer <accessToken>`)
+- Query params:
+  - `page` optional, default `1`
+  - `pageSize` optional, default `20`, max `50`
+  - `query` optional display-name substring filter
+- Response:
+  - `{ items, page, pageSize, hasNext, totalCount, query, currentUser }`
+  - `items` and `currentUser` rows include:
+    - `{ rank, userId, displayName, avatarUrl, xp, currentStreak, isCurrentUser }`
+- Behavior:
+  - Ranks users by `profiles.reputation_points desc`
+  - Users with equal XP share the same rank
+  - Stable ordering inside ties uses `display_name asc`, then `user_id asc`
+  - Admin users are excluded from leaderboard ranking
+  - `currentUser` returns the caller's true global rank even when `query` filters the visible table
+  - Null XP is treated as `0`
 
 ## Comment Delete Contract
 
@@ -165,6 +187,32 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `204` success
 - `403` trying to delete another user's comment without admin role
 - `404` comment/content not found
+
+## Admin Flag Contract
+
+- Endpoint: `GET /admin/flags`
+- Auth: required admin bearer token
+- Response:
+  - Returns one grouped item per flagged content, not one row per raw `content_flags` record.
+  - Shape:
+    - `{ id, content_id, status, created_at, report_count, notes_count, reasons, content }`
+    - `id` is the most recent pending report id for that content and is used as the action id for existing admin endpoints.
+    - `reasons` is the distinct list of report reasons collected for that content.
+    - `notes_count` is the number of pending reports that include a non-empty reporter note.
+- Behavior:
+  - Includes only `status=pending` reports.
+  - Groups all pending reports for the same `content_id`.
+  - Sorts grouped items by latest report timestamp descending.
+- Report detail endpoint:
+  - `GET /admin/flags/{flagId}/reports?page=1&query=clipwatcher`
+  - Returns `{ items, page, page_size, has_next, query }`
+  - `items` contain `{ id, reported_by, reporter, reason, description, created_at }`
+  - `reporter` contains `{ user_id, display_name, avatar_url }`
+  - Page size is capped to 5 reports per request
+  - `query` filters by reporter username/display name
+- Action endpoints:
+  - `PUT /admin/flags/{flagId}/resolve` resolves all pending reports for that flagged content group.
+  - `PUT /admin/flags/{flagId}/take-down` rejects the content and resolves all pending reports for that flagged content group.
 
 ## Similar Videos Contract
 
@@ -202,6 +250,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### User profile / utility
 - `GET /users/me` -> implemented
 - `PUT /users/me` -> implemented
+- `GET /users/leaderboard?page=...&pageSize=...&query=...` -> implemented
 - `GET /users/me/roles` -> implemented
 - `GET /users/me/preferences` -> implemented
 - `PUT /users/me/preferences` -> implemented
@@ -264,11 +313,12 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### Admin
 - `GET /admin/stats` -> implemented
 - `GET /admin/moderation-queue` -> implemented
-- `GET /admin/flags` -> implemented
+- `GET /admin/flags` -> implemented (grouped by `content_id` for admin review)
+- `GET /admin/flags/{id}/reports` -> implemented (5-per-page reporter list with username search)
 - `PUT /admin/content/{id}/approve` -> implemented
 - `PUT /admin/content/{id}` -> implemented
 - `PUT /admin/content/{id}/reject` -> implemented
-- `PUT /admin/flags/{id}/resolve` -> implemented
+- `PUT /admin/flags/{id}/resolve` -> implemented (resolves all pending reports for the grouped content item)
 - `PUT /admin/flags/{id}/take-down` -> implemented
 - `GET /admin/lessons` -> implemented
 - `GET /admin/lessons/{id}` -> implemented

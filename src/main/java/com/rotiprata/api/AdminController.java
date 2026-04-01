@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -100,6 +101,17 @@ public class AdminController {
     public List<Map<String, Object>> flags(@AuthenticationPrincipal Jwt jwt) {
         UUID adminUserId = SecurityUtils.getUserId(jwt);
         return adminService.getOpenFlags(adminUserId, SecurityUtils.getAccessToken());
+    }
+
+    @GetMapping("/flags/{flagId}/reports")
+    public Map<String, Object> flagReports(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID flagId,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(required = false) String query
+    ) {
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        return adminService.getFlagReports(adminUserId, flagId, page, query, SecurityUtils.getAccessToken());
     }
 
     @PutMapping("/flags/{flagId}/resolve")

@@ -1,4 +1,4 @@
-﻿import type { Content, ContentFlag, ModerationQueueItem } from "@/types";
+import type { AdminContentFlagGroup, Content, ModerationQueueItem } from "@/types";
 
 /**
  * DUMMY DATA: Used when VITE_USE_MOCKS=true or when API calls fail in auto mode.
@@ -81,17 +81,41 @@ export const mockModerationQueue: (ModerationQueueItem & { content: Content })[]
   },
 ];
 
-export const mockFlags: ContentFlag[] = [
+export const mockFlags: AdminContentFlagGroup[] = [
   {
-    id: "1",
+    id: "3",
     content_id: "3",
-    reported_by: "user5",
-    reason: "Inappropriate content",
-    description: "Contains bad words",
     status: "pending",
-    resolved_by: null,
-    resolved_at: null,
     created_at: now,
+    report_count: 2,
+    notes_count: 2,
+    reasons: ["Inappropriate content", "Harassment or hate"],
+    reports: [
+      {
+        id: "1",
+        reported_by: "user5",
+        reporter: {
+          user_id: "user5",
+          display_name: "clipwatcher",
+          avatar_url: null,
+        },
+        reason: "Inappropriate content",
+        description: "Contains bad words",
+        created_at: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: "3",
+        reported_by: "user7",
+        reporter: {
+          user_id: "user7",
+          display_name: "safefeedkid",
+          avatar_url: null,
+        },
+        reason: "Harassment or hate",
+        description: "The insults target another user in the comments overlay.",
+        created_at: now,
+      },
+    ],
     content: {
       id: "3",
       creator_id: "user3",
@@ -138,13 +162,25 @@ export const mockFlags: ContentFlag[] = [
   {
     id: "2",
     content_id: "4",
-    reported_by: "user6",
-    reason: "Misleading information",
-    description: "The explanation is wrong",
     status: "pending",
-    resolved_by: null,
-    resolved_at: null,
     created_at: new Date(Date.now() - 7200000).toISOString(),
+    report_count: 1,
+    notes_count: 1,
+    reasons: ["Misleading information"],
+    reports: [
+      {
+        id: "2",
+        reported_by: "user6",
+        reporter: {
+          user_id: "user6",
+          display_name: "factcheckalpha",
+          avatar_url: null,
+        },
+        reason: "Misleading information",
+        description: "The explanation is wrong",
+        created_at: new Date(Date.now() - 7200000).toISOString(),
+      },
+    ],
     content: {
       id: "4",
       creator_id: "user4",
