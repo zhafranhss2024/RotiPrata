@@ -1,4 +1,4 @@
-import type { AdminContentFlagGroup, Content, ModerationQueueItem } from "@/types";
+import type { AdminAnalytics, AdminContentFlagGroup, AdminUserSummary, Content, ModerationQueueItem } from "@/types";
 
 /**
  * DUMMY DATA: Used when VITE_USE_MOCKS=true or when API calls fail in auto mode.
@@ -12,6 +12,79 @@ export const mockAdminStats = {
   pendingModeration: 12,
   totalLessons: 25,
   contentApprovalRate: 85,
+};
+
+export const mockAdminUsers: AdminUserSummary[] = [
+  {
+    userId: "user-1",
+    displayName: "Kai Trendsetter",
+    avatarUrl: null,
+    reputationPoints: 4200,
+    currentStreak: 18,
+    longestStreak: 41,
+    lastActivityDate: now,
+    totalHoursLearned: 32,
+    roles: ["admin"],
+  },
+  {
+    userId: "user-2",
+    displayName: "Mika Memevault",
+    avatarUrl: null,
+    reputationPoints: 3100,
+    currentStreak: 9,
+    longestStreak: 20,
+    lastActivityDate: now,
+    totalHoursLearned: 21,
+    roles: ["user"],
+  },
+  {
+    userId: "user-3",
+    displayName: "Jules Slanglab",
+    avatarUrl: null,
+    reputationPoints: 2750,
+    currentStreak: 4,
+    longestStreak: 12,
+    lastActivityDate: new Date(Date.now() - 86400000).toISOString(),
+    totalHoursLearned: 16,
+    roles: ["user"],
+  },
+];
+
+export const mockAdminAnalytics: AdminAnalytics = {
+  totalUsers: mockAdminStats.totalUsers,
+  activeUsers: mockAdminStats.activeUsers,
+  totalContent: mockAdminStats.totalContent,
+  pendingModeration: mockAdminStats.pendingModeration,
+  totalLessons: mockAdminStats.totalLessons,
+  publishedLessons: 21,
+  approvedContent: 640,
+  rejectedContent: 111,
+  openFlags: 7,
+  adminUsers: 3,
+  contentApprovalRate: mockAdminStats.contentApprovalRate,
+  contentStatusBreakdown: [
+    { label: "Approved", count: 640 },
+    { label: "Pending", count: 139 },
+    { label: "Rejected", count: 111 },
+  ],
+  contentCategoryBreakdown: [
+    { label: "Slang", count: 280 },
+    { label: "Memes", count: 240 },
+    { label: "Social Practices", count: 140 },
+    { label: "Dance Trends", count: 120 },
+  ],
+  lessonCategoryBreakdown: [
+    { label: "Slang", count: 8 },
+    { label: "Memes", count: 7 },
+    { label: "Social Practices", count: 5 },
+    { label: "Cultural References", count: 5 },
+  ],
+  topCreators: [
+    { label: "Kai Trendsetter", count: 34 },
+    { label: "Mika Memevault", count: 27 },
+    { label: "Jules Slanglab", count: 19 },
+    { label: "Rin Brainrot", count: 16 },
+  ],
 };
 
 export const mockModerationQueue: (ModerationQueueItem & { content: Content })[] = [

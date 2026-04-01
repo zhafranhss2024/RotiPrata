@@ -1,11 +1,12 @@
 import type {
+  AdminAnalytics,
   AdminContentFlagReportPage,
   AdminContentFlagGroup,
   AdminLessonDraftResponse,
-  AdminLessonCategoryMoveResult,
   AdminPublishLessonResult,
   AdminQuizQuestionDraft,
   AdminStepValidationResult,
+  AdminUserSummary,
   AppRole,
   Category,
   Content,
@@ -48,7 +49,7 @@ import {
   mockLessonStats,
 } from "@/mocks/lessons";
 import { buildMockLeaderboardResponse, mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
-import { mockAdminStats, mockFlags, mockModerationQueue } from "@/mocks/admin";
+import { mockAdminAnalytics, mockAdminStats, mockAdminUsers, mockFlags, mockModerationQueue } from "@/mocks/admin";
 import {
   mockAiSuggestions,
   mockBrowsingHistory,
@@ -200,6 +201,20 @@ export type ContentPlaybackEventPayload = {
 
 const getMockContentById = (contentId: string) =>
   mockContents.find((content) => content.id === contentId) ?? mockContents[0];
+
+const lessonCreatedAtValue = (lesson: Pick<Lesson, "created_at">) => {
+  const timestamp = new Date(lesson.created_at ?? "").getTime();
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const sortLessonsForDisplay = (lessons: Lesson[]) =>
+  [...lessons].sort((left, right) => {
+    const createdAtDiff = lessonCreatedAtValue(right) - lessonCreatedAtValue(left);
+    if (createdAtDiff !== 0) {
+      return createdAtDiff;
+    }
+    return (left.title ?? "").localeCompare(right.title ?? "");
+  });
 
 const withMockFallback = async <T>(
   label: string,
@@ -418,27 +433,21 @@ export const fetchLessonHub = () =>
         .slice()
         .sort((left, right) => left.name.localeCompare(right.name))
         .map((category) => {
-          const lessons = publishedLessons
-            .filter((lesson) => lesson.category_id === category.id)
-            .sort((left, right) => {
-              const leftOrder = left.path_order ?? Number.MAX_SAFE_INTEGER;
-              const rightOrder = right.path_order ?? Number.MAX_SAFE_INTEGER;
-              if (leftOrder !== rightOrder) {
-                return leftOrder - rightOrder;
-              }
-              return new Date(left.created_at ?? 0).getTime() - new Date(right.created_at ?? 0).getTime();
-            })
-            .map((lesson, index) => ({
+          const lessons = sortLessonsForDisplay(
+            publishedLessons.filter((lesson) => lesson.category_id === category.id)
+          )
+            .map((lesson) => ({
               lessonId: lesson.id,
               title: lesson.title,
+              summary: lesson.summary,
               difficultyLevel: lesson.difficulty_level,
               estimatedMinutes: lesson.estimated_minutes,
               xpReward: lesson.xp_reward,
               completionCount: lesson.completion_count,
               progressPercentage: mockLessonProgressByLessonId[lesson.id] ?? 0,
               completed: (mockLessonProgressByLessonId[lesson.id] ?? 0) >= 100,
-              current: index === 0,
-              visuallyLocked: index > 0,
+              current: (mockLessonProgressByLessonId[lesson.id] ?? 0) > 0,
+              visuallyLocked: false,
             }));
 
           return {
@@ -451,27 +460,21 @@ export const fetchLessonHub = () =>
           };
         });
 
-      const uncategorizedLessons = publishedLessons
-        .filter((lesson) => lesson.category_id === null)
-        .sort((left, right) => {
-          const leftOrder = left.path_order ?? Number.MAX_SAFE_INTEGER;
-          const rightOrder = right.path_order ?? Number.MAX_SAFE_INTEGER;
-          if (leftOrder !== rightOrder) {
-            return leftOrder - rightOrder;
-          }
-          return new Date(left.created_at ?? 0).getTime() - new Date(right.created_at ?? 0).getTime();
-        })
-        .map((lesson, index) => ({
+      const uncategorizedLessons = sortLessonsForDisplay(
+        publishedLessons.filter((lesson) => lesson.category_id === null)
+      )
+        .map((lesson) => ({
           lessonId: lesson.id,
           title: lesson.title,
+          summary: lesson.summary,
           difficultyLevel: lesson.difficulty_level,
           estimatedMinutes: lesson.estimated_minutes,
           xpReward: lesson.xp_reward,
           completionCount: lesson.completion_count,
           progressPercentage: mockLessonProgressByLessonId[lesson.id] ?? 0,
           completed: (mockLessonProgressByLessonId[lesson.id] ?? 0) >= 100,
-          current: index === 0,
-          visuallyLocked: index > 0,
+          current: (mockLessonProgressByLessonId[lesson.id] ?? 0) > 0,
+          visuallyLocked: false,
         }));
 
       return {
@@ -944,6 +947,37 @@ export const fetchUserRoles = () =>
 export const fetchAdminStats = () =>
   withMockFallback("admin-stats", () => mockAdminStats, () => apiGet(`/admin/stats`));
 
+export const fetchAdminUsers = () =>
+  withMockFallback(
+    "admin-users",
+    () => mockAdminUsers,
+    () => apiGet<AdminUserSummary[]>(`/admin/users`),
+    { allowAutoFallback: false }
+  );
+
+export const updateAdminUserRole = (userId: string, role: AppRole) =>
+  withMockFallback(
+    "admin-user-role",
+    () => {
+      const target = mockAdminUsers.find((user) => user.userId === userId);
+      if (!target) {
+        throw new Error("User not found");
+      }
+      target.roles = [role];
+      return target;
+    },
+    () => apiPut<AdminUserSummary>(`/admin/users/${userId}/role`, { role }),
+    { allowAutoFallback: false }
+  );
+
+export const fetchAdminAnalytics = () =>
+  withMockFallback(
+    "admin-analytics",
+    () => mockAdminAnalytics,
+    () => apiGet<AdminAnalytics>(`/admin/analytics`),
+    { allowAutoFallback: false }
+  );
+
 const normalizeNestedContentTags = <T extends { content?: Record<string, unknown> | null }>(
   items: T[]
 ): T[] =>
@@ -1225,88 +1259,8 @@ export const deleteLesson = (lessonId: string) => apiDelete<void>(`/admin/lesson
 
 export const createLesson = (payload: Record<string, unknown>) => apiPost<Lesson>(`/admin/lessons`, payload);
 
-export const reorderAdminLessonPath = (categoryId: string | null, lessonIds: string[]) =>
-  withMockFallback(
-    "admin-lesson-path-order",
-    () => {
-      const bucket = mockLessons
-        .filter((lesson) => (categoryId === null ? lesson.category_id === null : lesson.category_id === categoryId))
-        .sort((left, right) => (left.path_order ?? Number.MAX_SAFE_INTEGER) - (right.path_order ?? Number.MAX_SAFE_INTEGER));
-      const orderedIds = [...lessonIds];
-      bucket.forEach((lesson) => {
-        if (!orderedIds.includes(lesson.id)) {
-          orderedIds.push(lesson.id);
-        }
-      });
-      return orderedIds
-        .map((id, index) => {
-          const lesson = mockLessons.find((item) => item.id === id);
-          if (!lesson) return null;
-          lesson.path_order = index + 1;
-          return lesson;
-        })
-        .filter((lesson): lesson is Lesson => Boolean(lesson));
-    },
-    () => apiPut<Lesson[]>(`/admin/lessons/path-order`, { categoryId, lessonIds }),
-    { allowAutoFallback: false }
-  );
-
-export const moveAdminLessonToCategory = (
-  lessonId: string,
-  payload: {
-    sourceCategoryId: string | null;
-    targetCategoryId: string | null;
-    sourceLessonIds: string[];
-    targetLessonIds: string[];
-  }
-) =>
-  withMockFallback(
-    "admin-lesson-category-move",
-    () => {
-      const movedLesson = mockLessons.find((lesson) => lesson.id === lessonId);
-      if (!movedLesson) {
-        throw new Error("Lesson not found");
-      }
-
-      movedLesson.category_id = payload.targetCategoryId;
-      payload.sourceLessonIds.forEach((id, index) => {
-        const lesson = mockLessons.find((item) => item.id === id);
-        if (lesson) {
-          lesson.path_order = index + 1;
-        }
-      });
-      payload.targetLessonIds.forEach((id, index) => {
-        const lesson = mockLessons.find((item) => item.id === id);
-        if (lesson) {
-          lesson.category_id = payload.targetCategoryId;
-          lesson.path_order = index + 1;
-        }
-      });
-
-      const sourceLessons = mockLessons.filter((lesson) => lesson.category_id === payload.sourceCategoryId);
-      const targetLessons = mockLessons.filter((lesson) => lesson.category_id === payload.targetCategoryId);
-      return {
-        sourceCategoryId: payload.sourceCategoryId,
-        targetCategoryId: payload.targetCategoryId,
-        sourceLessons,
-        targetLessons,
-        movedLesson,
-      } as AdminLessonCategoryMoveResult;
-    },
-    () =>
-      apiPut<AdminLessonCategoryMoveResult>(`/admin/lessons/${lessonId}/move-category`, {
-        sourceCategoryId: payload.sourceCategoryId,
-        targetCategoryId: payload.targetCategoryId,
-        sourceLessonIds: payload.sourceLessonIds,
-        targetLessonIds: payload.targetLessonIds,
-      }),
-    { allowAutoFallback: false }
-  );
-
 export const createLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
   apiPost<Quiz>(`/admin/lessons/${lessonId}/quiz`, { questions });
 
 export const replaceAdminLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
   apiPut<QuizQuestion[]>(`/admin/lessons/${lessonId}/quiz`, { questions });
-
-
