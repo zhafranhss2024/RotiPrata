@@ -6,9 +6,7 @@ import java.util.Map;
 
 import org.springframework.stereotype.Service;
 
-import com.rotiprata.infrastructure.openai.OpenAiRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
-import com.rotiprata.application.ModerationService;
 
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -49,7 +47,7 @@ public class ChatService {
             Explain in your own words in a simple and friendly way, suitable for a learner.
             If the answer is not explicitly in the context, you may infer the most likely answer based on clues in the context.
             If there is truly no way to answer, politely say: 
-            'I’m only able to help with lesson-related questions.'
+            'I'm only able to help with lesson-related questions.'
 
             Context:
             %s

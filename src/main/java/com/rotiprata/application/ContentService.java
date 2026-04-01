@@ -1,14 +1,5 @@
 package com.rotiprata.application;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.rotiprata.api.dto.ContentCommentCreateRequest;
-import com.rotiprata.api.dto.ContentCommentResponse;
-import com.rotiprata.api.dto.ContentFlagRequest;
-import com.rotiprata.api.dto.ContentPlaybackEventRequest;
-import com.rotiprata.api.dto.ContentSearchDTO;
-import com.rotiprata.domain.AppRole;
-import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
-import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -20,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -27,6 +19,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.dto.ContentCommentCreateRequest;
+import com.rotiprata.api.dto.ContentCommentResponse;
+import com.rotiprata.api.dto.ContentFlagRequest;
+import com.rotiprata.api.dto.ContentPlaybackEventRequest;
+import com.rotiprata.api.dto.ContentSearchDTO;
+import com.rotiprata.domain.AppRole;
+import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
+import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 
 @Service
 public class ContentService {
@@ -1109,5 +1111,29 @@ public class ContentService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
         }
         return accessToken;
+    }
+
+    public List<Map<String, Object>> getFlaggedContentByMonthAndYear
+    (
+        String accessToken, String month, String year
+    ) {
+        String start = String.format("%s-%s-01T00:00:00Z", year, month);
+        String end = String.format("%sT00:00:00Z", nextMonth(year, month));
+        String query = String.format("created_at=gte.%s&created_at=lt.%s", start, end);
+
+        List<Map<String, Object>> rawFlags = supabaseAdminRestClient.getList(
+            "content_flags",
+            query,
+            MAP_LIST
+        );
+        return rawFlags;
+    }
+
+    // Helper for next month string
+    private String nextMonth(String yearStr, String monthStr) {
+        int year = Integer.parseInt(yearStr);
+        int month = Integer.parseInt(monthStr);
+        if (month == 12) return (year + 1) + "-01-01";
+        return year + "-" + String.format("%02d", month + 1) + "-01";
     }
 }
