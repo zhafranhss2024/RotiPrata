@@ -196,6 +196,11 @@ export type ContentPlaybackEventPayload = {
   userAgent?: string | null;
 };
 
+export type FlagByDate = {
+  date: string;
+  count: number;
+}
+
 const getMockContentById = (contentId: string) =>
   mockContents.find((content) => content.id === contentId) ?? mockContents[0];
 
@@ -1260,4 +1265,6 @@ export const createLessonQuiz = (lessonId: string, questions: Partial<QuizQuesti
 export const replaceAdminLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
   apiPut<QuizQuestion[]>(`/admin/lessons/${lessonId}/quiz`, { questions });
 
+export const fetchFlagFromDb = (month: string, year: string) =>
+  apiGet<FlagByDate[]>(`/admin/analytics/flags?month=${month}&year=${year}`);
 
