@@ -370,35 +370,44 @@ const LessonsPage = () => {
         )}
 
         {!isLoading && !error && visibleLessons.length > 0 && (
-          <div className="space-y-4">
-            {visibleCategories.map((category) => (
-              <section
-                key={category.categoryId ?? UNCATEGORIZED_KEY}
-                className="rounded-[28px] border border-mainAlt/25 bg-white/75 p-5 shadow-sm dark:bg-black/20"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-mainAccent/60 dark:text-white/60">
-                      {effectiveSelectedCategoryId === ALL_CATEGORIES_KEY ? 'Lesson path' : 'Category path'}
-                    </p>
-                    <h2 className="mt-1 text-2xl font-semibold text-mainAccent dark:text-white">{category.categoryName}</h2>
+          effectiveSelectedCategoryId === ALL_CATEGORIES_KEY ? (
+            <div className="space-y-4">
+              {visibleLessons.map((lesson) => (
+                <LessonFeedCard
+                  key={`${lesson.categoryId ?? UNCATEGORIZED_KEY}-${lesson.lessonId}`}
+                  lesson={lesson}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {visibleCategories.map((category) => (
+                <section
+                  key={category.categoryId ?? UNCATEGORIZED_KEY}
+                  className="rounded-[28px] border border-mainAlt/25 bg-white/75 p-5 shadow-sm dark:bg-black/20"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-mainAccent/60 dark:text-white/60">Category path</p>
+                      <h2 className="mt-1 text-2xl font-semibold text-mainAccent dark:text-white">{category.categoryName}</h2>
+                    </div>
+                    <span
+                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-mainAccent dark:text-white"
+                      style={{ backgroundColor: `${category.categoryColor ?? '#629dff'}22` }}
+                    >
+                      {category.lessons.length} lesson{category.lessons.length === 1 ? '' : 's'}
+                    </span>
                   </div>
-                  <span
-                    className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-mainAccent dark:text-white"
-                    style={{ backgroundColor: `${category.categoryColor ?? '#629dff'}22` }}
-                  >
-                    {category.lessons.length} lesson{category.lessons.length === 1 ? '' : 's'}
-                  </span>
-                </div>
 
-                <div className="mt-4 space-y-4">
-                  {category.lessons.map((lesson) => (
-                    <LessonFeedCard key={`${category.categoryId ?? UNCATEGORIZED_KEY}-${lesson.lessonId}`} lesson={lesson} />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+                  <div className="mt-4 space-y-4">
+                    {category.lessons.map((lesson) => (
+                      <LessonFeedCard key={`${category.categoryId ?? UNCATEGORIZED_KEY}-${lesson.lessonId}`} lesson={lesson} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )
         )}
       </div>
       <Chatbot />
