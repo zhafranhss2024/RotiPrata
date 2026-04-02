@@ -12,7 +12,7 @@ const typeLabelByContentType: Record<Content["content_type"], string> = {
 const statusLabelByContentStatus: Record<Content["status"], string> = {
   approved: "Approved",
   pending: "Pending",
-  rejected: "Rejected",
+  rejected: "Taken down",
 };
 
 const statusClassByContentStatus: Record<Content["status"], string> = {

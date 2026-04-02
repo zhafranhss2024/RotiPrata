@@ -11,13 +11,47 @@ import { Input } from '@/components/ui/input';
 
 const ALL_CATEGORIES_KEY = '__all__';
 const UNCATEGORIZED_KEY = '__uncategorized__';
+const DEFAULT_CATEGORY_COLOR = '#629dff';
+const CULTURAL_REFERENCE_ACCENT = '#c28a1f';
 
 const categoryKey = (category: LessonHubCategory) => category.categoryId ?? UNCATEGORIZED_KEY;
+
+const resolveCategoryAccent = (category: LessonHubCategory | null | undefined) => {
+  if (!category) {
+    return DEFAULT_CATEGORY_COLOR;
+  }
+  if (category.type === 'cultural_reference') {
+    return CULTURAL_REFERENCE_ACCENT;
+  }
+  return category.color ?? DEFAULT_CATEGORY_COLOR;
+};
+
+const getReadableTextColor = (hexColor: string) => {
+  const normalized = hexColor.replace('#', '').trim();
+  const expanded = normalized.length === 3
+    ? normalized
+        .split('')
+        .map((char) => `${char}${char}`)
+        .join('')
+    : normalized;
+
+  if (expanded.length !== 6) {
+    return '#ffffff';
+  }
+
+  const red = parseInt(expanded.slice(0, 2), 16);
+  const green = parseInt(expanded.slice(2, 4), 16);
+  const blue = parseInt(expanded.slice(4, 6), 16);
+  const luminance = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return luminance >= 170 ? '#1f2937' : '#ffffff';
+};
 
 type FlattenedLesson = LessonHubLesson & {
   categoryId: string | null;
   categoryName: string;
   categoryColor: string | null;
+  categoryType: string | null;
   isVirtualCategory: boolean;
 };
 
@@ -25,6 +59,7 @@ type VisibleCategory = {
   categoryId: string | null;
   categoryName: string;
   categoryColor: string | null;
+  categoryType: string | null;
   isVirtualCategory: boolean;
   lessons: FlattenedLesson[];
 };
@@ -60,7 +95,14 @@ const LessonFeedCard = ({ lesson }: { lesson: FlattenedLesson }) => {
   const href = `/lessons/${lesson.lessonId}`;
   const statusLabel = buildLessonStatus(lesson);
   const ctaLabel = buildLessonCta(lesson);
-  const accentColor = lesson.categoryColor ?? '#629dff';
+  const accentColor = resolveCategoryAccent({
+    categoryId: lesson.categoryId,
+    name: lesson.categoryName,
+    type: lesson.categoryType,
+    color: lesson.categoryColor,
+    isVirtual: lesson.isVirtualCategory,
+    lessons: [],
+  });
 
   return (
     <article className="overflow-hidden rounded-[28px] border border-mainAlt/35 bg-white/90 shadow-sm transition hover:shadow-md dark:bg-black/20">
@@ -176,6 +218,8 @@ const LessonsPage = () => {
   useEffect(() => {
     let active = true;
     if (!deferredSearchQuery) {
+      setMatchedLessonIds(null);
+      setResolvedSearchQuery('');
       return () => {
         active = false;
       };
@@ -238,6 +282,7 @@ const LessonsPage = () => {
             categoryId: category.categoryId,
             categoryName: category.name,
             categoryColor: category.color,
+            categoryType: category.type,
             isVirtualCategory: category.isVirtual,
           })
         )
@@ -256,6 +301,7 @@ const LessonsPage = () => {
         categoryId: category.categoryId,
         categoryName: category.name,
         categoryColor: category.color,
+        categoryType: category.type,
         isVirtualCategory: category.isVirtual,
         lessons: category.lessons
           .filter((lesson) => effectiveMatchedLessonIds === null || effectiveMatchedLessonIds.has(lesson.lessonId))
@@ -265,6 +311,7 @@ const LessonsPage = () => {
               categoryId: category.categoryId,
               categoryName: category.name,
               categoryColor: category.color,
+              categoryType: category.type,
               isVirtualCategory: category.isVirtual,
             })
           ),
@@ -323,14 +370,22 @@ const LessonsPage = () => {
             {(hub?.categories ?? []).map((category) => {
               const key = categoryKey(category);
               const isActive = key === effectiveSelectedCategoryId;
+              const accentColor = resolveCategoryAccent(category);
               return (
                 <Button
                   key={key}
                   type="button"
                   variant={isActive ? 'default' : 'outline'}
                   onClick={() => setSelectedCategoryId(key)}
-                  className={cn('rounded-full', isActive ? 'text-white' : 'text-mainAccent dark:text-white')}
-                  style={isActive ? { backgroundColor: category.color ?? '#629dff' } : undefined}
+                  className={cn('rounded-full', !isActive && 'text-mainAccent dark:text-white')}
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: accentColor,
+                          color: getReadableTextColor(accentColor),
+                        }
+                      : undefined
+                  }
                 >
                   {category.name}
                 </Button>
@@ -381,31 +436,42 @@ const LessonsPage = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {visibleCategories.map((category) => (
-                <section
-                  key={category.categoryId ?? UNCATEGORIZED_KEY}
-                  className="rounded-[28px] border border-mainAlt/25 bg-white/75 p-5 shadow-sm dark:bg-black/20"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-mainAccent/60 dark:text-white/60">Category path</p>
-                      <h2 className="mt-1 text-2xl font-semibold text-mainAccent dark:text-white">{category.categoryName}</h2>
-                    </div>
-                    <span
-                      className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-mainAccent dark:text-white"
-                      style={{ backgroundColor: `${category.categoryColor ?? '#629dff'}22` }}
-                    >
-                      {category.lessons.length} lesson{category.lessons.length === 1 ? '' : 's'}
-                    </span>
-                  </div>
+              {visibleCategories.map((category) => {
+                const accentColor = resolveCategoryAccent({
+                  categoryId: category.categoryId,
+                  name: category.categoryName,
+                  type: category.categoryType,
+                  color: category.categoryColor,
+                  isVirtual: category.isVirtualCategory,
+                  lessons: [],
+                });
 
-                  <div className="mt-4 space-y-4">
-                    {category.lessons.map((lesson) => (
-                      <LessonFeedCard key={`${category.categoryId ?? UNCATEGORIZED_KEY}-${lesson.lessonId}`} lesson={lesson} />
-                    ))}
-                  </div>
-                </section>
-              ))}
+                return (
+                  <section
+                    key={category.categoryId ?? UNCATEGORIZED_KEY}
+                    className="rounded-[28px] border border-mainAlt/25 bg-white/75 p-5 shadow-sm dark:bg-black/20"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-mainAccent/60 dark:text-white/60">Category path</p>
+                        <h2 className="mt-1 text-2xl font-semibold text-mainAccent dark:text-white">{category.categoryName}</h2>
+                      </div>
+                      <span
+                        className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-mainAccent dark:text-white"
+                        style={{ backgroundColor: `${accentColor}22` }}
+                      >
+                        {category.lessons.length} lesson{category.lessons.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-4">
+                      {category.lessons.map((lesson) => (
+                        <LessonFeedCard key={`${category.categoryId ?? UNCATEGORIZED_KEY}-${lesson.lessonId}`} lesson={lesson} />
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
             </div>
           )
         )}

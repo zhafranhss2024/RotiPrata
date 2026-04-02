@@ -1,5 +1,8 @@
 import type {
   AdminAnalytics,
+  AdminContentFlagReportPage,
+  AdminContentFlagGroup,
+  AdminUserDetail,
   AdminLessonDraftResponse,
   AdminPublishLessonResult,
   AdminQuizQuestionDraft,
@@ -8,8 +11,7 @@ import type {
   AppRole,
   Category,
   Content,
-  ContentFlag,
-  LeaderboardEntry,
+  LeaderboardResponse,
   Lesson,
   LessonHubResponse,
   LessonHeartsStatus,
@@ -47,8 +49,8 @@ import {
   mockLessonSections,
   mockLessonStats,
 } from "@/mocks/lessons";
-import { mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
-import { mockAdminAnalytics, mockAdminStats, mockAdminUsers, mockFlags, mockLeaderboard, mockModerationQueue } from "@/mocks/admin";
+import { buildMockLeaderboardResponse, mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
+import { mockAdminAnalytics, mockAdminStats, mockAdminUserDetails, mockAdminUsers, mockFlags, mockModerationQueue } from "@/mocks/admin";
 import {
   mockAiSuggestions,
   mockBrowsingHistory,
@@ -567,14 +569,6 @@ export const fetchUserHearts = () =>
     { allowAutoFallback: false }
   );
 
-export const fetchLeaderboard = () =>
-  withMockFallback(
-    "leaderboard",
-    () => mockLeaderboard,
-    () => apiGet<LeaderboardEntry[]>(`/users/leaderboard`),
-    { allowAutoFallback: false }
-  );
-
 export const enrollLesson = (lessonId: string) => apiPost<void>(`/lessons/${lessonId}/enroll`);
 
 export const saveLesson = (lessonId: string) => apiPost<void>(`/lessons/${lessonId}/save`);
@@ -850,6 +844,16 @@ export const fetchUserBadges = () =>
     () => apiGet<UserBadge[]>(`/users/me/badges`)
   );
 
+export const fetchLeaderboard = (page = 1, pageSize = 20, query = "") =>
+  withMockFallback(
+    "leaderboard",
+    () => buildMockLeaderboardResponse(page, pageSize, query),
+    () =>
+      apiGet<LeaderboardResponse>(
+        `/users/leaderboard?page=${Math.max(1, Math.floor(page))}&pageSize=${Math.max(1, Math.floor(pageSize))}&query=${encodeURIComponent(query)}`
+      )
+  );
+
 export const fetchProfileContentCollection = (collection: ProfileContentCollection) =>
   withMockFallback(
     `profile-content-${collection}`,
@@ -967,6 +971,56 @@ export const updateAdminUserRole = (userId: string, role: AppRole) =>
     { allowAutoFallback: false }
   );
 
+export const fetchAdminUserDetail = (userId: string) =>
+  withMockFallback(
+    "admin-user-detail",
+    () => mockAdminUserDetails[userId] ?? {
+      summary: mockAdminUsers.find((user) => user.userId === userId) ?? mockAdminUsers[0],
+      suspendedUntil: null,
+      activity: {
+        postedContentCount: 0,
+        likedContentCount: 0,
+        savedContentCount: 0,
+        commentCount: 0,
+        enrolledLessonCount: 0,
+        completedLessonCount: 0,
+        badgeCount: 0,
+        browsingCount: 0,
+        searchCount: 0,
+        chatMessageCount: 0,
+      },
+      postedContent: [],
+      likedContent: [],
+      savedContent: [],
+      comments: [],
+      lessonProgress: [],
+      badges: [],
+      browsingHistory: [],
+      searchHistory: [],
+      chatHistory: [],
+    } satisfies AdminUserDetail,
+    () => apiGet<AdminUserDetail>(`/admin/users/${userId}`),
+    { allowAutoFallback: false }
+  );
+
+export const updateAdminUserStatus = (userId: string, status: "active" | "suspended") =>
+  withMockFallback(
+    "admin-user-status",
+    () => {
+      const target = mockAdminUsers.find((user) => user.userId === userId);
+      if (!target) {
+        throw new Error("User not found");
+      }
+      target.status = status;
+      return target;
+    },
+    () => apiPut<AdminUserSummary>(`/admin/users/${userId}/status`, { status }),
+    { allowAutoFallback: false }
+  );
+
+export const resetAdminUserLessonProgress = (userId: string, lessonId: string) =>
+  apiDelete<void>(`/admin/users/${userId}/lessons/${lessonId}/progress`);
+
 export const fetchAdminAnalytics = () =>
   withMockFallback(
     "admin-analytics",
@@ -975,7 +1029,7 @@ export const fetchAdminAnalytics = () =>
     { allowAutoFallback: false }
   );
 
-const normalizeModerationQueueTags = <T extends { content?: Record<string, unknown> | null }>(
+const normalizeNestedContentTags = <T extends { content?: Record<string, unknown> | null }>(
   items: T[]
 ): T[] =>
   items.map((item) => {
@@ -1014,12 +1068,46 @@ export const fetchModerationQueue = () =>
     () => mockModerationQueue,
     () =>
       apiGet<(typeof mockModerationQueue)[number][]>(`/admin/moderation-queue`).then(
-        normalizeModerationQueueTags
+        normalizeNestedContentTags
       )
   );
 
 export const fetchContentFlags = () =>
-  withMockFallback("admin-flags", () => mockFlags, () => apiGet<ContentFlag[]>(`/admin/flags`));
+  withMockFallback(
+    "admin-flags",
+    () => mockFlags,
+    () => apiGet<AdminContentFlagGroup[]>(`/admin/flags`).then(normalizeNestedContentTags)
+  );
+
+export const fetchFlagReports = (flagId: string, page = 1, query = "") =>
+  withMockFallback(
+    "admin-flag-reports",
+    () => {
+      const flag = mockFlags.find((item) => item.id === flagId);
+      const normalizedQuery = query.trim().toLowerCase().replace(/^@/, "");
+      const filtered = (flag?.reports ?? []).filter((report) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+        const displayName = report.reporter?.display_name?.toLowerCase() ?? "";
+        return displayName.includes(normalizedQuery);
+      });
+      const pageSize = 5;
+      const start = Math.max(0, page - 1) * pageSize;
+      const items = filtered.slice(start, start + pageSize);
+      return {
+        items,
+        page,
+        page_size: pageSize,
+        has_next: start + pageSize < filtered.length,
+        query,
+      } satisfies AdminContentFlagReportPage;
+    },
+    () =>
+      apiGet<AdminContentFlagReportPage>(
+        `/admin/flags/${flagId}/reports?page=${Math.max(1, Math.floor(page))}&query=${encodeURIComponent(query)}`
+      )
+  );
 
 export const approveContent = (contentId: string) => apiPut<void>(`/admin/content/${contentId}/approve`);
 
@@ -1030,6 +1118,9 @@ export const rejectContent = (contentId: string, feedback?: string) =>
   apiPut<void>(`/admin/content/${contentId}/reject`, { feedback });
 
 export const resolveFlag = (flagId: string) => apiPut<void>(`/admin/flags/${flagId}/resolve`);
+
+export const takeDownFlag = (flagId: string, feedback?: string) =>
+  apiPut<void>(`/admin/flags/${flagId}/take-down`, { feedback });
 
 
 export const fetchAdminLessons = () =>

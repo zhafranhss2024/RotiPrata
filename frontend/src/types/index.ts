@@ -2,6 +2,7 @@
 // These types mirror the backend database schema (Supabase + Java API).
 
 export type AppRole = 'user' | 'admin';
+export type AdminUserStatus = 'active' | 'suspended';
 export type ContentStatus = 'pending' | 'approved' | 'rejected';
 export type ContentType = 'video' | 'image' | 'text';
 export type CategoryType = 'slang' | 'meme' | 'dance_trend' | 'social_practice' | 'cultural_reference' | 'other';
@@ -25,6 +26,26 @@ export interface Profile {
   total_hours_learned: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  xp: number;
+  currentStreak: number;
+  isCurrentUser: boolean;
+}
+
+export interface LeaderboardResponse {
+  items: LeaderboardEntry[];
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+  totalCount: number;
+  query: string;
+  currentUser: LeaderboardEntry | null;
 }
 
 export interface UserRole {
@@ -178,17 +199,6 @@ export interface LessonProgressDetail {
 export interface LessonHeartsStatus {
   heartsRemaining: number;
   heartsRefillAt: string | null;
-}
-
-export interface LeaderboardEntry {
-  userId: string;
-  displayName: string;
-  avatarUrl: string | null;
-  reputationPoints: number;
-  currentStreak: number;
-  longestStreak: number;
-  totalHoursLearned: number;
-  rank: number;
 }
 
 export type LessonQuizQuestionType =
@@ -465,6 +475,7 @@ export interface AdminBreakdownItem {
 export interface AdminUserSummary {
   userId: string;
   displayName: string;
+  email: string | null;
   avatarUrl: string | null;
   reputationPoints: number;
   currentStreak: number;
@@ -472,6 +483,80 @@ export interface AdminUserSummary {
   lastActivityDate: string | null;
   totalHoursLearned: number;
   roles: AppRole[];
+  status: AdminUserStatus;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+}
+
+export interface AdminUserActivityStats {
+  postedContentCount: number;
+  likedContentCount: number;
+  savedContentCount: number;
+  commentCount: number;
+  enrolledLessonCount: number;
+  completedLessonCount: number;
+  badgeCount: number;
+  browsingCount: number;
+  searchCount: number;
+  chatMessageCount: number;
+}
+
+export interface AdminUserComment {
+  id: string;
+  contentId: string | null;
+  contentTitle: string | null;
+  body: string | null;
+  author: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface AdminUserLessonProgressDetail {
+  id: string;
+  lessonId: string | null;
+  lessonTitle: string | null;
+  status: string | null;
+  progressPercentage: number;
+  currentSection: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  lastAccessedAt: string | null;
+}
+
+export interface AdminUserSearchHistory {
+  id: string;
+  query: string | null;
+  searchedAt: string | null;
+}
+
+export interface AdminUserBrowsingHistory {
+  id: string;
+  contentId: string | null;
+  lessonId: string | null;
+  itemId: string | null;
+  title: string | null;
+  viewedAt: string | null;
+}
+
+export interface AdminUserChatMessage {
+  role: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface AdminUserDetail {
+  summary: AdminUserSummary;
+  suspendedUntil: string | null;
+  activity: AdminUserActivityStats;
+  postedContent: Content[];
+  likedContent: Content[];
+  savedContent: Content[];
+  comments: AdminUserComment[];
+  lessonProgress: AdminUserLessonProgressDetail[];
+  badges: UserBadge[];
+  browsingHistory: AdminUserBrowsingHistory[];
+  searchHistory: AdminUserSearchHistory[];
+  chatHistory: AdminUserChatMessage[];
 }
 
 export interface AdminAnalytics {
@@ -558,16 +643,33 @@ export interface BrowsingHistory {
   lesson?: Lesson;
 }
 
-export interface ContentFlag {
+export interface AdminContentFlagReport {
   id: string;
-  content_id: string;
   reported_by: string;
+  reporter?: Pick<Profile, 'user_id' | 'display_name' | 'avatar_url'>;
   reason: string;
   description: string | null;
-  status: string;
-  resolved_by: string | null;
-  resolved_at: string | null;
   created_at: string;
+}
+
+export interface AdminContentFlagGroup {
+  id: string;
+  content_id: string;
+  status: string;
+  created_at: string;
+  report_count: number;
+  notes_count: number;
+  reasons: string[];
+  reports?: AdminContentFlagReport[];
+  content?: Content;
+}
+
+export interface AdminContentFlagReportPage {
+  items: AdminContentFlagReport[];
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  query: string;
 }
 
 export interface ModerationQueueItem {
@@ -608,15 +710,6 @@ export interface UserAnalytics {
 }
 
 export type ProfileContentCollection = "posted" | "saved" | "liked";
-
-export interface AdminAnalytics {
-  totalUsers: number;
-  activeUsers: number;
-  totalContent: number;
-  pendingModeration: number;
-  totalLessons: number;
-  contentApprovalRate: number;
-}
 
 // Navigation types
 export interface NavItem {

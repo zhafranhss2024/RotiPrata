@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Lock, Trophy } from "lucide-react";
+import { ArrowLeft, Award, Lock } from "lucide-react";
 
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -105,7 +105,7 @@ const ProfileBadgesPage = () => {
               title={`Earned Badges (${earnedBadges.length})`}
               items={earnedBadges}
               emptyLabel="Complete lessons and pass their quizzes to start earning badges."
-              icon={<Trophy className="h-6 w-6" />}
+              icon={<Award className="h-6 w-6" />}
             />
             <BadgeSection
               title={`Locked Badges (${lockedBadges.length})`}

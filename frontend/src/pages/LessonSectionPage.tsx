@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Star } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Star } from "lucide-react";
 import type { Lesson, LessonProgressDetail, LessonSection } from "@/types";
 import {
   completeLessonSection,
@@ -240,6 +240,14 @@ const LessonSectionPage = () => {
     scheduleAdvanceNavigation(updated, targetSectionId);
   };
 
+  const handleMobileBack = () => {
+    if (hasPrevious) {
+      goToRelative(-1);
+      return;
+    }
+    navigate(`/lessons/${id}`);
+  };
+
   const railOffsetX = (index: number) =>
     index % 2 === 0 ? -STEP_HORIZONTAL_OFFSET : STEP_HORIZONTAL_OFFSET;
 
@@ -285,7 +293,7 @@ const LessonSectionPage = () => {
 
   return (
     <MainLayout className="overflow-hidden">
-      <div className="w-full h-full overflow-hidden px-4 lg:px-8 py-6 pb-28 lg:pb-10">
+      <div className="w-full h-full overflow-hidden px-4 lg:px-8 py-6 pb-40 lg:pb-10">
         <Link
           to={`/lessons/${id}`}
           className="inline-flex items-center text-mainAccent hover:text-mainAccent dark:hover:text-white"
@@ -405,8 +413,44 @@ const LessonSectionPage = () => {
           </div>
         ) : null}
 
+        <div className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+0.75rem)] z-30 flex justify-center px-4 lg:hidden pointer-events-none">
+          <div className="pointer-events-auto grid w-full max-w-md grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleMobileBack}
+              className="h-12"
+              disabled={isSaving}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            {showTakeQuizButton ? (
+              <Button
+                type="button"
+                onClick={() => navigate(`/lessons/${id}/quiz`)}
+                className="duo-button-primary h-12"
+              >
+                Take Quiz
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => {
+                  void handleDownAdvance();
+                }}
+                className="duo-button-primary h-12"
+                disabled={isSaving || (currentIndex < completedSections && !hasNext)}
+              >
+                Next
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
         {showTakeQuizButton ? (
-          <div className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+0.75rem)] lg:bottom-6 z-30 flex justify-center px-4 pointer-events-none">
+          <div className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+0.75rem)] lg:bottom-6 z-30 hidden justify-center px-4 pointer-events-none lg:flex">
             <Button
               type="button"
               onClick={() => navigate(`/lessons/${id}/quiz`)}
@@ -417,7 +461,7 @@ const LessonSectionPage = () => {
           </div>
         ) : null}
       </div>
-      <Chatbot />
+      <Chatbot mobileBottomOffsetClass="bottom-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+6rem)]" />
     </MainLayout>
   );
 };

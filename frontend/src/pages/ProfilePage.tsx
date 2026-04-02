@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  Award,
   Bookmark,
   BookOpen,
   Clapperboard,
@@ -8,7 +9,6 @@ import {
   Heart,
   Settings,
   Star,
-  Trophy,
 } from "lucide-react";
 
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -24,6 +24,7 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import {
   fetchProfile,
   fetchProfileContentCollection,
+  fetchLeaderboard,
   fetchUserBadges,
   fetchUserStats,
 } from "@/lib/api";
@@ -43,6 +44,7 @@ const ProfilePage = () => {
     quizzesTaken: 0,
     hoursLearned: 0,
   });
+  const [leaderboardRank, setLeaderboardRank] = useState<number | null>(null);
   const [activeCollection, setActiveCollection] = useState<ProfileContentCollection>("posted");
   const [collectionItems, setCollectionItems] = useState<Record<ProfileContentCollection, Content[]>>({
     posted: [],
@@ -86,6 +88,10 @@ const ProfilePage = () => {
         })
       )
       .catch((error) => console.warn("Failed to load user stats", error));
+
+    fetchLeaderboard(1, 1, "")
+      .then((response) => setLeaderboardRank(response.currentUser?.rank ?? null))
+      .catch((error) => console.warn("Failed to load leaderboard rank", error));
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -176,26 +182,26 @@ const ProfilePage = () => {
       <div className="container max-w-4xl mx-auto px-4 py-6 md:py-8 pb-safe space-y-6">
         <Card className="overflow-hidden border-mainAlt/80 bg-main shadow-sm">
           <CardContent className="p-5 md:p-6">
-            <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
-              <div className="flex items-start gap-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-4">
                 <Avatar className="h-24 w-24 border-4 border-mainAlt/70 shadow-sm">
                   <AvatarImage src={profile.avatar_url || undefined} />
                   <AvatarFallback className="bg-gradient-to-br from-[#ff4d88] via-[#ff6d6d] to-[#ffb56b] text-3xl text-white">
                     {displayInitial}
                   </AvatarFallback>
                 </Avatar>
-                <div className="space-y-2">
+                <div className="min-w-0 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-2xl font-bold">{displayName}</h1>
                     {profile.is_verified ? <Badge className="bg-secondary text-secondary-foreground">Verified</Badge> : null}
                     {isAdmin() ? <Badge variant="destructive">Admin</Badge> : null}
                   </div>
-                  <p className="text-sm text-muted-foreground">@{displayName.toLowerCase().replace(/\s+/g, "_")}</p>
+                  <p className="break-all text-sm text-muted-foreground">@{displayName.toLowerCase().replace(/\s+/g, "_")}</p>
                   {profile.bio ? <p className="max-w-xl text-sm leading-6">{profile.bio}</p> : null}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-start gap-2">
                 <Button asChild variant="ghost" size="icon" className="rounded-full">
                   <Link to="/profile/settings" aria-label="Open profile settings">
                     <Settings className="h-5 w-5" />
@@ -204,7 +210,7 @@ const ProfilePage = () => {
               </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-3 gap-3">
+            <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
               <div className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center">
                 <Flame className="mx-auto mb-2 h-5 w-5 text-destructive" />
                 <p className="text-2xl font-bold">{profile.current_streak}</p>
@@ -215,7 +221,7 @@ const ProfilePage = () => {
                 className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center transition hover:border-primary/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label="Open badges page"
               >
-                <Trophy className="mx-auto mb-2 h-5 w-5 text-yellow-500" />
+                <Award className="mx-auto mb-2 h-5 w-5 text-yellow-500" />
                 <p className="text-2xl font-bold">{earnedBadges.length}</p>
                 <p className="text-xs text-muted-foreground">Badges</p>
               </Link>
@@ -224,6 +230,17 @@ const ProfilePage = () => {
                 <p className="text-2xl font-bold">{profile.reputation_points}</p>
                 <p className="text-xs text-muted-foreground">XP</p>
               </div>
+              <Link
+                to="/leaderboard"
+                className="rounded-3xl border border-mainAlt/80 bg-main p-4 text-center transition hover:border-primary/50 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Open leaderboard page"
+              >
+                <div className="mx-auto mb-2 text-2xl leading-none">🏆</div>
+                <p className="text-2xl font-bold">{leaderboardRank ? `#${leaderboardRank}` : "View"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {leaderboardRank ? "Global rank" : "See the top XP ranks"}
+                </p>
+              </Link>
             </div>
           </CardContent>
         </Card>
@@ -245,15 +262,7 @@ const ProfilePage = () => {
               </div>
               <Progress value={stats.lessonsEnrolled ? (stats.lessonsCompleted / stats.lessonsEnrolled) * 100 : 0} />
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-              <div>
-                <p className="text-muted-foreground">Quizzes Taken</p>
-                <p className="font-semibold">{stats.quizzesTaken}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Hours Learned</p>
-                <p className="font-semibold">{stats.hoursLearned}</p>
-              </div>
+            <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-muted-foreground">Longest Streak</p>
                 <p className="font-semibold">{profile.longest_streak} days</p>

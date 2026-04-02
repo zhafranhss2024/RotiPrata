@@ -641,6 +641,11 @@ public class LessonQuizService {
         List<String> questionIds,
         String token
     ) {
+        Map<String, Object> activeAttempt = findActiveAttempt(userId, lessonId, token);
+        if (activeAttempt != null) {
+            return activeAttempt;
+        }
+
         OffsetDateTime now = OffsetDateTime.now();
         Map<String, Object> insert = new LinkedHashMap<>();
         insert.put("user_id", userId);
@@ -659,22 +664,11 @@ public class LessonQuizService {
         insert.put("started_at", now);
         insert.put("updated_at", now);
         insert.put("completed_at", null);
-        try {
-            List<Map<String, Object>> created = supabaseRestClient.postList("user_lesson_quiz_attempts", insert, token, MAP_LIST);
-            if (created.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create quiz attempt");
-            }
-            return created.get(0);
-        } catch (ResponseStatusException ex) {
-            if (!isUniqueViolation(ex)) {
-                throw ex;
-            }
-            Map<String, Object> active = findActiveAttempt(userId, lessonId, token);
-            if (active == null) {
-                throw ex;
-            }
-            return active;
+        List<Map<String, Object>> created = supabaseRestClient.postList("user_lesson_quiz_attempts", insert, token, MAP_LIST);
+        if (created.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create quiz attempt");
         }
+        return created.get(0);
     }
 
     private Map<String, Object> findAttemptById(UUID userId, UUID lessonId, String attemptId, String token) {
@@ -845,6 +839,20 @@ public class LessonQuizService {
     }
 
     private boolean awardLessonReward(UUID userId, UUID lessonId, int xpReward, String badgeName, String token) {
+        List<Map<String, Object>> existingRewards = supabaseAdminRestClient.getList(
+            "user_lesson_rewards",
+            buildQuery(Map.of(
+                "select", "id",
+                "user_id", "eq." + userId,
+                "lesson_id", "eq." + lessonId,
+                "limit", "1"
+            )),
+            MAP_LIST
+        );
+        if (!existingRewards.isEmpty()) {
+            return false;
+        }
+
         Map<String, Object> insert = new LinkedHashMap<>();
         insert.put("user_id", userId);
         insert.put("lesson_id", lessonId);
@@ -855,9 +863,6 @@ public class LessonQuizService {
             List<Map<String, Object>> created = supabaseRestClient.postList("user_lesson_rewards", insert, token, MAP_LIST);
             return !created.isEmpty();
         } catch (ResponseStatusException ex) {
-            if (isUniqueViolation(ex)) {
-                return false;
-            }
             if (!isRowLevelSecurityViolation(ex)) {
                 throw ex;
             }
@@ -867,9 +872,6 @@ public class LessonQuizService {
             List<Map<String, Object>> created = supabaseAdminRestClient.postList("user_lesson_rewards", insert, MAP_LIST);
             return !created.isEmpty();
         } catch (ResponseStatusException ex) {
-            if (isUniqueViolation(ex)) {
-                return false;
-            }
             throw ex;
         }
     }

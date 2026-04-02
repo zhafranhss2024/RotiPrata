@@ -12,6 +12,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -30,16 +31,41 @@ import {
   X,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { Content, ModerationQueueItem, ContentFlag, Category, QuizQuestion } from '@/types';
+import { toast } from '@/components/ui/sonner';
+import type {
+  AdminContentFlagGroup,
+  AdminContentFlagReport,
+  AdminUserDetail,
+  AdminUserSummary,
+  AppRole,
+  Category,
+  Content,
+  ModerationQueueItem,
+  QuizQuestion,
+} from '@/types';
+import {
+  getFlagDescriptionCount,
+  getFlagReasonSummary,
+  getFlagReasons,
+  getFlagReportCount,
+} from '@/pages/admin/flagModeration';
 import {
   approveContent,
+  deleteContentComment,
+  fetchAdminUserDetail,
+  fetchAdminUsers,
   fetchAdminStats,
   fetchCategories,
   fetchAdminContentQuiz,
   fetchContentFlags,
+  fetchFlagReports,
   fetchModerationQueue,
   fetchTags,
+  resetAdminUserLessonProgress,
+  takeDownFlag,
   updateAdminContent,
+  updateAdminUserRole,
+  updateAdminUserStatus,
   rejectContent,
   resolveFlag,
   saveAdminContentQuiz,
@@ -54,9 +80,18 @@ const MAX_OBJECTIVE = 160;
 const MAX_LONG_TEXT = 500;
 const MAX_OLDER_REFERENCE = 160;
 const MAX_TAG = 30;
+const FLAG_REPORTS_PAGE_SIZE = 5;
+
+const stripControlCharacters = (value: string) =>
+  Array.from(value)
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code > 31 && code !== 127;
+    })
+    .join('');
 
 const sanitizeInputValue = (value: string, maxLength: number) => {
-  const cleaned = value.replace(/[\u0000-\u001F\u007F]/g, '');
+  const cleaned = stripControlCharacters(value);
   if (maxLength > 0 && cleaned.length > maxLength) {
     return cleaned.slice(0, maxLength);
   }
@@ -71,6 +106,20 @@ const normalizeText = (value: string, maxLength: number) => {
 const sanitizeTag = (value: string) => {
   const trimmed = value.trim().replace(/^#/, '');
   return normalizeText(trimmed, MAX_TAG);
+};
+
+const formatContentStatus = (status?: string | null) => {
+  switch ((status ?? '').toLowerCase()) {
+    case 'approved':
+    case 'accepted':
+      return 'Approved';
+    case 'pending':
+      return 'Pending';
+    case 'rejected':
+      return 'Taken down';
+    default:
+      return status ?? 'Unknown';
+  }
 };
 
 type ContentQuizDraftQuestion = {
@@ -129,8 +178,18 @@ const AdminDashboard = () => {
     contentApprovalRate: 0,
   });
   const [moderationQueue, setModerationQueue] = useState<(ModerationQueueItem & { content: Content })[]>([]);
-  const [flags, setFlags] = useState<ContentFlag[]>([]);
+  const [flags, setFlags] = useState<AdminContentFlagGroup[]>([]);
   const [selectedModerationItem, setSelectedModerationItem] = useState<(ModerationQueueItem & { content: Content }) | null>(null);
+  const [selectedFlag, setSelectedFlag] = useState<AdminContentFlagGroup | null>(null);
+  const [flagTakeDownTarget, setFlagTakeDownTarget] = useState<AdminContentFlagGroup | null>(null);
+  const [flagTakeDownReason, setFlagTakeDownReason] = useState('');
+  const [flagTakeDownAttempted, setFlagTakeDownAttempted] = useState(false);
+  const [isTakingDownFlag, setIsTakingDownFlag] = useState(false);
+  const [selectedFlagReports, setSelectedFlagReports] = useState<AdminContentFlagReport[]>([]);
+  const [selectedFlagReportsPage, setSelectedFlagReportsPage] = useState(1);
+  const [selectedFlagReportsHasNext, setSelectedFlagReportsHasNext] = useState(false);
+  const [selectedFlagReportsLoading, setSelectedFlagReportsLoading] = useState(false);
+  const [selectedFlagReporterSearch, setSelectedFlagReporterSearch] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [editForm, setEditForm] = useState({
     title: '',
@@ -159,6 +218,15 @@ const AdminDashboard = () => {
   const [quizDirty, setQuizDirty] = useState(false);
   const [quizError, setQuizError] = useState<string | null>(null);
   const [hasAttemptedQuizSave, setHasAttemptedQuizSave] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<AdminUserSummary[]>([]);
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
+  const [isUserDetailOpen, setIsUserDetailOpen] = useState(false);
+  const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
+  const [userActionKey, setUserActionKey] = useState<string | null>(null);
+  const [userContentRejectTarget, setUserContentRejectTarget] = useState<Content | null>(null);
+  const [userContentRejectReason, setUserContentRejectReason] = useState('');
+  const [userContentRejectAttempted, setUserContentRejectAttempted] = useState(false);
 
   const fieldErrors = {
     title: normalizeText(editForm.title, MAX_TITLE) ? '' : 'Title is required.',
@@ -200,6 +268,19 @@ const AdminDashboard = () => {
   }, [quizQuestions]);
   const isQuizValid = !quizValidationError;
   const canApprove = isSaved && isFormValid && !quizDirty && isQuizValid;
+  const totalFlagReports = useMemo(
+    () => flags.reduce((sum, flag) => sum + getFlagReportCount(flag), 0),
+    [flags]
+  );
+  const filteredUsers = useMemo(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+    if (!normalized) {
+      return adminUsers;
+    }
+    return adminUsers.filter((user) =>
+      [user.displayName, user.email ?? '', user.userId].some((value) => value.toLowerCase().includes(normalized))
+    );
+  }, [adminUsers, searchQuery]);
 
   useEffect(() => {
     fetchAdminStats()
@@ -217,6 +298,12 @@ const AdminDashboard = () => {
     fetchCategories()
       .then(setCategories)
       .catch((error) => console.warn('Failed to load categories', error));
+
+    setIsUsersLoading(true);
+    fetchAdminUsers()
+      .then(setAdminUsers)
+      .catch((error) => console.warn('Failed to load admin users', error))
+      .finally(() => setIsUsersLoading(false));
   }, []);
 
   useEffect(() => {
@@ -280,6 +367,44 @@ const AdminDashboard = () => {
       active = false;
     };
   }, [selectedModerationItem?.content_id]);
+
+  useEffect(() => {
+    if (!selectedFlag) {
+      setSelectedFlagReports([]);
+      setSelectedFlagReportsPage(1);
+      setSelectedFlagReportsHasNext(false);
+      setSelectedFlagReporterSearch('');
+      setSelectedFlagReportsLoading(false);
+      return;
+    }
+
+    let active = true;
+    setSelectedFlagReportsLoading(true);
+    fetchFlagReports(selectedFlag.id, selectedFlagReportsPage, selectedFlagReporterSearch)
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        setSelectedFlagReports(response.items ?? []);
+        setSelectedFlagReportsHasNext(Boolean(response.has_next));
+      })
+      .catch((error) => {
+        console.warn('Failed to load flag reports', error);
+        if (active) {
+          setSelectedFlagReports([]);
+          setSelectedFlagReportsHasNext(false);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setSelectedFlagReportsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedFlag?.id, selectedFlagReportsPage, selectedFlagReporterSearch]);
 
   useEffect(() => {
     if (!selectedModerationItem) {
@@ -353,8 +478,41 @@ const AdminDashboard = () => {
     try {
       await resolveFlag(flagId);
       setFlags((items) => items.filter((flag) => flag.id !== flagId));
+      setSelectedFlag((current) => (current?.id === flagId ? null : current));
+      setFlagTakeDownTarget((current) => (current?.id === flagId ? null : current));
     } catch (error) {
       console.warn('Resolve flag failed', error);
+    }
+  };
+
+  const handleOpenFlagTakeDown = (flag: AdminContentFlagGroup) => {
+    setSelectedFlag(null);
+    setFlagTakeDownTarget(flag);
+    setFlagTakeDownReason('');
+    setFlagTakeDownAttempted(false);
+  };
+
+  const handleConfirmFlagTakeDown = async () => {
+    if (!flagTakeDownTarget) {
+      return;
+    }
+    const feedback = normalizeText(flagTakeDownReason, MAX_LONG_TEXT);
+    if (!feedback) {
+      setFlagTakeDownAttempted(true);
+      return;
+    }
+    try {
+      setIsTakingDownFlag(true);
+      await takeDownFlag(flagTakeDownTarget.id, feedback);
+      setFlags((items) => items.filter((flag) => flag.content_id !== flagTakeDownTarget.content_id));
+      setSelectedFlag((current) => (current?.content_id === flagTakeDownTarget.content_id ? null : current));
+      setFlagTakeDownTarget(null);
+      setFlagTakeDownReason('');
+      setFlagTakeDownAttempted(false);
+    } catch (error) {
+      console.warn('Flag take down failed', error);
+    } finally {
+      setIsTakingDownFlag(false);
     }
   };
 
@@ -495,6 +653,155 @@ const AdminDashboard = () => {
     }
   };
 
+  const upsertUserSummary = (summary: AdminUserSummary) => {
+    setAdminUsers((users) =>
+      users.map((user) => (user.userId === summary.userId ? summary : user))
+    );
+    setSelectedUser((current) =>
+      current && current.summary.userId === summary.userId
+        ? { ...current, summary }
+        : current
+    );
+  };
+
+  const loadUserDetail = async (userId: string, keepDialogOpen = true) => {
+    try {
+      setIsUserDetailLoading(true);
+      if (keepDialogOpen) {
+        setIsUserDetailOpen(true);
+      }
+      const detail = await fetchAdminUserDetail(userId);
+      setSelectedUser(detail);
+      return detail;
+    } catch (error) {
+      console.warn('Failed to load admin user detail', error);
+      toast('Failed to load user details', { position: 'bottom-center' });
+      if (!selectedUser) {
+        setIsUserDetailOpen(false);
+      }
+      return null;
+    } finally {
+      setIsUserDetailLoading(false);
+    }
+  };
+
+  const handleUpdateUserRole = async (userId: string, role: AppRole) => {
+    try {
+      setUserActionKey(`role:${userId}:${role}`);
+      const updated = await updateAdminUserRole(userId, role);
+      upsertUserSummary(updated);
+      await loadUserDetail(userId, false);
+      toast(`User role updated to ${role}`, { position: 'bottom-center' });
+    } catch (error) {
+      console.warn('Failed to update user role', error);
+      toast(error instanceof Error ? error.message : 'Failed to update user role', {
+        position: 'bottom-center',
+      });
+    } finally {
+      setUserActionKey(null);
+    }
+  };
+
+  const handleToggleUserStatus = async (user: AdminUserSummary) => {
+    const nextStatus = user.status === 'active' ? 'suspended' : 'active';
+    try {
+      setUserActionKey(`status:${user.userId}:${nextStatus}`);
+      const updated = await updateAdminUserStatus(user.userId, nextStatus);
+      upsertUserSummary(updated);
+      await loadUserDetail(user.userId, false);
+      toast(
+        nextStatus === 'suspended' ? 'User suspended' : 'User reactivated',
+        { position: 'bottom-center' }
+      );
+    } catch (error) {
+      console.warn('Failed to update user status', error);
+      toast(error instanceof Error ? error.message : 'Failed to update user status', {
+        position: 'bottom-center',
+      });
+    } finally {
+      setUserActionKey(null);
+    }
+  };
+
+  const handleResetLessonProgress = async (lessonId: string | null) => {
+    if (!selectedUser || !lessonId) {
+      return;
+    }
+    try {
+      setUserActionKey(`progress:${lessonId}`);
+      await resetAdminUserLessonProgress(selectedUser.summary.userId, lessonId);
+      const refreshed = await loadUserDetail(selectedUser.summary.userId, false);
+      if (refreshed) {
+        upsertUserSummary(refreshed.summary);
+      }
+      toast('Lesson progress reset', { position: 'bottom-center' });
+    } catch (error) {
+      console.warn('Failed to reset lesson progress', error);
+      toast(error instanceof Error ? error.message : 'Failed to reset lesson progress', {
+        position: 'bottom-center',
+      });
+    } finally {
+      setUserActionKey(null);
+    }
+  };
+
+  const handleDeleteUserComment = async (commentId: string, contentId: string | null) => {
+    if (!selectedUser || !contentId) {
+      return;
+    }
+    try {
+      setUserActionKey(`comment:${commentId}`);
+      await deleteContentComment(contentId, commentId);
+      setSelectedUser((current) =>
+        current
+          ? {
+              ...current,
+              comments: current.comments.filter((comment) => comment.id !== commentId),
+              activity: {
+                ...current.activity,
+                commentCount: Math.max(0, current.activity.commentCount - 1),
+              },
+            }
+          : current
+      );
+      toast('Comment removed', { position: 'bottom-center' });
+    } catch (error) {
+      console.warn('Failed to delete user comment', error);
+      toast(error instanceof Error ? error.message : 'Failed to delete comment', {
+        position: 'bottom-center',
+      });
+    } finally {
+      setUserActionKey(null);
+    }
+  };
+
+  const handleTakeDownUserContent = async () => {
+    if (!selectedUser || !userContentRejectTarget) {
+      return;
+    }
+    const feedback = normalizeText(userContentRejectReason, MAX_LONG_TEXT);
+    if (!feedback) {
+      setUserContentRejectAttempted(true);
+      return;
+    }
+    try {
+      setUserActionKey(`content:${userContentRejectTarget.id}`);
+      await rejectContent(userContentRejectTarget.id, feedback);
+      toast('Content taken down', { position: 'bottom-center' });
+      setUserContentRejectTarget(null);
+      setUserContentRejectReason('');
+      setUserContentRejectAttempted(false);
+      await loadUserDetail(selectedUser.summary.userId, false);
+    } catch (error) {
+      console.warn('Failed to take down user content', error);
+      toast(error instanceof Error ? error.message : 'Failed to take down content', {
+        position: 'bottom-center',
+      });
+    } finally {
+      setUserActionKey(null);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="container max-w-6xl mx-auto px-4 py-6 md:py-8 pb-safe">
@@ -516,25 +823,35 @@ const AdminDashboard = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full grid grid-cols-4 mb-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="moderation">
+          <TabsList className="mb-6 grid h-auto w-full grid-cols-4 rounded-2xl bg-muted p-1 md:h-10 md:rounded-md">
+            <TabsTrigger value="overview" className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger
+              value="moderation"
+              className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm"
+            >
               Moderation
               {moderationQueue.length > 0 && (
-                <Badge variant="destructive" className="ml-2">
+                <Badge variant="destructive" className="ml-1.5 px-2 py-0 text-[10px] md:ml-2">
                   {moderationQueue.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="flags">
+            <TabsTrigger
+              value="flags"
+              className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm"
+            >
               Flags
               {flags.length > 0 && (
-                <Badge variant="destructive" className="ml-2">
+                <Badge variant="destructive" className="ml-1.5 px-2 py-0 text-[10px] md:ml-2">
                   {flags.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="users" className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm">
+              Users
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
@@ -618,7 +935,8 @@ const AdminDashboard = () => {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">{flags.length}</p>
-                      <p className="text-sm text-muted-foreground">Open Flags</p>
+                      <p className="text-sm text-muted-foreground">Flagged Items</p>
+                      <p className="text-xs text-muted-foreground">{totalFlagReports} reports</p>
                     </div>
                   </div>
                 </CardContent>
@@ -643,12 +961,14 @@ const AdminDashboard = () => {
                     Manage Categories
                   </Button>
                 </Link>
-                <Link to="/admin/users">
-                  <Button variant="outline" className="w-full h-auto py-4 flex-col">
-                    <Users className="h-6 w-6 mb-2" />
-                    Manage Users
-                  </Button>
-                </Link>
+                <Button
+                  variant="outline"
+                  className="w-full h-auto py-4 flex-col"
+                  onClick={() => setActiveTab('users')}
+                >
+                  <Users className="h-6 w-6 mb-2" />
+                  Manage Users
+                </Button>
                 <Link to="/admin/analytics">
                   <Button variant="outline" className="w-full h-auto py-4 flex-col">
                     <TrendingUp className="h-6 w-6 mb-2" />
@@ -720,6 +1040,9 @@ const AdminDashboard = () => {
                   <Flag className="h-5 w-5" />
                   Flagged Content ({flags.length})
                 </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {totalFlagReports} total reports across {flags.length} grouped item{flags.length === 1 ? '' : 's'}.
+                </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 {flags.length === 0 ? (
@@ -731,25 +1054,75 @@ const AdminDashboard = () => {
                   flags.map((flag) => (
                     <div
                       key={flag.id}
-                      className="flex items-start gap-4 p-4 rounded-lg"
+                      className="rounded-lg border border-border/70 p-4"
                     >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge variant="destructive">{flag.reason}</Badge>
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start">
+                      {flag.content?.thumbnail_url ? (
+                        <img
+                          src={flag.content.thumbnail_url}
+                          alt={flag.content.title}
+                          className="mx-auto h-24 w-20 rounded-md object-cover bg-muted md:mx-0 md:h-20 md:w-14"
+                        />
+                      ) : (
+                        <div className="mx-auto flex h-24 w-20 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground md:mx-0 md:h-20 md:w-14">
+                          {flag.content?.content_type ?? 'post'}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <Badge variant="destructive" className="max-w-full whitespace-normal break-words leading-4">
+                            {getFlagReasonSummary(flag)}
+                          </Badge>
+                          <Badge variant="secondary">{getFlagReportCount(flag)} reports</Badge>
+                          {flag.content?.content_type ? (
+                            <Badge variant="outline" className="capitalize">
+                              {flag.content.content_type}
+                            </Badge>
+                          ) : null}
+                          {flag.content?.status ? (
+                            <Badge variant="secondary">{formatContentStatus(flag.content.status)}</Badge>
+                          ) : null}
                           <span className="text-xs text-muted-foreground">
                             {new Date(flag.created_at).toLocaleDateString()}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{flag.description}</p>
+                        <p className="break-words font-medium">{flag.content?.title ?? `Content ${flag.content_id}`}</p>
+                        <p className="break-words text-sm text-muted-foreground">
+                          Creator: @{flag.content?.creator?.display_name ?? 'anonymous'}
+                        </p>
+                        <p className="mt-2 break-words text-sm text-muted-foreground">
+                          Reasons: {getFlagReasons(flag).join(', ') || 'No reason provided.'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Reporter notes: {getFlagDescriptionCount(flag)} of {getFlagReportCount(flag)} reports
+                        </p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
+                      <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:flex-col lg:flex-row">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-full md:w-auto"
+                          onClick={() => {
+                            setSelectedFlagReportsPage(1);
+                            setSelectedFlagReporterSearch('');
+                            setSelectedFlag(flag);
+                          }}
+                        >
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
-                        <Button size="sm" onClick={() => handleResolveFlag(flag.id)}>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="w-full md:w-auto"
+                          onClick={() => handleOpenFlagTakeDown(flag)}
+                        >
+                          Take down
+                        </Button>
+                        <Button size="sm" className="w-full md:w-auto" onClick={() => handleResolveFlag(flag.id)}>
                           Resolve
                         </Button>
+                      </div>
                       </div>
                     </div>
                   ))
@@ -775,16 +1148,481 @@ const AdminDashboard = () => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="h-12 w-12 mx-auto mb-3" />
-                  <p>User management interface</p>
-                  <p className="text-sm">TODO: Implement user list with role management</p>
-                </div>
+              <CardContent className="space-y-4">
+                {isUsersLoading ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading users...
+                  </div>
+                ) : filteredUsers.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-3" />
+                    <p>No users match that search.</p>
+                  </div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <div
+                      key={user.userId}
+                      className="flex flex-col gap-4 rounded-lg border border-border/70 p-4 md:flex-row md:items-center md:justify-between"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold">{user.displayName}</p>
+                          <Badge variant={user.status === 'active' ? 'secondary' : 'destructive'}>
+                            {user.status}
+                          </Badge>
+                          {user.roles.map((role) => (
+                            <Badge key={`${user.userId}-${role}`} variant="outline">
+                              {role}
+                            </Badge>
+                          ))}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{user.email ?? user.userId}</p>
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                          <span>XP {user.reputationPoints}</span>
+                          <span>Current streak {user.currentStreak}</span>
+                          <span>Hours learned {user.totalHoursLearned}</span>
+                          <span>
+                            Last active {user.lastActivityDate ? new Date(user.lastActivityDate).toLocaleDateString() : 'Unknown'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            void loadUserDetail(user.userId);
+                          }}
+                        >
+                          <Eye className="mr-1 h-4 w-4" />
+                          Open
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={userActionKey === `role:${user.userId}:${user.roles.includes('admin') ? 'user' : 'admin'}`}
+                          onClick={() => {
+                            void handleUpdateUserRole(user.userId, user.roles.includes('admin') ? 'user' : 'admin');
+                          }}
+                        >
+                          {user.roles.includes('admin') ? 'Make User' : 'Make Admin'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={user.status === 'active' ? 'destructive' : 'secondary'}
+                          disabled={userActionKey === `status:${user.userId}:${user.status === 'active' ? 'suspended' : 'active'}`}
+                          onClick={() => {
+                            void handleToggleUserStatus(user);
+                          }}
+                        >
+                          {user.status === 'active' ? 'Suspend' : 'Reactivate'}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog
+          open={isUserDetailOpen}
+          onOpenChange={(open) => {
+            setIsUserDetailOpen(open);
+            if (!open) {
+              setSelectedUser(null);
+              setUserContentRejectTarget(null);
+              setUserContentRejectReason('');
+              setUserContentRejectAttempted(false);
+            }
+          }}
+        >
+          <DialogContent className="max-w-6xl w-[95vw] p-0 overflow-hidden">
+            <div className="max-h-[85vh] overflow-y-auto">
+              <DialogHeader className="p-6">
+                <DialogTitle>User Management</DialogTitle>
+                <DialogDescription>
+                  Review account status, moderation footprint, and learning activity for a user.
+                </DialogDescription>
+              </DialogHeader>
+
+              {isUserDetailLoading ? (
+                <div className="flex items-center justify-center px-6 pb-8 text-muted-foreground">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading user details...
+                </div>
+              ) : selectedUser ? (
+                <div className="grid gap-6 px-6 pb-6">
+                  <div className="grid gap-4 rounded-lg border border-border/70 p-4 lg:grid-cols-[1.6fr_1fr]">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-xl font-semibold">{selectedUser.summary.displayName}</p>
+                        <Badge variant={selectedUser.summary.status === 'active' ? 'secondary' : 'destructive'}>
+                          {selectedUser.summary.status}
+                        </Badge>
+                        {selectedUser.summary.roles.map((role) => (
+                          <Badge key={`${selectedUser.summary.userId}-${role}`} variant="outline">
+                            {role}
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedUser.summary.email ?? selectedUser.summary.userId}
+                      </p>
+                      <div className="grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+                        <p>Created: {selectedUser.summary.createdAt ? new Date(selectedUser.summary.createdAt).toLocaleString() : 'Unknown'}</p>
+                        <p>Last sign in: {selectedUser.summary.lastSignInAt ? new Date(selectedUser.summary.lastSignInAt).toLocaleString() : 'Never'}</p>
+                        <p>Last active: {selectedUser.summary.lastActivityDate ? new Date(selectedUser.summary.lastActivityDate).toLocaleDateString() : 'Unknown'}</p>
+                        <p>Suspended until: {selectedUser.suspendedUntil ? new Date(selectedUser.suspendedUntil).toLocaleString() : 'Not suspended'}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={userActionKey === `role:${selectedUser.summary.userId}:${selectedUser.summary.roles.includes('admin') ? 'user' : 'admin'}`}
+                        onClick={() => {
+                          void handleUpdateUserRole(
+                            selectedUser.summary.userId,
+                            selectedUser.summary.roles.includes('admin') ? 'user' : 'admin'
+                          );
+                        }}
+                      >
+                        {selectedUser.summary.roles.includes('admin') ? 'Make User' : 'Make Admin'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={selectedUser.summary.status === 'active' ? 'destructive' : 'secondary'}
+                        disabled={userActionKey === `status:${selectedUser.summary.userId}:${selectedUser.summary.status === 'active' ? 'suspended' : 'active'}`}
+                        onClick={() => {
+                          void handleToggleUserStatus(selectedUser.summary);
+                        }}
+                      >
+                        {selectedUser.summary.status === 'active' ? 'Suspend Account' : 'Reactivate Account'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Posted</p>
+                        <p className="text-xl font-semibold">{selectedUser.activity.postedContentCount}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Comments</p>
+                        <p className="text-xl font-semibold">{selectedUser.activity.commentCount}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Lessons</p>
+                        <p className="text-xl font-semibold">{selectedUser.activity.enrolledLessonCount}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Completed</p>
+                        <p className="text-xl font-semibold">{selectedUser.activity.completedLessonCount}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-xs text-muted-foreground">Badges</p>
+                        <p className="text-xl font-semibold">{selectedUser.activity.badgeCount}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Posted Content</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {selectedUser.postedContent.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No posted content.</p>
+                        ) : (
+                          selectedUser.postedContent.map((content) => (
+                            <div key={content.id} className="rounded-lg border border-border/70 p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="font-medium">{content.title}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {content.content_type} · {content.status}
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="destructive"
+                                  disabled={content.status === 'rejected'}
+                                  onClick={() => {
+                                    setUserContentRejectTarget(content);
+                                    setUserContentRejectReason('');
+                                    setUserContentRejectAttempted(false);
+                                  }}
+                                >
+                                  {content.status === 'rejected' ? 'Taken down' : 'Take down'}
+                                </Button>
+                              </div>
+                              {content.description ? (
+                                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                                  {content.description}
+                                </p>
+                              ) : null}
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Comments</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {selectedUser.comments.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No comments recorded.</p>
+                        ) : (
+                          selectedUser.comments.map((comment) => (
+                            <div key={comment.id} className="rounded-lg border border-border/70 p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-medium">{comment.contentTitle ?? 'Unknown content'}</p>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={userActionKey === `comment:${comment.id}` || !comment.contentId}
+                                  onClick={() => {
+                                    void handleDeleteUserComment(comment.id, comment.contentId);
+                                  }}
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                              <p className="mt-2 text-sm text-muted-foreground">{comment.body ?? 'No comment body.'}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : 'Unknown time'}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Lesson Progress</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {selectedUser.lessonProgress.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No lesson progress recorded.</p>
+                        ) : (
+                          selectedUser.lessonProgress.map((progress) => (
+                            <div key={progress.id} className="rounded-lg border border-border/70 p-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p className="font-medium">{progress.lessonTitle ?? progress.lessonId ?? 'Unknown lesson'}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {progress.status ?? 'unknown'} · {progress.progressPercentage}%
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={userActionKey === `progress:${progress.lessonId}` || !progress.lessonId}
+                                  onClick={() => {
+                                    void handleResetLessonProgress(progress.lessonId);
+                                  }}
+                                >
+                                  Reset
+                                </Button>
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Last accessed {progress.lastAccessedAt ? new Date(progress.lastAccessedAt).toLocaleString() : 'Unknown'}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Badges and Saved Activity</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Badges</p>
+                          {selectedUser.badges.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">No badges yet.</p>
+                          ) : (
+                            selectedUser.badges.map((badge) => (
+                              <div key={`${badge.lessonId ?? badge.badgeName}-${badge.earnedAt ?? 'locked'}`} className="rounded-md border border-border/70 p-3">
+                                <p className="font-medium">{badge.badgeName}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {badge.lessonTitle ?? 'Lesson badge'} · {badge.earned ? 'Earned' : 'Locked'}
+                                </p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Liked and Saved</p>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedUser.activity.likedContentCount} liked · {selectedUser.activity.savedContentCount} saved
+                          </p>
+                          {selectedUser.likedContent.slice(0, 3).map((content) => (
+                            <div key={`liked-${content.id}`} className="rounded-md border border-border/70 p-3">
+                              <p className="font-medium">{content.title}</p>
+                              <p className="text-xs text-muted-foreground">Liked content</p>
+                            </div>
+                          ))}
+                          {selectedUser.savedContent.slice(0, 3).map((content) => (
+                            <div key={`saved-${content.id}`} className="rounded-md border border-border/70 p-3">
+                              <p className="font-medium">{content.title}</p>
+                              <p className="text-xs text-muted-foreground">Saved content</p>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Browsing History</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {selectedUser.browsingHistory.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No browsing history.</p>
+                        ) : (
+                          selectedUser.browsingHistory.map((entry) => (
+                            <div key={entry.id} className="rounded-md border border-border/70 p-3">
+                              <p className="font-medium">{entry.title ?? entry.itemId ?? 'Viewed item'}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {entry.viewedAt ? new Date(entry.viewedAt).toLocaleString() : 'Unknown time'}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Search History</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {selectedUser.searchHistory.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No search history.</p>
+                        ) : (
+                          selectedUser.searchHistory.map((entry) => (
+                            <div key={entry.id} className="rounded-md border border-border/70 p-3">
+                              <p className="font-medium">{entry.query ?? 'Untitled query'}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {entry.searchedAt ? new Date(entry.searchedAt).toLocaleString() : 'Unknown time'}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Chat History</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {selectedUser.chatHistory.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No chat history.</p>
+                        ) : (
+                          selectedUser.chatHistory.map((message, index) => (
+                            <div key={`${message.timestamp}-${index}`} className="rounded-md border border-border/70 p-3">
+                              <p className="text-xs uppercase text-muted-foreground">{message.role}</p>
+                              <p className="mt-1 text-sm">{message.message}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {message.timestamp ? new Date(message.timestamp).toLocaleString() : 'Unknown time'}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              ) : (
+                <div className="px-6 pb-8 text-sm text-muted-foreground">Select a user to review.</div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={userContentRejectTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setUserContentRejectTarget(null);
+              setUserContentRejectReason('');
+              setUserContentRejectAttempted(false);
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Take Down User Content</DialogTitle>
+              <DialogDescription>
+                Provide a clear moderation reason before removing this content from the user profile.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2">
+              <Label htmlFor="user-content-reject-reason">Reason</Label>
+              <Textarea
+                id="user-content-reject-reason"
+                value={userContentRejectReason}
+                onChange={(e) => setUserContentRejectReason(sanitizeInputValue(e.target.value, MAX_LONG_TEXT))}
+                maxLength={MAX_LONG_TEXT}
+                rows={4}
+              />
+              {userContentRejectAttempted && !normalizeText(userContentRejectReason, MAX_LONG_TEXT) ? (
+                <p className="text-xs text-destructive">A takedown reason is required.</p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">{userContentRejectReason.length}/{MAX_LONG_TEXT}</p>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setUserContentRejectTarget(null);
+                  setUserContentRejectReason('');
+                  setUserContentRejectAttempted(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={!!userContentRejectTarget && userActionKey === `content:${userContentRejectTarget.id}`}
+                onClick={() => {
+                  void handleTakeDownUserContent();
+                }}
+              >
+                Take down
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog
           open={selectedModerationItem !== null}
@@ -1242,6 +2080,244 @@ const AdminDashboard = () => {
                 Reject
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={selectedFlag !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedFlag(null);
+              setSelectedFlagReportsPage(1);
+              setSelectedFlagReporterSearch('');
+            }
+          }}
+        >
+          <DialogContent className="max-h-[calc(100dvh-1.5rem)] max-w-2xl overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Flag Review</DialogTitle>
+              <DialogDescription>
+                Review the reported post, reporter context, and moderation action.
+              </DialogDescription>
+            </DialogHeader>
+            {selectedFlag ? (
+              <div className="grid gap-6">
+                <div className="grid gap-3 rounded-lg border border-border/70 p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="destructive">{getFlagReasonSummary(selectedFlag)}</Badge>
+                    <Badge variant="secondary">{getFlagReportCount(selectedFlag)} reports</Badge>
+                    {selectedFlag.content?.content_type ? (
+                      <Badge variant="outline" className="capitalize">
+                        {selectedFlag.content.content_type}
+                      </Badge>
+                    ) : null}
+                    {selectedFlag.content?.status ? (
+                      <Badge variant="secondary">{formatContentStatus(selectedFlag.content.status)}</Badge>
+                    ) : null}
+                  </div>
+                  <div>
+                    <p className="text-base font-semibold">
+                      {selectedFlag.content?.title ?? `Content ${selectedFlag.content_id}`}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Creator: @{selectedFlag.content?.creator?.display_name ?? 'anonymous'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Latest report on {new Date(selectedFlag.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="grid gap-3 rounded-md bg-muted/40 p-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Submitted reports</p>
+                        <p className="text-xs text-muted-foreground">
+                          Showing {selectedFlagReports.length} of {selectedFlag.report_count} reports
+                        </p>
+                      </div>
+                      <div className="grid gap-1">
+                        <Label htmlFor="flag-report-search">Search reporter</Label>
+                        <Input
+                          id="flag-report-search"
+                          value={selectedFlagReporterSearch}
+                          onChange={(event) => {
+                            setSelectedFlagReporterSearch(sanitizeInputValue(event.target.value, 80));
+                            setSelectedFlagReportsPage(1);
+                          }}
+                          placeholder="Search by username"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-3">
+                      {selectedFlagReportsLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading reports...
+                        </div>
+                      ) : selectedFlagReports.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          {selectedFlagReporterSearch.trim()
+                            ? 'No reports match that username.'
+                            : 'No submitted reports found.'}
+                        </p>
+                      ) : (
+                        selectedFlagReports.map((report: AdminContentFlagReport, index) => (
+                          <div key={report.id} className="rounded-md border border-border/70 bg-background px-3 py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="destructive" className="max-w-full whitespace-normal break-words leading-4">
+                                {report.reason}
+                              </Badge>
+                              <Badge variant="outline">
+                                Report {(selectedFlagReportsPage - 1) * FLAG_REPORTS_PAGE_SIZE + index + 1}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(report.created_at).toLocaleString()}
+                              </span>
+                            </div>
+                            <p className="mt-2 break-words text-xs text-muted-foreground">
+                              Reporter: @{report.reporter?.display_name ?? report.reported_by}
+                            </p>
+                            <p className="mt-2 break-words text-sm text-muted-foreground">
+                              {normalizeText(report.description ?? '', MAX_LONG_TEXT)
+                                ? `Reporter note: ${report.description}`
+                                : 'No additional reporter note.'}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Page {selectedFlagReportsPage}
+                        {!selectedFlagReporterSearch.trim()
+                          ? ` of ${Math.max(1, Math.ceil(selectedFlag.report_count / FLAG_REPORTS_PAGE_SIZE))}`
+                          : ''}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={selectedFlagReportsLoading || selectedFlagReportsPage <= 1}
+                          onClick={() => setSelectedFlagReportsPage((current) => Math.max(1, current - 1))}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={selectedFlagReportsLoading || !selectedFlagReportsHasNext}
+                          onClick={() => setSelectedFlagReportsPage((current) => current + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
+                    {selectedFlag.content?.content_type === 'video' && selectedFlag.content.media_url ? (
+                      <video
+                        controls
+                        src={selectedFlag.content.media_url}
+                        className="w-full max-h-[360px] rounded-md bg-black"
+                      />
+                    ) : selectedFlag.content?.media_url ? (
+                      <img
+                        src={selectedFlag.content.media_url}
+                        alt={selectedFlag.content.title}
+                        className="w-full max-h-[360px] rounded-md object-contain bg-muted"
+                      />
+                    ) : selectedFlag.content?.thumbnail_url ? (
+                      <img
+                        src={selectedFlag.content.thumbnail_url}
+                        alt={selectedFlag.content.title ?? 'Flagged content preview'}
+                        className="w-full max-h-[360px] rounded-md object-contain bg-muted"
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No media preview available.</p>
+                    )}
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      void handleResolveFlag(selectedFlag.id);
+                    }}
+                  >
+                    Resolve
+                  </Button>
+                  <Button type="button" variant="destructive" onClick={() => handleOpenFlagTakeDown(selectedFlag)}>
+                    Take down
+                  </Button>
+                </DialogFooter>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={flagTakeDownTarget !== null}
+          onOpenChange={(open) => {
+            if (isTakingDownFlag) {
+              return;
+            }
+            if (!open) {
+              setFlagTakeDownTarget(null);
+              setFlagTakeDownReason('');
+              setFlagTakeDownAttempted(false);
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Take Down Flagged Content</DialogTitle>
+              <DialogDescription>
+                This will mark the post as taken down and show your feedback to the creator in their Posted videos.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2">
+              <Label htmlFor="flag-takedown-reason">Reason for creator</Label>
+              <Textarea
+                id="flag-takedown-reason"
+                value={flagTakeDownReason}
+                onChange={(e) => setFlagTakeDownReason(sanitizeInputValue(e.target.value, MAX_LONG_TEXT))}
+                maxLength={MAX_LONG_TEXT}
+                rows={4}
+              />
+              {flagTakeDownAttempted && !normalizeText(flagTakeDownReason, MAX_LONG_TEXT) ? (
+                <p className="text-xs text-destructive">A takedown reason is required.</p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                {flagTakeDownReason.length}/{MAX_LONG_TEXT}
+              </p>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isTakingDownFlag}
+                onClick={() => {
+                  setFlagTakeDownTarget(null);
+                  setFlagTakeDownReason('');
+                  setFlagTakeDownAttempted(false);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={isTakingDownFlag}
+                onClick={() => {
+                  void handleConfirmFlagTakeDown();
+                }}
+              >
+                {isTakingDownFlag ? 'Taking down...' : 'Take down'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

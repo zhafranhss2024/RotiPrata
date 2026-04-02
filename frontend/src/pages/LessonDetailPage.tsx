@@ -253,7 +253,7 @@ const LessonDetailPage = () => {
                       (!currentStopId && index === completedStops && completedStops < displayStops.length));
                   return (
                     <React.Fragment key={stop.id}>
-                      <div className="w-[90px]">
+                      <div className="w-[76px] sm:w-[90px]">
                         <div
                           className={cn(
                             'mx-auto h-10 w-10 rounded-full border flex items-center justify-center text-xs',
@@ -268,7 +268,7 @@ const LessonDetailPage = () => {
                           {isDone ? <Check className="h-4 w-4" /> : index + 1}
                         </div>
                         <p
-                          className="mt-2 h-8 overflow-hidden text-center text-[11px] leading-4 text-mainAccent/85 dark:text-white/85 break-words"
+                          className="mt-2 min-h-[2.5rem] px-1 text-center text-[10px] leading-4 text-mainAccent/85 break-words dark:text-white/85 sm:text-[11px]"
                           title={stop.label}
                         >
                           {stop.label}
@@ -277,7 +277,7 @@ const LessonDetailPage = () => {
                       {index < displayStops.length - 1 ? (
                         <div
                           className={cn(
-                            'mt-5 h-[2px] w-8 mx-1',
+                            'mx-1 mt-5 h-[2px] w-5 sm:w-8',
                             index < completedStops - 1 ? 'bg-duoGreen' : 'bg-mainAlt'
                           )}
                         />

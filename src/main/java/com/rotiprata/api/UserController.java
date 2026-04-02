@@ -5,6 +5,7 @@ import com.rotiprata.api.dto.ThemePreferenceRequest;
 import com.rotiprata.api.dto.UserBadgeResponse;
 import com.rotiprata.api.dto.UpdateProfileRequest;
 import com.rotiprata.api.dto.GetHistoryDTO;
+import com.rotiprata.api.dto.LeaderboardResponse;
 import com.rotiprata.application.BrowsingService;
 import com.rotiprata.application.ChatService;
 import com.rotiprata.application.ContentService;
@@ -163,6 +164,17 @@ public class UserController {
     public List<UserBadgeResponse> badges(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return userService.getUserBadges(userId, SecurityUtils.getAccessToken());
+    }
+
+    @GetMapping("/leaderboard")
+    public LeaderboardResponse leaderboard(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "20") int pageSize,
+        @RequestParam(required = false) String query
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return userService.getLeaderboard(userId, page, pageSize, query, SecurityUtils.getAccessToken());
     }
 
     @GetMapping("/me/content")

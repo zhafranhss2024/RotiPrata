@@ -9,7 +9,11 @@ type ChatMessage = {
   timestamp: string;
 };
 
-const Chatbot = () => {
+interface ChatbotProps {
+  mobileBottomOffsetClass?: string;
+}
+
+const Chatbot = ({ mobileBottomOffsetClass = "bottom-24" }: ChatbotProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -137,7 +141,7 @@ const Chatbot = () => {
         <button
           ref={chatButtonRef}
           onClick={toggleChat}
-          className={`fixed bottom-24 lg:bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center
+          className={`fixed ${mobileBottomOffsetClass} lg:bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center
             transition-all duration-300 shadow hover:scale-110 focus:outline-none
             bg-pink-500 text-white`} // darker background and white icon for light mode
           aria-label="Open Chat"
@@ -150,7 +154,7 @@ const Chatbot = () => {
       <div
         ref={chatRef}
         className={`fixed right-6 w-72 h-96
-          bottom-24 lg:bottom-6 
+          ${mobileBottomOffsetClass} lg:bottom-6 
           bg-white dark:bg-[#1c1c1e] shadow-lg rounded-xl flex flex-col
           border border-gray-200 dark:border-gray-700 overflow-hidden
           transition-all duration-300 transform

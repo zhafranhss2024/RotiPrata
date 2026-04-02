@@ -6,6 +6,7 @@ import com.rotiprata.api.dto.GetHistoryDTO;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -80,12 +81,45 @@ public class BrowsingService {
         dto.setUserId(userId);
         dto.setQuery(normalizedQuery);
         dto.setSearchedAt(searchedAt != null ? searchedAt : Instant.now());
+        String existingQuery = UriComponentsBuilder.newInstance()
+                .queryParam("user_id", "eq." + userId)
+                .queryParam("query", "eq." + normalizedQuery)
+                .queryParam("order", "searched_at.desc")
+                .queryParam("limit", "1")
+                .build()
+                .encode()
+                .toUriString()
+                .replaceFirst("^\\?", "");
 
-        String conflict = "on_conflict=user_id,query";
-
-        supabaseRestClient.upsertList(
+        List<Map<String, Object>> existing = supabaseRestClient.getList(
                 "search_history",
-                conflict,
+                existingQuery,
+                accessToken,
+                new TypeReference<List<Map<String, Object>>>() {}
+        );
+
+        if (!existing.isEmpty()) {
+            String id = existing.get(0).get("id") == null ? null : existing.get(0).get("id").toString();
+            if (id != null && !id.isBlank()) {
+                supabaseRestClient.patchList(
+                        "search_history",
+                        UriComponentsBuilder.newInstance()
+                                .queryParam("id", "eq." + id)
+                                .queryParam("user_id", "eq." + userId)
+                                .build()
+                                .encode()
+                                .toUriString()
+                                .replaceFirst("^\\?", ""),
+                        Map.of("searched_at", dto.getSearchedAt()),
+                        accessToken,
+                        new TypeReference<List<Map<String, Object>>>() {}
+                );
+                return;
+            }
+        }
+
+        supabaseRestClient.postList(
+                "search_history",
                 dto,
                 accessToken,
                 new TypeReference<List<Map<String, Object>>>() {}

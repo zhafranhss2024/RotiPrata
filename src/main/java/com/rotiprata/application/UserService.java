@@ -20,6 +20,8 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.dto.LeaderboardEntryResponse;
+import com.rotiprata.api.dto.LeaderboardResponse;
 import com.rotiprata.api.dto.UserBadgeResponse;
 import com.rotiprata.domain.AppRole;
 import com.rotiprata.domain.Profile;
@@ -35,6 +37,8 @@ public class UserService {
     private static final TypeReference<List<UserRole>> USER_ROLE_LIST = new TypeReference<>() {};
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
+    private static final int DEFAULT_LEADERBOARD_PAGE_SIZE = 20;
+    private static final int MAX_LEADERBOARD_PAGE_SIZE = 50;
 
     private final SupabaseRestClient supabaseRestClient;
     private final SupabaseAdminRestClient supabaseAdminRestClient;
@@ -375,6 +379,73 @@ public class UserService {
         return allBadges;
     }
 
+    public LeaderboardResponse getLeaderboard(UUID currentUserId, int page, int pageSize, String query, String accessToken) {
+        requireAccessToken(accessToken);
+
+        int normalizedPageSize = normalizeLeaderboardPageSize(pageSize);
+        String normalizedQuery = normalizeLeaderboardQuery(query);
+        Set<UUID> adminUserIds = fetchAdminUserIds();
+
+        List<Profile> sortedProfiles = supabaseAdminRestClient.getList(
+            "profiles",
+            buildQuery(Map.of("select", "user_id,display_name,avatar_url,reputation_points,current_streak")),
+            PROFILE_LIST
+        ).stream()
+            .filter(profile -> profile.getUserId() != null)
+            .filter(profile -> !adminUserIds.contains(profile.getUserId()))
+            .sorted(leaderboardProfileComparator())
+            .toList();
+
+        List<LeaderboardEntryResponse> rankedEntries = new ArrayList<>(sortedProfiles.size());
+        Integer previousXp = null;
+        int currentRank = 0;
+        for (int index = 0; index < sortedProfiles.size(); index += 1) {
+            Profile profile = sortedProfiles.get(index);
+            int xp = normalizedXp(profile.getReputationPoints());
+            if (previousXp == null || previousXp != xp) {
+                currentRank = index + 1;
+                previousXp = xp;
+            }
+            rankedEntries.add(
+                new LeaderboardEntryResponse(
+                    currentRank,
+                    profile.getUserId(),
+                    normalizeLeaderboardDisplayName(profile.getDisplayName()),
+                    profile.getAvatarUrl(),
+                    xp,
+                    normalizedXp(profile.getCurrentStreak()),
+                    profile.getUserId().equals(currentUserId)
+                )
+            );
+        }
+
+        LeaderboardEntryResponse currentUser = rankedEntries.stream()
+            .filter(entry -> entry.userId().equals(currentUserId))
+            .findFirst()
+            .orElse(null);
+
+        List<LeaderboardEntryResponse> filteredEntries = rankedEntries.stream()
+            .filter(entry -> matchesLeaderboardQuery(entry, normalizedQuery))
+            .toList();
+
+        int totalCount = filteredEntries.size();
+        int maxPage = totalCount == 0 ? 1 : (int) Math.ceil(totalCount / (double) normalizedPageSize);
+        int normalizedPage = Math.max(1, Math.min(page, maxPage));
+        int fromIndex = Math.min((normalizedPage - 1) * normalizedPageSize, totalCount);
+        int toIndex = Math.min(fromIndex + normalizedPageSize, totalCount);
+        boolean hasNext = normalizedPage < maxPage;
+
+        return new LeaderboardResponse(
+            filteredEntries.subList(fromIndex, toIndex),
+            normalizedPage,
+            normalizedPageSize,
+            hasNext,
+            totalCount,
+            normalizedQuery == null ? "" : normalizedQuery,
+            currentUser
+        );
+    }
+
     private Profile createProfile(UUID userId, String displayName, Boolean isGenAlpha, String accessToken) {
         return createProfile(userId, displayName, isGenAlpha, accessToken, true);
     }
@@ -535,6 +606,73 @@ public class UserService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
         }
         return accessToken;
+    }
+
+    private Set<UUID> fetchAdminUserIds() {
+        List<UserRole> roles = supabaseAdminRestClient.getList(
+            "user_roles",
+            buildQuery(Map.of(
+                "select", "user_id,role",
+                "role", "eq." + AppRole.ADMIN.toJson()
+            )),
+            USER_ROLE_LIST
+        );
+        Set<UUID> adminUserIds = new LinkedHashSet<>();
+        for (UserRole role : roles) {
+            if (role != null && role.getUserId() != null) {
+                adminUserIds.add(role.getUserId());
+            }
+        }
+        return adminUserIds;
+    }
+
+    private Comparator<Profile> leaderboardProfileComparator() {
+        return Comparator
+            .comparingInt((Profile profile) -> normalizedXp(profile.getReputationPoints()))
+            .reversed()
+            .thenComparing(
+                profile -> normalizeLeaderboardDisplayName(profile.getDisplayName()),
+                Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+            )
+            .thenComparing(profile -> profile.getUserId().toString());
+    }
+
+    private boolean matchesLeaderboardQuery(LeaderboardEntryResponse entry, String normalizedQuery) {
+        if (normalizedQuery == null || normalizedQuery.isBlank()) {
+            return true;
+        }
+        String displayName = entry.displayName();
+        return displayName != null && displayName.toLowerCase().contains(normalizedQuery);
+    }
+
+    private String normalizeLeaderboardDisplayName(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private int normalizeLeaderboardPageSize(int pageSize) {
+        if (pageSize <= 0) {
+            return DEFAULT_LEADERBOARD_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_LEADERBOARD_PAGE_SIZE);
+    }
+
+    private String normalizeLeaderboardQuery(String query) {
+        if (query == null) {
+            return null;
+        }
+        String trimmed = query.trim().toLowerCase();
+        if (trimmed.startsWith("@")) {
+            trimmed = trimmed.substring(1);
+        }
+        return trimmed.isBlank() ? null : trimmed;
+    }
+
+    private int normalizedXp(Integer value) {
+        return value == null ? 0 : Math.max(0, value);
     }
 
     private Map<String, Map<String, Object>> fetchLessonsByIds(Set<String> lessonIds) {
