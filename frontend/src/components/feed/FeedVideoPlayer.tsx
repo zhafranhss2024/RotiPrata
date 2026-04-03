@@ -23,6 +23,8 @@ interface FeedVideoPlayerProps {
   showPoster?: boolean;
   className?: string;
   preload?: FeedVideoPreload;
+  controls?: boolean;
+  loop?: boolean;
   isActive: boolean;
   isPaused: boolean;
   shouldAutoplay: boolean;
@@ -63,6 +65,8 @@ export function FeedVideoPlayer({
   showPoster = false,
   className,
   preload = 'metadata',
+  controls = false,
+  loop = true,
   isActive,
   isPaused,
   shouldAutoplay,
@@ -355,9 +359,9 @@ export function FeedVideoPlayer({
       poster={showPoster ? poster ?? undefined : undefined}
       preload={preload}
       className={className}
-      loop
+      loop={loop}
       playsInline
-      controls={false}
+      controls={controls}
     />
   );
 }
