@@ -9,16 +9,16 @@ type ChatMessage = {
   timestamp: string;
 };
 
-const Chatbot = () => {
-  // ------------------------
-  // State
-  // ------------------------
-  const [isOpen, setIsOpen] = useState(false);            // chat visibility
-  const [messages, setMessages] = useState<ChatMessage[]>([]); // chat history
-  const [input, setInput] = useState("");                 // user input
-  const [loading, setLoading] = useState(false);          // AI response pending
-  const [messagesLoaded, setMessagesLoaded] = useState(false); // initial load flag
-  const [error, setError] = useState(""); // error message
+interface ChatbotProps {
+  mobileBottomOffsetClass?: string;
+}
+
+const Chatbot = ({ mobileBottomOffsetClass = "bottom-24" }: ChatbotProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [messagesLoaded, setMessagesLoaded] = useState(false);
 
   // ------------------------
   // Refs
@@ -160,9 +160,9 @@ const Chatbot = () => {
         <button
           ref={chatButtonRef}
           onClick={toggleChat}
-          className="fixed bottom-24 lg:bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center
-                     transition-all duration-300 shadow hover:scale-110 focus:outline-none
-                     bg-pink-500 text-white"
+          className={`fixed ${mobileBottomOffsetClass} lg:bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center
+            transition-all duration-300 shadow hover:scale-110 focus:outline-none
+            bg-pink-500 text-white`} // darker background and white icon for light mode
           aria-label="Open Chat"
         >
           💬
@@ -172,11 +172,12 @@ const Chatbot = () => {
       {/* Chat window */}
       <div
         ref={chatRef}
-        className={`fixed right-6 w-72 h-96 bottom-24 lg:bottom-6 
-                   bg-white dark:bg-[#1c1c1e] shadow-lg rounded-xl flex flex-col
-                   border border-gray-200 dark:border-gray-700 overflow-hidden
-                   transition-all duration-300 transform
-                   ${isOpen ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"}`}
+        className={`fixed right-6 w-72 h-96
+          ${mobileBottomOffsetClass} lg:bottom-6 
+          bg-white dark:bg-[#1c1c1e] shadow-lg rounded-xl flex flex-col
+          border border-gray-200 dark:border-gray-700 overflow-hidden
+          transition-all duration-300 transform
+          ${isOpen ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"}`}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#2a2a2e]">

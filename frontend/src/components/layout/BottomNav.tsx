@@ -5,11 +5,9 @@ import {
   Home,
   Plus,
   Search,
-  Shield,
   User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useAuthContext } from '@/contexts/AuthContext';
 
 const baseNavItems = [
   { label: 'Learn', href: '/lessons', icon: Home },
@@ -20,17 +18,12 @@ const baseNavItems = [
 
 export function BottomNav() {
   const location = useLocation();
-  const { isAdmin } = useAuthContext();
-
-  const navItems = isAdmin()
-    ? [...baseNavItems.slice(0, 3), { label: 'Admin', href: '/admin', icon: Shield }]
-    : baseNavItems;
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-mainAlt bg-main dark:bg-mainDark">
       <div className="relative h-[calc(var(--bottom-nav-height)+var(--safe-area-bottom))] px-6 pb-[var(--safe-area-bottom)]">
         <div className="h-[var(--bottom-nav-height)] grid grid-cols-4 items-center gap-2">
-          {navItems.map((item) => {
+          {baseNavItems.map((item) => {
             const isActive =
               location.pathname === item.href ||
               (item.href !== '/' && location.pathname.startsWith(item.href));

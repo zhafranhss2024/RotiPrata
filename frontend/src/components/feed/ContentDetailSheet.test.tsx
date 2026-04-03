@@ -72,4 +72,18 @@ describe("ContentDetailSheet", () => {
       },
     });
   });
+
+  it("shows moderation feedback for taken-down content", () => {
+    const content = {
+      ...buildContent("flagged"),
+      status: "rejected" as const,
+      review_feedback: "Removed for harmful misinformation.",
+    };
+    fetchSimilarContent.mockResolvedValue([]);
+
+    render(<ContentDetailSheet content={content} open onOpenChange={() => undefined} />);
+
+    expect(screen.getByText("Removed by moderation")).toBeInTheDocument();
+    expect(screen.getByText("Removed for harmful misinformation.")).toBeInTheDocument();
+  });
 });

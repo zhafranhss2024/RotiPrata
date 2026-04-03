@@ -28,8 +28,20 @@ import {
 } from './feedActivation';
 import { toast } from '@/components/ui/sonner';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ApiError } from '@/lib/apiClient';
 
 interface FeedContainerProps {
   contents: Content[];
@@ -39,6 +51,27 @@ interface FeedContainerProps {
   initialIndex?: number;
   containerClassName?: string;
 }
+
+const FLAG_REASON_OPTIONS = [
+  'Inappropriate content',
+  'Harassment or hate',
+  'Spam or scam',
+  'Misleading information',
+  'Violent or dangerous acts',
+] as const;
+
+const MAX_FLAG_DESCRIPTION = 1000;
+
+const stripControlCharacters = (value: string) =>
+  Array.from(value)
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code > 31 && code !== 127;
+    })
+    .join('');
+
+const normalizeFlagDescription = (value: string) =>
+  stripControlCharacters(value).slice(0, MAX_FLAG_DESCRIPTION);
 
 const mapApiComment = (comment: ContentComment): FeedComment => ({
   id: comment.id,
@@ -59,11 +92,16 @@ export function FeedContainer({
   const navigate = useNavigate();
   const location = useLocation();
   const containerHeightClass =
-    'h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom))] md:h-[calc(100dvh-4rem)]';
+    'h-[calc(100dvh-var(--mobile-top-bar-height)-var(--bottom-nav-height)-var(--safe-area-bottom))] md:h-[calc(100dvh-4rem)]';
   const [hiddenContentIds, setHiddenContentIds] = useState<Set<string>>(() => new Set());
   const [takingDownContentId, setTakingDownContentId] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
+  const [flagDialogContent, setFlagDialogContent] = useState<Content | null>(null);
+  const [flagReason, setFlagReason] = useState<(typeof FLAG_REASON_OPTIONS)[number]>(FLAG_REASON_OPTIONS[0]);
+  const [flagDescription, setFlagDescription] = useState('');
+  const [flagAttempted, setFlagAttempted] = useState(false);
+  const [isSubmittingFlag, setIsSubmittingFlag] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showQuiz, setShowQuiz] = useState(false);
@@ -505,11 +543,44 @@ export function FeedContainer({
     }
   };
 
-  const handleFlag = async (contentId: string) => {
+  const handleFlag = (contentId: string) => {
+    const content = contents.find((item) => item.id === contentId) ?? null;
+    setFlagDialogContent(content);
+    setFlagReason(FLAG_REASON_OPTIONS[0]);
+    setFlagDescription('');
+    setFlagAttempted(false);
+  };
+
+  const handleFlagSubmit = async () => {
+    if (!flagDialogContent) {
+      return;
+    }
+    const normalizedReason = flagReason.trim();
+    const normalizedDescription = normalizeFlagDescription(flagDescription).trim();
+    if (!normalizedReason) {
+      setFlagAttempted(true);
+      return;
+    }
+
+    setIsSubmittingFlag(true);
     try {
-      await flagContent(contentId, 'inappropriate');
+      await flagContent(flagDialogContent.id, normalizedReason, normalizedDescription || undefined);
+      toast('Report submitted. Our moderators will review it.', { position: 'bottom-center' });
+      setFlagDialogContent(null);
+      setFlagReason(FLAG_REASON_OPTIONS[0]);
+      setFlagDescription('');
+      setFlagAttempted(false);
     } catch (error) {
       console.warn('Flag failed', error);
+      if (error instanceof ApiError && error.status === 409) {
+        toast('You already reported this post.', { position: 'bottom-center' });
+      } else {
+        toast(error instanceof Error ? error.message : 'Failed to submit report.', {
+          position: 'bottom-center',
+        });
+      }
+    } finally {
+      setIsSubmittingFlag(false);
     }
   };
 
@@ -554,7 +625,7 @@ export function FeedContainer({
     });
     setPausedByContent((prev) => ({
       ...prev,
-      [contentId]: !Boolean(prev[contentId]),
+      [contentId]: !prev[contentId],
     }));
   }, []);
 
@@ -715,6 +786,93 @@ export function FeedContainer({
         open={showDetail}
         onOpenChange={setShowDetail}
       />
+
+      <Dialog
+        open={flagDialogContent !== null}
+        onOpenChange={(open) => {
+          if (isSubmittingFlag) {
+            return;
+          }
+          if (!open) {
+            setFlagDialogContent(null);
+            setFlagReason(FLAG_REASON_OPTIONS[0]);
+            setFlagDescription('');
+            setFlagAttempted(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Report Content</DialogTitle>
+            <DialogDescription>
+              Choose the closest reason and add details if moderators need more context.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-5">
+            <div className="grid gap-3">
+              <Label>Reason</Label>
+              <RadioGroup
+                value={flagReason}
+                onValueChange={(value) => setFlagReason(value as (typeof FLAG_REASON_OPTIONS)[number])}
+              >
+                {FLAG_REASON_OPTIONS.map((option) => {
+                  const optionId = `flag-reason-${option.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+                  return (
+                    <label
+                      key={option}
+                      htmlFor={optionId}
+                      className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 p-3 transition-colors hover:bg-muted/40"
+                    >
+                      <RadioGroupItem value={option} id={optionId} className="mt-1" />
+                      <div>
+                        <p className="text-sm font-medium">{option}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </RadioGroup>
+              {flagAttempted && !flagReason.trim() ? (
+                <p className="text-xs text-destructive">Choose a reason before submitting.</p>
+              ) : null}
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="flag-description">Additional details (optional)</Label>
+              <Textarea
+                id="flag-description"
+                rows={4}
+                maxLength={MAX_FLAG_DESCRIPTION}
+                value={flagDescription}
+                onChange={(event) => setFlagDescription(normalizeFlagDescription(event.target.value))}
+                placeholder="Add context for moderators."
+              />
+              <p className="text-xs text-muted-foreground">
+                {flagDescription.length}/{MAX_FLAG_DESCRIPTION}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSubmittingFlag}
+              onClick={() => {
+                setFlagDialogContent(null);
+                setFlagReason(FLAG_REASON_OPTIONS[0]);
+                setFlagDescription('');
+                setFlagAttempted(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="button" disabled={isSubmittingFlag} onClick={() => void handleFlagSubmit()}>
+              {isSubmittingFlag ? 'Submitting...' : 'Submit report'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CommentSheet
         content={selectedContent}

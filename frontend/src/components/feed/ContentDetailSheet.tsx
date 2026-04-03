@@ -94,7 +94,10 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85dvh] rounded-t-3xl flex flex-col overflow-hidden">
+      <SheetContent
+        side="right"
+        className="h-[100dvh] w-full max-w-full rounded-none flex flex-col overflow-hidden sm:max-w-xl"
+      >
         <SheetHeader className="text-left shrink-0">
           <div className="flex items-start gap-3">
             {content.category && <Badge variant="secondary">{content.category.name}</Badge>}
@@ -108,6 +111,15 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
         </SheetHeader>
 
         <div className="mt-6 min-h-0 flex-1 space-y-6 overflow-y-auto pb-safe pr-1">
+          {content.status === "rejected" && content.review_feedback ? (
+            <div className="rounded-2xl border border-rose-300/70 bg-rose-50 px-4 py-3 text-rose-950">
+              <div className="flex items-center gap-2">
+                <Badge className="border-0 bg-rose-600 text-white">Removed by moderation</Badge>
+              </div>
+              <p className="mt-3 text-sm leading-6">{content.review_feedback}</p>
+            </div>
+          ) : null}
+
           {content.description && (
             <div>
               <h3 className="font-semibold text-sm text-muted-foreground mb-2">About</h3>
@@ -170,7 +182,7 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
             </div>
           )}
 
-          <div className="mx-auto w-full max-w-4xl">
+          <div className="mx-auto w-full max-w-2xl">
             <div className="flex items-center justify-between gap-3 mb-3">
               <div>
                 <h3 className="font-semibold text-sm text-muted-foreground">Similar Videos</h3>
@@ -182,20 +194,20 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
             </div>
 
             {isLoadingSimilar ? (
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2 sm:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] sm:gap-3 md:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(6.75rem,8.5rem))] justify-center gap-2 sm:grid-cols-[repeat(auto-fit,minmax(7.5rem,9rem))] sm:gap-3">
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div
                     key={`similar-skeleton-${index}`}
-                    className="rounded-2xl border border-border/60 bg-muted/30 p-3"
+                    className="rounded-2xl border border-border/60 bg-muted/30 p-2.5"
                   >
                     <Skeleton className="aspect-[9/16] w-full rounded-xl" />
-                    <Skeleton className="mt-3 h-4 w-5/6" />
-                    <Skeleton className="mt-2 h-3 w-2/3" />
+                    <Skeleton className="mt-2.5 h-3 w-5/6" />
+                    <Skeleton className="mt-2 h-2.5 w-2/3" />
                   </div>
                 ))}
               </div>
             ) : visibleSimilarVideos.length > 0 ? (
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2 sm:grid-cols-[repeat(auto-fit,minmax(8.5rem,1fr))] sm:gap-3 md:grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(6.75rem,8.5rem))] justify-center gap-2 sm:grid-cols-[repeat(auto-fit,minmax(7.5rem,9rem))] sm:gap-3">
                 {visibleSimilarVideos.map((video, index) => (
                   <CompactVideoTile
                     key={video.id}
@@ -232,11 +244,6 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
             </Button>
           </div>
 
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{content.view_count} views</span>
-            <span>|</span>
-            <span>{content.educational_value_votes} found this helpful</span>
-          </div>
         </div>
       </SheetContent>
     </Sheet>

@@ -60,6 +60,7 @@
     --safe-area-left: env(safe-area-inset-left, 0px);
     --safe-area-right: env(safe-area-inset-right, 0px);
     --bottom-nav-height: 5rem;
+    --mobile-top-bar-height: 4rem;
     --duo-main: #ffffff;
     --duo-main-dark: #f8fafc;
     --duo-main-alt: #eef2f7;

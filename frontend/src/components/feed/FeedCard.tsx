@@ -58,6 +58,14 @@ type FloatingHeart = {
   driftX: number;
 };
 
+const TAP_MOVEMENT_SLOP = 12;
+const LEARN_MORE_SWIPE_THRESHOLD = 72;
+const LEARN_MORE_MAX_VERTICAL_DRIFT = 48;
+
+const isInteractiveGestureTarget = (target: EventTarget | null) =>
+  target instanceof Element &&
+  Boolean(target.closest('button, a, input, textarea, select, [role="button"], [data-feed-gesture-exempt="true"]'));
+
 export function FeedCard({
   content,
   isActive = false,
@@ -94,6 +102,7 @@ export function FeedCard({
   const [isBuffering, setIsBuffering] = useState(false);
   const lastTapRef = useRef(0);
   const singleTapTimerRef = useRef<number | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const clearSingleTapTimer = () => {
     if (singleTapTimerRef.current) {
@@ -177,10 +186,51 @@ export function FeedCard({
     handleDoubleTapLike(event.clientX, event.clientY);
   };
 
-  const handleMediaTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+  const handleCardTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (isInteractiveGestureTarget(event.target)) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    const touch = event.touches[0];
+    if (!touch) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleCardTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     const touch = event.changedTouches[0];
     if (!touch) {
       return;
+    }
+
+    const touchStart = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (touchStart) {
+      const deltaX = touch.clientX - touchStart.x;
+      const deltaY = touch.clientY - touchStart.y;
+      const absDeltaX = Math.abs(deltaX);
+      const absDeltaY = Math.abs(deltaY);
+
+      if (
+        deltaX <= -LEARN_MORE_SWIPE_THRESHOLD &&
+        absDeltaY <= LEARN_MORE_MAX_VERTICAL_DRIFT &&
+        absDeltaX > absDeltaY
+      ) {
+        clearSingleTapTimer();
+        onMediaInteraction?.();
+        onLearnMoreClick?.();
+        return;
+      }
+
+      if (absDeltaX > TAP_MOVEMENT_SLOP || absDeltaY > TAP_MOVEMENT_SLOP) {
+        clearSingleTapTimer();
+        return;
+      }
     }
 
     onMediaInteraction?.();
@@ -215,7 +265,7 @@ export function FeedCard({
           <FeedVideoPlayer
             sourceUrl={streamUrl}
             showPoster={false}
-            className="w-full h-full object-contain object-center"
+            className="h-full w-full object-cover object-[center_28%] md:object-contain md:object-top"
             preload={preload}
             isActive={isActive}
             isPaused={isPaused}
@@ -235,7 +285,13 @@ export function FeedCard({
     }
 
     if (content.content_type === 'image' && content.media_url) {
-      return <img src={content.media_url} alt={content.title} className="w-full h-full object-contain" />;
+      return (
+        <img
+          src={content.media_url}
+          alt={content.title}
+          className="w-full h-full object-cover object-[center_28%] md:object-contain"
+        />
+      );
     }
 
     return (
@@ -245,13 +301,19 @@ export function FeedCard({
     );
   };
 
-  return (
-    <div className="relative w-full h-full snap-start">
+    return (
+    <div
+      className="relative w-full h-full snap-start"
+      onTouchStart={handleCardTouchStart}
+      onTouchEnd={handleCardTouchEnd}
+      onTouchCancel={() => {
+        touchStartRef.current = null;
+      }}
+    >
       <div
         className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden"
         onClick={handleMediaClick}
         onDoubleClick={handleMediaDoubleClick}
-        onTouchEnd={handleMediaTouchEnd}
       >
         {renderBackgroundMedia()}
       </div>
@@ -305,7 +367,7 @@ export function FeedCard({
 
       <button
         onClick={onLearnMoreClick}
-        className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 text-white/80 hover:text-white/80 transition-colors touch-target"
+        className="absolute right-4 top-8 hidden items-center gap-2 text-white/80 transition-colors hover:text-white md:flex lg:top-10 xl:top-12 touch-target"
       >
         <span className="text-sm font-medium">Learn more</span>
         <ChevronLeft className="h-5 w-5 rotate-180" />
@@ -320,33 +382,11 @@ export function FeedCard({
 
         <h2 className="text-xl font-bold text-white/80 mb-2 line-clamp-2">{content.title}</h2>
 
-        {content.learning_objective && (
-          <div className="flex items-center gap-2 mb-3">
-            <Badge
-              variant="secondary"
-              className="bg-black/35 text-white/80"
-            >
-              Learn: {content.learning_objective}
-            </Badge>
-          </div>
-        )}
-
         {content.description && (
           <p className="text-white/80 text-sm line-clamp-2 mb-3">{content.description}</p>
         )}
 
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-black/35 flex items-center justify-center overflow-hidden">
-            {content.creator?.avatar_url ? (
-              <img
-                src={content.creator.avatar_url}
-                alt={content.creator.display_name ?? 'Creator avatar'}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-sm text-white/80">User</span>
-            )}
-          </div>
+        <div className="flex items-center">
           <span className="text-white/80 text-sm font-medium">
             @{content.creator?.display_name || 'anonymous'}
           </span>

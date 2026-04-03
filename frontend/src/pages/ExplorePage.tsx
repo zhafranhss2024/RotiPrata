@@ -361,12 +361,18 @@ const ExplorePage = () => {
               Search Results {isSearching ? '(loading...)' : ''}
             </h2>
             <Tabs value={searchTab} onValueChange={(value) => setSearchTab(value as 'videos' | 'lessons')}>
-              <TabsList className="w-full grid grid-cols-2 mb-4">
-                <TabsTrigger value="videos" className="flex items-center gap-2">
+              <TabsList className="mb-4 grid h-auto w-full grid-cols-2 rounded-2xl bg-muted p-1 md:h-10 md:rounded-md">
+                <TabsTrigger
+                  value="videos"
+                  className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm flex items-center gap-2"
+                >
                   <Video className="h-4 w-4" />
                   Videos ({videoResults.length})
                 </TabsTrigger>
-                <TabsTrigger value="lessons" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="lessons"
+                  className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm flex items-center gap-2"
+                >
                   <BookOpen className="h-4 w-4" />
                   Lessons ({lessonResults.length})
                 </TabsTrigger>
@@ -380,7 +386,7 @@ const ExplorePage = () => {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4">
                     {videoResults.map((result, index) => (
                       <CompactVideoTile
                         key={`video-${result.id}`}

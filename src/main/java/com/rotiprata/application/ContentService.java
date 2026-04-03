@@ -640,6 +640,22 @@ public class ContentService {
         String token = requireAccessToken(accessToken);
         ensureUserAndContent(userId, contentId);
 
+        List<Map<String, Object>> existingFlags = supabaseRestClient.getList(
+            "content_flags",
+            buildQuery(Map.of(
+                "select", "id",
+                "content_id", "eq." + contentId,
+                "reported_by", "eq." + userId,
+                "status", "eq.pending",
+                "limit", "1"
+            )),
+            token,
+            MAP_LIST
+        );
+        if (!existingFlags.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already flagged this content");
+        }
+
         Map<String, Object> insert = new LinkedHashMap<>();
         insert.put("content_id", contentId);
         insert.put("reported_by", userId);
@@ -647,14 +663,7 @@ public class ContentService {
         insert.put("description", normalizeNullableText(request.description()));
         insert.put("created_at", OffsetDateTime.now());
 
-        try {
-            supabaseRestClient.postList("content_flags", insert, token, MAP_LIST);
-        } catch (ResponseStatusException ex) {
-            if (isUniqueViolation(ex)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "You already flagged this content");
-            }
-            throw ex;
-        }
+        supabaseRestClient.postList("content_flags", insert, token, MAP_LIST);
     }
 
     public List<ContentCommentResponse> listComments(

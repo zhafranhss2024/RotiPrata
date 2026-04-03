@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:8080/api`
 
-Last audited: 2026-03-07  
+Last audited: 2026-04-02
 Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controller.java` and frontend calls in `frontend/src/lib/api.ts`.
 
 ## Security and Error Contract
@@ -35,15 +35,21 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### Users (`UserController`)
 - `GET /users/me`
 - `PUT /users/me`
+- `GET /users/leaderboard`
 - `GET /users/me/roles`
 - `GET /users/me/preferences`
 - `PUT /users/me/preferences`
 - `POST /users/me/history`
 - `GET /users/me/history`
-- `DELETE /users/me/history`
+- `DELETE /users/me/history/{id}`
 - `GET /users/me/stats`
+- `GET /users/me/badges`
+- `GET /users/me/content`
 - `GET /users/me/lessons/progress`
 - `GET /users/me/hearts`
+- `POST /users/me/chat`
+- `GET /users/me/chat`
+- `DELETE /users/me/chat`
 
 ### Feed and Search (`FeedController`, `BrowsingController`)
 - `GET /feed` (cursor-based pagination: `cursor`, `limit`)
@@ -93,6 +99,11 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 
 ### Admin Moderation and Content (`AdminController`)
 - `GET /admin/stats`
+- `GET /admin/users`
+- `GET /admin/users/{userId}`
+- `PUT /admin/users/{userId}/role`
+- `PUT /admin/users/{userId}/status`
+- `DELETE /admin/users/{userId}/lessons/{lessonId}/progress`
 - `GET /admin/moderation-queue`
 - `PUT /admin/content/{contentId}/approve`
 - `PUT /admin/content/{contentId}`
@@ -100,7 +111,9 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `PUT /admin/content/{contentId}/quiz`
 - `PUT /admin/content/{contentId}/reject`
 - `GET /admin/flags`
+- `GET /admin/flags/{flagId}/reports`
 - `PUT /admin/flags/{flagId}/resolve`
+- `PUT /admin/flags/{flagId}/take-down`
 
 ### Admin Lessons and Quiz Builder (`LessonController`)
 - `GET /admin/lessons`
@@ -149,7 +162,27 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - Behavior:
   - Updates login streak once per day per user.
   - Day boundary uses valid request timezone first, then stored profile timezone, then UTC fallback.
-  - This endpoint is idempotent for same-day repeated calls (`touchedToday=true`).
+- This endpoint is idempotent for same-day repeated calls (`touchedToday=true`).
+
+## Leaderboard Contract
+
+- Endpoint: `GET /users/leaderboard`
+- Auth: required (`Authorization: Bearer <accessToken>`)
+- Query params:
+  - `page` optional, default `1`
+  - `pageSize` optional, default `20`, max `50`
+  - `query` optional display-name substring filter
+- Response:
+  - `{ items, page, pageSize, hasNext, totalCount, query, currentUser }`
+  - `items` and `currentUser` rows include:
+    - `{ rank, userId, displayName, avatarUrl, xp, currentStreak, isCurrentUser }`
+- Behavior:
+  - Ranks users by `profiles.reputation_points desc`
+  - Users with equal XP share the same rank
+  - Stable ordering inside ties uses `display_name asc`, then `user_id asc`
+  - Admin users are excluded from leaderboard ranking
+  - `currentUser` returns the caller's true global rank even when `query` filters the visible table
+  - Null XP is treated as `0`
 
 ## Comment Delete Contract
 
@@ -164,6 +197,83 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `204` success
 - `403` trying to delete another user's comment without admin role
 - `404` comment/content not found
+
+## Admin Flag Contract
+
+- Endpoint: `GET /admin/flags`
+- Auth: required admin bearer token
+- Response:
+  - Returns one grouped item per flagged content, not one row per raw `content_flags` record.
+  - Shape:
+    - `{ id, content_id, status, created_at, report_count, notes_count, reasons, content }`
+    - `id` is the most recent pending report id for that content and is used as the action id for existing admin endpoints.
+    - `reasons` is the distinct list of report reasons collected for that content.
+    - `notes_count` is the number of pending reports that include a non-empty reporter note.
+- Behavior:
+  - Includes only `status=pending` reports.
+  - Groups all pending reports for the same `content_id`.
+  - Sorts grouped items by latest report timestamp descending.
+- Report detail endpoint:
+  - `GET /admin/flags/{flagId}/reports?page=1&query=clipwatcher`
+  - Returns `{ items, page, page_size, has_next, query }`
+  - `items` contain `{ id, reported_by, reporter, reason, description, created_at }`
+  - `reporter` contains `{ user_id, display_name, avatar_url }`
+  - Page size is capped to 5 reports per request
+  - `query` filters by reporter username/display name
+- Action endpoints:
+  - `PUT /admin/flags/{flagId}/resolve` resolves all pending reports for that flagged content group.
+  - `PUT /admin/flags/{flagId}/take-down` rejects the content and resolves all pending reports for that flagged content group.
+
+## Admin User Management Contract
+
+- List endpoint:
+  - `GET /admin/users?query=kai`
+  - Auth: required admin bearer token
+  - Response rows:
+    - `{ userId, displayName, email, avatarUrl, reputationPoints, currentStreak, longestStreak, lastActivityDate, totalHoursLearned, roles, status, createdAt, lastSignInAt }`
+  - Notes:
+    - `status` is derived from auth suspension state and is currently `active` or `suspended`
+    - `query` matches `displayName`, `email`, and `userId`
+
+- Detail endpoint:
+  - `GET /admin/users/{userId}`
+  - Response:
+    - `{ summary, suspendedUntil, activity, postedContent, likedContent, savedContent, comments, lessonProgress, badges, browsingHistory, searchHistory, chatHistory }`
+  - `activity` contains:
+    - `{ postedContentCount, likedContentCount, savedContentCount, commentCount, enrolledLessonCount, completedLessonCount, badgeCount, browsingCount, searchCount, chatMessageCount }`
+  - `comments` contain:
+    - `{ id, contentId, contentTitle, body, author, createdAt, updatedAt }`
+  - `lessonProgress` contain:
+    - `{ id, lessonId, lessonTitle, status, progressPercentage, currentSection, startedAt, completedAt, lastAccessedAt }`
+  - `browsingHistory` contains rows from `public.browsing_history`
+  - `searchHistory` contains rows from `public.search_history`
+  - `chatHistory` contains rows from `public.user_chatbot_history`
+
+- Role update endpoint:
+  - `PUT /admin/users/{userId}/role`
+  - Request body:
+    - `{ "role": "admin" }` or `{ "role": "user" }`
+  - Notes:
+    - Self-demotion from the last admin account is blocked
+
+- Status update endpoint:
+  - `PUT /admin/users/{userId}/status`
+  - Request body:
+    - `{ "status": "active" }` or `{ "status": "suspended" }`
+  - Notes:
+    - Suspension is applied through the Supabase admin auth API
+    - Self-suspension is blocked
+
+- Lesson reset endpoint:
+  - `DELETE /admin/users/{userId}/lessons/{lessonId}/progress`
+  - Behavior:
+    - Deletes `user_lesson_progress`
+    - Deletes `user_lesson_quiz_attempts`
+    - Deletes `user_quiz_results` for quizzes attached to the lesson
+    - Deletes `user_lesson_rewards`
+    - Decrements `profiles.reputation_points` by the lesson reward XP
+    - Deletes `user_achievements` only when that badge is no longer backed by any remaining `user_lesson_rewards` row for the same `badge_name`
+    - Decrements `lessons.completion_count` when a reward row existed for that lesson reset
 
 ## Similar Videos Contract
 
@@ -201,17 +311,21 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### User profile / utility
 - `GET /users/me` -> implemented
 - `PUT /users/me` -> implemented
+- `GET /users/leaderboard?page=...&pageSize=...&query=...` -> implemented
 - `GET /users/me/roles` -> implemented
 - `GET /users/me/preferences` -> implemented
 - `PUT /users/me/preferences` -> implemented
 - `GET /users/me/history` -> implemented
 - `POST /users/me/history` -> implemented
-- `DELETE /users/me/history` -> implemented
+- `DELETE /users/me/history/{id}` -> implemented
 - `GET /users/me/stats` -> implemented
 - `GET /users/me/lessons/progress` -> implemented
 - `GET /users/me/hearts` -> implemented
 - `GET /users/me/badges` -> implemented
 - `GET /users/me/content?collection=posted|saved|liked` -> implemented
+- `POST /users/me/chat` -> implemented
+- `GET /users/me/chat` -> implemented
+- `DELETE /users/me/chat` -> implemented
 
 ### Content
 - `POST /content/media/start` -> implemented
@@ -262,12 +376,19 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 
 ### Admin
 - `GET /admin/stats` -> implemented
+- `GET /admin/users` -> implemented
+- `GET /admin/users/{id}` -> implemented
+- `PUT /admin/users/{id}/role` -> implemented
+- `PUT /admin/users/{id}/status` -> implemented
+- `DELETE /admin/users/{id}/lessons/{lessonId}/progress` -> implemented
 - `GET /admin/moderation-queue` -> implemented
-- `GET /admin/flags` -> implemented
+- `GET /admin/flags` -> implemented (grouped by `content_id` for admin review)
+- `GET /admin/flags/{id}/reports` -> implemented (5-per-page reporter list with username search)
 - `PUT /admin/content/{id}/approve` -> implemented
 - `PUT /admin/content/{id}` -> implemented
 - `PUT /admin/content/{id}/reject` -> implemented
-- `PUT /admin/flags/{id}/resolve` -> implemented
+- `PUT /admin/flags/{id}/resolve` -> implemented (resolves all pending reports for the grouped content item)
+- `PUT /admin/flags/{id}/take-down` -> implemented
 - `GET /admin/lessons` -> implemented
 - `GET /admin/lessons/{id}` -> implemented
 - `PUT /admin/lessons/{id}/move-category` -> implemented
@@ -304,8 +425,18 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - Supports `display_name` and `is_gen_alpha`.
 - `GET /users/me/badges` returns lesson badges derived from earned lesson rewards plus locked published lesson badges.
 - `GET /users/me/content?collection=posted|saved|liked` powers the profile content tabs:
-  - `posted` includes the user’s own uploads across statuses and content types
+  - `posted` includes the user's own uploads across statuses and content types
   - `saved` and `liked` return approved submitted video content only
+- Admin user detail surfaces:
+  - saved posts from `content_saves`
+  - browsing history from `browsing_history`
+  - search history from `search_history`
+  - chatbot history from `user_chatbot_history`
+- Current schema-driven safeguards are enforced in application logic rather than DB uniqueness:
+  - active lesson quiz attempt reuse
+  - one lesson reward per user/lesson
+  - duplicate pending content-flag prevention per user/content
+  - search history update-vs-insert behavior
 - `/users/me` may include `timezone` for login streak day-boundary preference.
 - `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.

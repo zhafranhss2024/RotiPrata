@@ -20,7 +20,7 @@ export function CompactVideoTile({
   const previewUrl = thumbnailUrl ?? mediaUrl ?? null;
 
   return (
-    <button type="button" className="text-left group" onClick={onClick}>
+    <button type="button" className="group w-full max-w-none text-left sm:max-w-[9.5rem]" onClick={onClick}>
       <div className="relative aspect-[9/16] overflow-hidden rounded-2xl bg-mainDark border border-mainAlt/70">
         {previewUrl ? (
           <img
@@ -36,10 +36,10 @@ export function CompactVideoTile({
             {badgeLabel}
           </Badge>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 p-3">
-          <h3 className="text-sm font-semibold text-white line-clamp-2">{title}</h3>
+        <div className="absolute bottom-0 left-0 right-0 p-2.5">
+          <h3 className="text-xs font-semibold text-white line-clamp-2 sm:text-sm">{title}</h3>
           {snippet ? (
-            <p className="mt-1 text-xs text-white/75 line-clamp-2">{snippet}</p>
+            <p className="mt-1 text-[11px] text-white/75 line-clamp-2 sm:text-xs">{snippet}</p>
           ) : null}
         </div>
       </div>

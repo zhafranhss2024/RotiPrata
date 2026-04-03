@@ -17,6 +17,7 @@ import LessonDetailPage from "./pages/LessonDetailPage";
 import LessonSectionPage from "./pages/LessonSectionPage";
 import LessonQuizPage from "./pages/LessonQuizPage";
 import ProfilePage from "./pages/ProfilePage";
+import LeaderboardPage from "./pages/LeaderboardPage";
 import ProfileBadgesPage from "./pages/ProfileBadgesPage";
 import ProfileSettingsPage from "./pages/ProfileSettingsPage";
 import EditProfilePage from "./pages/EditProfilePage";
@@ -106,6 +107,14 @@ const App = () => (
                 element={
                   <RequireAuth>
                     <ProfilePage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/leaderboard"
+                element={
+                  <RequireAuth>
+                    <LeaderboardPage />
                   </RequireAuth>
                 }
               />
