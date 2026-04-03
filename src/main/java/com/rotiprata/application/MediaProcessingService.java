@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -126,6 +127,72 @@ public class MediaProcessingService {
     });
 }
 
+    public void processLessonUpload(UUID assetId, String mediaKind, MultipartFile file) {
+        Path tempFile;
+        try {
+            validateUploadSize(file.getSize());
+            tempFile = saveTempFile(file);
+        } catch (Exception ex) {
+            log.warn("Lesson media processing failed for asset {}: {}", assetId, ex.getMessage(), ex);
+            markLessonFailed(assetId, classifyError(ex.getMessage()));
+            return;
+        }
+
+        String normalizedKind = normalizeLessonMediaKind(mediaKind, file.getContentType());
+        String sourceMimeType = file.getContentType();
+        mediaTaskExecutor.execute(() -> {
+            try {
+                if ("video".equals(normalizedKind)) {
+                    processLessonVideoToHls(assetId, tempFile);
+                } else {
+                    processLessonImage(assetId, tempFile, normalizedKind, sourceMimeType);
+                }
+            } catch (Exception ex) {
+                log.warn("Lesson media processing failed for asset {}: {}", assetId, ex.getMessage(), ex);
+                markLessonFailed(assetId, classifyError(ex.getMessage()));
+            } finally {
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ex) {
+                    log.debug("Failed to delete temp file {}", tempFile, ex);
+                }
+            }
+        });
+    }
+
+    public void processLessonLink(UUID assetId, String mediaKind, String sourceUrl) {
+        String normalizedKind = normalizeLessonMediaKind(mediaKind, null);
+        mediaTaskExecutor.execute(() -> {
+            try {
+                if ("video".equals(normalizedKind)) {
+                    long stepStart = System.nanoTime();
+                    validateLink(sourceUrl);
+                    log.info("TIMING lesson-asset {} validate link {}s", assetId, elapsedSeconds(stepStart));
+                    stepStart = System.nanoTime();
+                    YtDlpInfo info = fetchYtDlpInfo(sourceUrl);
+                    log.info("TIMING lesson-asset {} yt-dlp info {}s", assetId, elapsedSeconds(stepStart));
+                    validateDurationSeconds(info.durationSeconds());
+
+                    Path tempFile = Files.createTempFile(resolveTempDir(), "lesson-link-", ".mp4");
+                    try {
+                        Files.deleteIfExists(tempFile);
+                        stepStart = System.nanoTime();
+                        downloadWithYtDlp(sourceUrl, tempFile);
+                        log.info("TIMING lesson-asset {} yt-dlp download {}s", assetId, elapsedSeconds(stepStart));
+                        processLessonVideoToHls(assetId, tempFile);
+                    } finally {
+                        Files.deleteIfExists(tempFile);
+                    }
+                } else {
+                    markLessonReadyFromLink(assetId, normalizedKind, sourceUrl);
+                }
+            } catch (Exception ex) {
+                log.warn("Lesson link processing failed for asset {}: {}", assetId, ex.getMessage(), ex);
+                markLessonFailed(assetId, classifyError(ex.getMessage()));
+            }
+        });
+    }
+
     private void processVideoToHls(UUID contentId, Path input, String sourceUrl) throws IOException, InterruptedException {
         long start = System.nanoTime();
         long stepStart = System.nanoTime();
@@ -154,6 +221,22 @@ public class MediaProcessingService {
             deleteDirectory(outputDir);
         }
         log.info("TIMING content {} hls total {}s", contentId, elapsedSeconds(start));
+    }
+
+    private void processLessonVideoToHls(UUID assetId, Path input) throws IOException, InterruptedException {
+        MediaProbe probe = probeMedia(input);
+        validateDurationSeconds(probe.durationSeconds());
+
+        int hlsTimeSeconds = chooseSegmentDuration(probe.durationSeconds());
+        Path outputDir = Files.createTempDirectory(resolveTempDir(), "lesson-hls-" + assetId + "-");
+        try {
+            generateHlsVariants(input, outputDir, probe.hasAudio(), hlsTimeSeconds);
+            Path posterPath = generatePoster(input, outputDir);
+            uploadLessonHlsOutputs(assetId, outputDir, posterPath);
+            markLessonVideoReady(assetId, probe);
+        } finally {
+            deleteDirectory(outputDir);
+        }
     }
 
     private void processImage(UUID contentId, Path input) throws IOException {
@@ -195,6 +278,25 @@ public class MediaProcessingService {
         );
         log.info("TIMING content {} image patch media {}s", contentId, elapsedSeconds(stepStart));
         log.info("TIMING content {} image total {}s", contentId, elapsedSeconds(start));
+    }
+
+    private void processLessonImage(UUID assetId, Path input, String mediaKind, String sourceMimeType) throws IOException {
+        String bucket = lessonMediaBucket();
+        String extension = guessSuffix(input.getFileName().toString());
+        String objectPath = "assets/" + assetId + "/original" + extension;
+        String contentType = normalizeImageContentType(mediaKind, extension, sourceMimeType);
+        storageClient.uploadObject(bucket, objectPath, Files.readAllBytes(input), contentType, CACHE_CONTROL_IMAGE);
+
+        String publicUrlBase = normalizeBaseUrl();
+        String mediaUrl = publicUrlBase + "/storage/v1/object/public/" + bucket + "/" + objectPath;
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("status", "ready");
+        patch.put("playback_url", mediaUrl);
+        patch.put("thumbnail_url", mediaUrl);
+        patch.put("storage_path", objectPath);
+        patch.put("mime_type", contentType);
+        patch.put("updated_at", OffsetDateTime.now());
+        patchLessonMediaAsset(assetId, patch);
     }
 
     private void validateUploadSize(long sizeBytes) {
@@ -426,6 +528,55 @@ public class MediaProcessingService {
         }
     }
 
+    private void uploadLessonHlsOutputs(UUID assetId, Path outputDir, Path posterPath) throws IOException {
+        String bucket = lessonMediaBucket();
+        Path master = outputDir.resolve("master.m3u8");
+        storageClient.uploadObject(
+            bucket,
+            "hls/" + assetId + "/master.m3u8",
+            Files.readAllBytes(master),
+            "application/x-mpegURL",
+            CACHE_CONTROL_PLAYLIST
+        );
+
+        List<Path> files;
+        try (java.util.stream.Stream<Path> stream = Files.walk(outputDir)) {
+            files = stream
+                .filter(path -> !Files.isDirectory(path))
+                .filter(path -> {
+                    String filename = outputDir.relativize(path).toString().replace("\\", "/");
+                    return !"master.m3u8".equals(filename) && !"poster.jpg".equals(filename);
+                })
+                .toList();
+        }
+
+        for (Path path : files) {
+            String filename = outputDir.relativize(path).toString().replace("\\", "/");
+            String targetPath = "hls/" + assetId + "/" + filename;
+            String contentType = filename.endsWith(".m3u8") ? "application/x-mpegURL"
+                : filename.endsWith(".ts") ? "video/MP2T"
+                : filename.endsWith(".jpg") ? "image/jpeg"
+                : "application/octet-stream";
+            storageClient.uploadObject(
+                bucket,
+                targetPath,
+                Files.readAllBytes(path),
+                contentType,
+                cacheControlForFilename(filename)
+            );
+        }
+
+        if (posterPath != null && Files.exists(posterPath)) {
+            storageClient.uploadObject(
+                bucket,
+                "thumbs/" + assetId + "/poster.jpg",
+                Files.readAllBytes(posterPath),
+                "image/jpeg",
+                CACHE_CONTROL_IMAGE
+            );
+        }
+    }
+
     private int chooseSegmentDuration(int durationSeconds) {
         if (durationSeconds <= 0) {
             return 4;
@@ -510,6 +661,43 @@ public class MediaProcessingService {
         );
     }
 
+    private void markLessonVideoReady(UUID assetId, MediaProbe probe) {
+        String publicUrlBase = normalizeBaseUrl();
+        String bucket = lessonMediaBucket();
+        String playbackUrl = publicUrlBase + "/storage/v1/object/public/" + bucket + "/hls/" + assetId + "/master.m3u8";
+        String posterUrl = publicUrlBase + "/storage/v1/object/public/" + bucket + "/thumbs/" + assetId + "/poster.jpg";
+
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("status", "ready");
+        patch.put("playback_url", playbackUrl);
+        patch.put("thumbnail_url", posterUrl);
+        patch.put("storage_path", "hls/" + assetId + "/master.m3u8");
+        patch.put("mime_type", "application/x-mpegURL");
+        patch.put("duration_ms", probe.durationSeconds() * 1000);
+        patch.put("width", probe.width());
+        patch.put("height", probe.height());
+        patch.put("updated_at", OffsetDateTime.now());
+        patchLessonMediaAsset(assetId, patch);
+    }
+
+    private void markLessonReadyFromLink(UUID assetId, String mediaKind, String sourceUrl) {
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("status", "ready");
+        patch.put("playback_url", sourceUrl);
+        patch.put("thumbnail_url", "video".equals(mediaKind) ? null : sourceUrl);
+        patch.put("mime_type", "gif".equals(mediaKind) ? "image/gif" : null);
+        patch.put("updated_at", OffsetDateTime.now());
+        patchLessonMediaAsset(assetId, patch);
+    }
+
+    private void markLessonFailed(UUID assetId, String errorCode) {
+        Map<String, Object> patch = new LinkedHashMap<>();
+        patch.put("status", "failed");
+        patch.put("error_message", errorCode);
+        patch.put("updated_at", OffsetDateTime.now());
+        patchLessonMediaAsset(assetId, patch);
+    }
+
     private void patchContentSafely(UUID contentId, Map<String, Object> patch) {
         try {
             adminRestClient.patchList(
@@ -536,6 +724,15 @@ public class MediaProcessingService {
         }
     }
 
+    private void patchLessonMediaAsset(UUID assetId, Map<String, Object> patch) {
+        adminRestClient.patchList(
+            "lesson_media_assets",
+            "id=eq." + assetId,
+            patch,
+            new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {}
+        );
+    }
+
     private boolean shouldRetryWithoutColumn(org.springframework.web.server.ResponseStatusException ex, String column) {
         String reason = ex.getReason();
         String message = ex.getMessage();
@@ -559,6 +756,42 @@ public class MediaProcessingService {
             return "";
         }
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+    }
+
+    private String lessonMediaBucket() {
+        String bucket = supabaseProperties.getStorage().getLessonMedia();
+        if (bucket == null || bucket.isBlank()) {
+            throw new IllegalStateException("Supabase storage bucket for lesson media is not configured");
+        }
+        return bucket;
+    }
+
+    private String normalizeLessonMediaKind(String mediaKind, String contentType) {
+        String normalizedType = mediaKind == null ? "" : mediaKind.trim().toLowerCase();
+        if (normalizedType.isBlank() && contentType != null) {
+            String lowerContentType = contentType.toLowerCase();
+            if (lowerContentType.startsWith("video/")) {
+                normalizedType = "video";
+            } else if ("image/gif".equals(lowerContentType)) {
+                normalizedType = "gif";
+            } else if (lowerContentType.startsWith("image/")) {
+                normalizedType = "image";
+            }
+        }
+        if (!List.of("image", "gif", "video").contains(normalizedType)) {
+            throw new IllegalArgumentException("UNSUPPORTED_MEDIA_KIND");
+        }
+        return normalizedType;
+    }
+
+    private String normalizeImageContentType(String mediaKind, String extension, String sourceMimeType) {
+        if ("gif".equals(mediaKind)) {
+            return "image/gif";
+        }
+        if (sourceMimeType != null && sourceMimeType.startsWith("image/")) {
+            return sourceMimeType;
+        }
+        return extension.equalsIgnoreCase(".png") ? "image/png" : "image/jpeg";
     }
 
     private void validateLink(String sourceUrl) {

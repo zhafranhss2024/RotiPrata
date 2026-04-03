@@ -23,7 +23,7 @@ const ForgotPasswordPage = () => {
     setIsSubmitting(true);
 
     try {
-      const redirectTo = `${window.location.origin}/reset-password`;
+      const redirectTo = `${window.location.origin}/auth/finish`;
       await requestPasswordReset(email, redirectTo);
       setMessage("If an account exists for this email, you'll receive a reset link shortly.");
     } catch (err) {

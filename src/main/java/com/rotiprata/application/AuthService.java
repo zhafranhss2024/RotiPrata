@@ -85,7 +85,7 @@ public class AuthService {
                 metadata.put("is_gen_alpha", request.isGenAlpha());
             }
 
-            String redirectTo = resolveRedirectTo(request.redirectTo(), "/auth/callback");
+            String redirectTo = resolveRedirectTo(request.redirectTo(), "/auth/finish");
             SupabaseSignupResponse response = supabaseAuthClient.signup(
                 request.email(),
                 request.password(),
@@ -157,7 +157,7 @@ public class AuthService {
 
     public void requestPasswordReset(ForgotPasswordRequest request) {
         try {
-            String redirectTo = resolveRedirectTo(request.redirectTo(), "/reset-password");
+            String redirectTo = resolveRedirectTo(request.redirectTo(), "/auth/finish");
             supabaseAuthClient.recoverPassword(request.email(), redirectTo);
         } catch (RestClientResponseException ex) {
             log.warn("Password reset email request failed for email {} status {}", request.email(), ex.getRawStatusCode());
@@ -187,10 +187,6 @@ public class AuthService {
             log.warn("Logout failed status {}", ex.getRawStatusCode());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to logout", ex);
         }
-    }
-
-    public String buildOAuthUrl(String provider, String redirectTo) {
-        return supabaseAuthClient.buildOAuthUrl(provider, redirectTo).toString();
     }
 
     private AuthSessionResponse toAuthResponse(SupabaseSessionResponse session, boolean requiresEmailConfirmation, String message) {

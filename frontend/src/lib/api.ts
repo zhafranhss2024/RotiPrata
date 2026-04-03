@@ -13,6 +13,8 @@ import type {
   Content,
   LeaderboardResponse,
   Lesson,
+  LessonMediaStartResponse,
+  LessonMediaStatusResponse,
   LessonHubResponse,
   LessonHeartsStatus,
   LessonProgressDetail,
@@ -539,6 +541,18 @@ export const fetchLessonSections = (lessonId: string) =>
     { allowAutoFallback: false }
   );
 
+export const startLessonMediaUpload = (lessonId: string, formData: FormData) =>
+  apiUpload<LessonMediaStartResponse>(`/admin/lessons/${lessonId}/media/start`, formData);
+
+export const startLessonMediaLink = (
+  lessonId: string,
+  payload: { sourceUrl: string; mediaKind: "image" | "gif" | "video" }
+) =>
+  apiPost<LessonMediaStartResponse>(`/admin/lessons/${lessonId}/media/start-link`, payload);
+
+export const fetchLessonMediaStatus = (lessonId: string, assetId: string) =>
+  apiGet<LessonMediaStatusResponse>(`/admin/lessons/${lessonId}/media/${assetId}`);
+
 export const fetchLessonProgressDetail = (lessonId: string) =>
   withMockFallback(
     "lesson-progress-detail",
@@ -925,12 +939,6 @@ export const resetPassword = (accessToken: string, newPassword: string) =>
     { allowAutoFallback: false }
   );
 
-export const buildGoogleOAuthUrl = (redirectTo: string) => {
-  const base = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(/\/$/, "");
-  const target = `${base}/auth/login/google?redirectTo=${encodeURIComponent(redirectTo)}`;
-  return target;
-};
-
 export const checkDisplayNameAvailability = (displayName: string) =>
   withMockFallback(
     "auth-display-name-available",
@@ -964,7 +972,19 @@ export const updateAdminUserRole = (userId: string, role: AppRole) =>
       if (!target) {
         throw new Error("User not found");
       }
+      const isDemotingAdmin = target.roles.includes("admin") && role !== "admin";
+      const adminCount = mockAdminUsers.filter((user) => user.roles.includes("admin")).length;
+      if (isDemotingAdmin && userId === mockAuthUser.user_id) {
+        throw new Error("You cannot remove your own admin role");
+      }
+      if (isDemotingAdmin && adminCount <= 1) {
+        throw new Error("At least one admin is required");
+      }
       target.roles = [role];
+      const detail = mockAdminUserDetails[userId];
+      if (detail) {
+        detail.summary.roles = [role];
+      }
       return target;
     },
     () => apiPut<AdminUserSummary>(`/admin/users/${userId}/role`, { role }),
@@ -1159,24 +1179,6 @@ export const fetchAdminQuizQuestionTypes = () =>
         answerExample: "true",
       },
       {
-        type: "cloze",
-        label: "Fill blank(s) with provided choices",
-        optionsExample: '{ "blankOptions": { "blank1": { "A": "", "B": "" } } }',
-        answerExample: '{ "blank1": "A" }',
-      },
-      {
-        type: "word_bank",
-        label: "Build answer from ordered token list",
-        optionsExample: '{ "tokens": [ { "id": "t1", "text": "hello" }, { "id": "t2", "text": "world" } ] }',
-        answerExample: "[\"t1\",\"t2\"]",
-      },
-      {
-        type: "conversation",
-        label: "Choose best reply for each turn",
-        optionsExample: '{ "turns": [ { "id": "turn_1", "prompt": "", "replies": [ { "id": "r1", "text": "" } ] } ] }',
-        answerExample: '{ "turn_1": "r1" }',
-      },
-      {
         type: "match_pairs",
         label: "Match left and right items",
         optionsExample: '{ "left": [ { "id": "l1", "text": "" } ], "right": [ { "id": "r1", "text": "" } ] }',
@@ -1194,9 +1196,16 @@ export const fetchAdminQuizQuestionTypes = () =>
   );
 
 const toAdminQuestionPayload = (question: AdminQuizQuestionDraft) => {
-  const payload = { ...question } as Record<string, unknown>;
-  delete payload.clientId;
-  return payload;
+  return {
+    question_type: question.question_type,
+    question_text: question.question_text,
+    explanation: question.explanation,
+    points: question.points,
+    order_index: question.order_index,
+    options: question.options,
+    correct_answer: question.correct_answer,
+    media_url: question.media_url,
+  } satisfies Record<string, unknown>;
 };
 
 export const createAdminLessonDraft = (payload: Record<string, unknown> = {}) =>

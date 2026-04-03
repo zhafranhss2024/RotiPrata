@@ -2,13 +2,12 @@
 
 Base URL: `http://localhost:8080/api`
 
-Last audited: 2026-04-02
+Last audited: 2026-04-03
 Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controller.java` and frontend calls in `frontend/src/lib/api.ts`.
 
 ## Security and Error Contract
 
 - Public endpoints (no JWT required):
-  - `GET /auth/login/google`
   - `GET /auth/username-available`
   - `GET /categories`
   - `POST /auth/login`
@@ -29,7 +28,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /auth/reset-password`
 - `POST /auth/logout`
 - `POST /auth/streak/touch`
-- `GET /auth/login/google`
 - `GET /auth/username-available`
 
 ### Users (`UserController`)
@@ -119,7 +117,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /admin/lessons`
 - `GET /admin/lessons/{lessonId}`
 - `PUT /admin/lessons/{lessonId}/move-category`
-- `PUT /admin/lessons/path-order`
 - `POST /admin/lessons/draft`
 - `PUT /admin/lessons/{lessonId}/draft/step/{stepKey}`
 - `POST /admin/lessons/{lessonId}/publish`
@@ -130,6 +127,9 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /admin/quiz/question-types`
 - `POST /admin/lessons/{lessonId}/quiz`
 - `PUT /admin/lessons/{lessonId}/quiz`
+- `POST /admin/lessons/{lessonId}/media/start`
+- `POST /admin/lessons/{lessonId}/media/start-link`
+- `GET /admin/lessons/{lessonId}/media/{assetId}`
 
 ## Feed Contract (Cursor-Based)
 
@@ -254,7 +254,8 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - Request body:
     - `{ "role": "admin" }` or `{ "role": "user" }`
   - Notes:
-    - Self-demotion from the last admin account is blocked
+    - An admin cannot remove their own admin role
+    - Demoting the last remaining admin is blocked
 
 - Status update endpoint:
   - `PUT /admin/users/{userId}/status`
@@ -371,11 +372,11 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `POST /auth/logout` -> implemented
 - `POST /auth/forgot-password` -> implemented
 - `POST /auth/reset-password` -> implemented
-- `GET /auth/login/google` -> implemented
 - `GET /auth/username-available` -> implemented
 
 ### Admin
 - `GET /admin/stats` -> implemented
+- `GET /admin/analytics` -> missing
 - `GET /admin/users` -> implemented
 - `GET /admin/users/{id}` -> implemented
 - `PUT /admin/users/{id}/role` -> implemented
@@ -392,7 +393,6 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /admin/lessons` -> implemented
 - `GET /admin/lessons/{id}` -> implemented
 - `PUT /admin/lessons/{id}/move-category` -> implemented
-- `PUT /admin/lessons/path-order` -> implemented
 - `POST /admin/lessons/draft` -> implemented
 - `PUT /admin/lessons/{id}/draft/step/{step}` -> implemented
 - `POST /admin/lessons/{id}/publish` -> implemented
@@ -403,11 +403,15 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /admin/quiz/question-types` -> implemented
 - `POST /admin/lessons/{id}/quiz` -> implemented
 - `PUT /admin/lessons/{id}/quiz` -> implemented
+- `POST /admin/lessons/{id}/media/start` -> implemented
+- `POST /admin/lessons/{id}/media/start-link` -> implemented
+- `GET /admin/lessons/{id}/media/{assetId}` -> implemented
 
 ## Missing Endpoints (Required for Full Frontend Parity)
 
 - `GET /trending`
 - `GET /recommendations`
+- `GET /admin/analytics`
 
 ## Compatibility Notes
 
@@ -440,10 +444,16 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `/users/me` may include `timezone` for login streak day-boundary preference.
 - `PUT /users/me/preferences` backend DTO uses `themePreference` (camelCase).  
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.
+- Auth redirects for email confirmation and password recovery now use the neutral frontend route `/auth/finish`.
 - Learner quiz endpoints do not expose `correct_answer`; grading is server-side.
 - `PUT /lessons/{lessonId}/progress` exists for backward compatibility; section completion + quiz flow is the primary path.
 - `GET /lessons/hub` now returns `summary` plus `categories[]`, where each category includes `categoryId`, `name`, `type`, `color`, `isVirtual`, and ordered `lessons[]`.
 - Real categories are returned even when they have no lessons; legacy published lessons without `category_id` are grouped into a synthetic `Uncategorized` category.
-- Lesson authoring now persists `category_id` on `lessons`; `path_order` is assigned automatically when a lesson is published and then managed from the Manage Lessons path board.
-- `PUT /admin/lessons/path-order` accepts `{ categoryId, lessonIds }` and rewrites contiguous `path_order` values inside the selected category bucket.
-- `PUT /admin/lessons/{lessonId}/move-category` accepts `{ sourceCategoryId, targetCategoryId, sourceLessonIds, targetLessonIds }`, updates `category_id`, and normalizes path order in both affected categories.
+- Lesson authoring now persists `category_id` on `lessons`; lessons are no longer path-ordered.
+- `PUT /admin/lessons/{lessonId}/move-category` accepts `{ sourceCategoryId, targetCategoryId }`.
+- `PUT /admin/lessons/{lessonId}/move-category` returns `{ sourceCategoryId, targetCategoryId, sourceLessons, targetLessons, movedLesson }`.
+- `GET /admin/quiz/question-types` currently advertises only `multiple_choice`, `true_false`, `match_pairs`, and `short_text`.
+- Lesson media authoring endpoints are now part of the admin lesson flow:
+  - `POST /admin/lessons/{lessonId}/media/start` expects multipart form data with `file`
+  - `POST /admin/lessons/{lessonId}/media/start-link` expects `{ sourceUrl, mediaKind }`
+  - `GET /admin/lessons/{lessonId}/media/{assetId}` returns media processing / ready status for previews and save validation

@@ -7,8 +7,8 @@ const EditLessonPage = () => {
   const { id } = useParams<{ id: string }>();
 
   return (
-    <MainLayout>
-      <div className="container mx-auto max-w-5xl px-4 py-6 md:py-8 pb-safe">
+    <MainLayout fullScreen>
+      <div className="w-full px-3 py-4 md:px-6 md:py-6 xl:px-8 pb-safe">
         <AdminLessonWizard mode="edit" lessonId={id} />
       </div>
     </MainLayout>
