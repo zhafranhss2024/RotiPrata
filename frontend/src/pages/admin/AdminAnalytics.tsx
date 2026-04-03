@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { UserDetailModal, UserSummary } from "@/components/ui/UserDetailModel";
 import {
   BarChart,
   Bar,
@@ -9,10 +10,10 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
-import { getFlaggedContentStats, getAvgReviewTimeStats, getTopFlagUsers, getTopFlagContent, fetchContentById, FlagByDate } from "@/lib/api";
+import { getFlaggedContentStats, getAvgReviewTimeStats, getTopFlagUsers, getTopFlagContent, fetchContentById, fetchAdminUserDetail, FlagByDate } from "@/lib/api";
 
 // Types
-type TopItem = { name: string; count: number };
+type TopItem = { name: string; count: number, id: string };
 type AuditLog = { admin: string; action: string; targetId: number; time: string };
 
 const actionMeta: Record<string, { color: string; bg: string; border: string }> = {
@@ -60,6 +61,11 @@ const AdminAnalytics = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [monthYear, setMonthYear] = useState<string>("");
 
+  // For UserDetailModal
+  const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isUserLoading, setIsUserLoading] = useState(false);
+
   const today = new Date();
   const maxYear = today.getFullYear();
   const maxMonth = today.getMonth();
@@ -77,6 +83,34 @@ const AdminAnalytics = () => {
     const dataMap: Record<number, number> = {};
     data.forEach((item) => { dataMap[new Date(item.date).getDate()] = item.count; });
     return days.map((day) => ({ day: day.toString(), count: dataMap[day] || 0 }));
+  };
+
+  const handleOpenUserDetail = async (userId: string) => {
+    setIsUserLoading(true);
+    try {
+      const profile = await fetchAdminUserDetail(userId); // returns AdminUserDetail
+
+      // Map API response to UserSummary for the modal
+      const summary = profile.summary;
+
+      const mapped: UserSummary = {
+        userId: summary.userId,
+        displayName: summary.displayName ?? "Unknown",
+        email: summary.email ?? "",
+        status: summary.status ?? "active",
+        roles: summary.roles ?? [],
+        createdAt: summary.createdAt ?? summary.createdAt ?? "",
+        lastSignInAt: summary.lastSignInAt ?? summary.lastSignInAt ?? "",
+        lastActivityDate: summary.lastActivityDate ?? summary.lastActivityDate ?? "",
+      };
+
+      setSelectedUser(mapped);
+      setIsModalOpen(true);
+    } catch (err) {
+      console.error("Failed to fetch user profile:", err);
+    } finally {
+      setIsUserLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -97,15 +131,16 @@ const AdminAnalytics = () => {
         const formattedTopUsers = topUsersData.map((u: any) => ({
           name: u.display_name || "Unknown",
           count: u.flag_count,
+          id: u.user_id
         }));
         setTopUsers(formattedTopUsers);
 
         // Fetch top flagged content
         const topContentData = await getTopFlagContent(monthStr, yearStr);
-        console.log(topContentData)
         const formattedTopContent = topContentData.map((c) => ({
           name: c.content_title || "Untitled",
           count: c.flag_count,
+          id: c.content_id
         }));
         setTopContent(formattedTopContent);
 
@@ -118,10 +153,6 @@ const AdminAnalytics = () => {
   }, [selectedMonth]);
 
   useEffect(() => {
-    setTopContent([
-      { name: "Post #123", count: 15 },
-      { name: "Post #456", count: 11 },
-    ]);
     setAuditLogs([
       { admin: "Admin1", action: "DELETE_CONTENT", targetId: 123, time: "10:00" },
       { admin: "Admin2", action: "BAN_USER",       targetId: 45,  time: "11:30" },
@@ -293,7 +324,12 @@ const AdminAnalytics = () => {
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
                       {user.name[0].toUpperCase()}
                     </div>
-                    <span className="text-sm text-slate-700 dark:text-slate-300">{user.name}</span>
+                    <button
+                      className="text-sm text-slate-700 dark:text-slate-300 hover:underline"
+                      onClick={() => handleOpenUserDetail(user.id!)} // ! because id exists
+                    >
+                      {user.name}
+                    </button>
                   </div>
                   <div className="flex items-center gap-3">
                     <div
@@ -372,6 +408,14 @@ const AdminAnalytics = () => {
         </div>
 
       </div>
+      <UserDetailModal
+        isOpen={isModalOpen}            
+        user={selectedUser}             
+        isLoading={isUserLoading}      
+        onClose={() => setIsModalOpen(false)} 
+        onUpdateRole={(userId, role) => console.log("Change role", userId, role)} 
+        onToggleStatus={(user) => console.log("Toggle status", user)}              
+      />
     </MainLayout>
   );
 };

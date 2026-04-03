@@ -77,6 +77,22 @@ public class AdminService {
         this.userService = userService;
     }
 
+    public void logAdminAction(String adminId, String action, UUID targetId, String targetType, String description) {
+        
+        Map<String, Object> logEntry = Map.of(
+            "admin_id", adminId,
+            "action", action,
+            "target_id", targetId,
+            "target_type", targetType,
+            "description", description,
+            "created_at", OffsetDateTime.now() // optional timestamp
+        );
+
+        List<Map<String, Object>> rows = List.of(logEntry);
+
+        supabaseAdminRestClient.postList("audit_logs", rows, MAP_LIST);
+    }
+
     public List<Map<String, Object>> getModerationQueue(UUID adminUserId, String accessToken) {
         requireAdmin(adminUserId, accessToken);
         return supabaseAdminRestClient.getList(
@@ -1263,24 +1279,6 @@ public class AdminService {
             return collapsed.substring(0, maxLength);
         }
         return collapsed;
-    }
-
-    public void logAdminAction(String adminId, String action, UUID targetId, String targetType, String description) {
-        // Build the log entry
-        Map<String, Object> logEntry = Map.of(
-            "admin_id", adminId,
-            "action", action,
-            "target_id", targetId,
-            "target_type", targetType,
-            "description", description,
-            "created_at", OffsetDateTime.now() // optional timestamp
-        );
-
-        // Wrap it in a list because postList expects a list
-        List<Map<String, Object>> rows = List.of(logEntry);
-
-        // Post to Supabase
-        supabaseAdminRestClient.postList("audit_logs", rows, MAP_LIST);
     }
     
     private UUID parseUuid(Object value) {
