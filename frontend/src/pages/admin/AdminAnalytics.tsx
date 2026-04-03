@@ -65,6 +65,7 @@ const AdminAnalytics = () => {
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUserLoading, setIsUserLoading] = useState(false);
+  
 
   const today = new Date();
   const maxYear = today.getFullYear();
@@ -412,7 +413,7 @@ const AdminAnalytics = () => {
                         </span>
                       </td>
                       <td className="px-5 py-3 text-sm text-slate-400">#{log.targetId}</td>
-                      <td className="px-5 py-3 text-sm text-slate-400">{log.time}</td>
+                      <td className="px-4 py-3 text-sm text-slate-400">{log.time}</td>
                     </tr>
                   );
                 })}
