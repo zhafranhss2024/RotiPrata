@@ -310,4 +310,22 @@ public class AdminService {
         }
         return collapsed;
     }
+
+    public void logAdminAction(String adminId, String action, UUID targetId, String targetType, String description) {
+        // Build the log entry
+        Map<String, Object> logEntry = Map.of(
+            "admin_id", adminId,
+            "action", action,
+            "target_id", targetId,
+            "target_type", targetType,
+            "description", description,
+            "created_at", OffsetDateTime.now() // optional timestamp
+        );
+
+        // Wrap it in a list because postList expects a list
+        List<Map<String, Object>> rows = List.of(logEntry);
+
+        // Post to Supabase
+        supabaseAdminRestClient.postList("audit_logs", rows, MAP_LIST);
+    }
 }
