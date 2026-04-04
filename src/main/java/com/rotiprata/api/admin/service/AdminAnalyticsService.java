@@ -1,104 +1,55 @@
 package com.rotiprata.api.admin.service;
 
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-import org.springframework.stereotype.Service;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.rotiprata.api.content.service.ContentService;
-import com.rotiprata.api.generalutils.DateUtils;
-import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
+/**
+ * Service interface for admin analytics operations.
+ * Defines methods to retrieve flagged content, compute review times,
+ * get top flagged users/contents, and fetch audit logs.
+ */
+public interface AdminAnalyticsService {
 
-@Service
-public class AdminAnalyticsService {
+    /**
+     * Retrieves flagged content aggregated by day for a given month and year.
+     * @param accessToken the user access token
+     * @param month the month in "MM" format
+     * @param year the year in "YYYY" format
+     * @return a list of maps with keys "date" (YYYY-MM-DD) and "count"
+     */
+    List<Map<String, Object>> getFlaggedContentByMonthAndYear(String accessToken, String month, String year);
 
-    private final ContentService contentService;
-    private final SupabaseAdminRestClient supabaseAdminRestClient;
-    private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
+    /**
+     * Computes the average review time (in minutes) for flagged content in a given month and year.
+     * Only considers resolved flags.
+     * @param accessToken the user access token
+     * @param month the month in "MM" format
+     * @param year the year in "YYYY" format
+     * @return average review time in minutes, or 0 if no resolved flags exist
+     */
+    double getAverageReviewTimeByMonthAndYear(String accessToken, String month, String year);
 
-    public AdminAnalyticsService(ContentService contentService, SupabaseAdminRestClient supabaseAdminRestClient) {
-        this.contentService = contentService;
-        this.supabaseAdminRestClient = supabaseAdminRestClient;
-    }
-    
-    public List<Map<String, Object>> getFlaggedContentByMonthAndYear (String accessToken, String month, String year) {
-        
-        // Fetch raw flagged content
-        List<Map<String, Object>> rawFlags = contentService.getFlaggedContentByMonthAndYear(accessToken, month, year);
-       
-        // Aggregate counts by date
-        Map<String, Long> countsByDate = rawFlags.stream()
-            .map(f -> (String) f.get("created_at"))
-            .map(createdAt -> createdAt.substring(0, 10)) // keep only YYYY-MM-DD
-            .collect(Collectors.groupingBy(date -> date, LinkedHashMap::new, Collectors.counting()));
+    /**
+     * Retrieves the top users who flagged content in a given month and year.
+     * @param month the month in "MM" format
+     * @param year the year in "YYYY" format
+     * @return a list of maps representing top users and their flag counts
+     */
+    List<Map<String, Object>> getTopFlagUsers(String month, String year);
 
-        // Convert to List<Map<String,Object>> format
-        List<Map<String, Object>> aggregated = countsByDate.entrySet().stream()
-            .map(e -> {
-                Map<String, Object> map = new HashMap<>();
-                map.put("date", e.getKey());
-                map.put("count", e.getValue().intValue());
-                return map;
-            })
-            .collect(Collectors.toList());
+    /**
+     * Retrieves the top flagged contents for a given month and year.
+     * @param month the month in "MM" format
+     * @param year the year in "YYYY" format
+     * @return a list of maps representing top flagged contents
+     */
+    List<Map<String, Object>> getTopFlagContents(String month, String year);
 
-        return aggregated;
-    }
-
-    public double getAverageReviewTimeByMonthAndYear(String accessToken, String month, String year) {
-        // Fetch raw flagged content
-        List<Map<String, Object>> rawFlags = contentService.getFlaggedContentByMonthAndYear(accessToken, month, year);
-
-        // Filter resolved flags and compute time difference in minutes
-        List<Long> reviewTimes = rawFlags.stream()
-            .filter(f -> f.get("resolved_at") != null)
-            .map(f -> {
-                String created = (String) f.get("created_at");
-                String resolved = (String) f.get("resolved_at");
-
-                long createdMillis = java.time.Instant.parse(created).toEpochMilli();
-                long resolvedMillis = java.time.Instant.parse(resolved).toEpochMilli();
-
-                return (resolvedMillis - createdMillis) / (1000 * 60); // minutes
-            })
-            .toList();
-
-        // Compute average
-        if (reviewTimes.isEmpty()) return 0;
-        return reviewTimes.stream().mapToLong(Long::longValue).average().orElse(0);
-    }
-
-    public List<Map<String, Object>> getTopFlagUsers(String month, String year) {
-        return supabaseAdminRestClient.rpcList(
-            "get_top_flag_users",
-            DateUtils.buildMonthYearParams(month, year),
-            MAP_LIST
-        );
-    }
-
-    public List<Map<String, Object>> getTopFlagContents(String month, String year) {
-        return supabaseAdminRestClient.rpcList(
-            "get_top_flag_content",
-            DateUtils.buildMonthYearParams(month, year),
-            MAP_LIST
-        );
-    }
-
-    public List<Map<String, Object>> getAuditLogs(String month, String year) {
-        String query = DateUtils.buildDateQuery(month, year);
-        // Join profiles table to get display_name
-        String select = "*,profiles(user_id,display_name)";
-        
-        List<Map<String, Object>> result =
-        supabaseAdminRestClient.getList(
-            "audit_logs",
-            query + "&select=" + select,  
-            MAP_LIST
-        );
-
-        return result;
-    }
+    /**
+     * Fetches audit logs for a given month and year, including user display names.
+     * @param month the month in "MM" format
+     * @param year the year in "YYYY" format
+     * @return a list of audit log entries
+     */
+    List<Map<String, Object>> getAuditLogs(String month, String year);
 }
