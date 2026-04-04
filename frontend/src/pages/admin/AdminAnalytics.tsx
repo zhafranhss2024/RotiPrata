@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { UserDetailModal, UserSummary } from "@/components/ui/UserDetailModel";
+import { AdminUserManagementDialog } from "@/components/admin/AdminUserManagementDialog";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { useAdminUserManagement } from "@/hooks/useAdminUserManagement";
 import {
   BarChart,
   Bar,
@@ -16,14 +18,23 @@ import {
   getTopFlagUsers,
   getTopFlagContent,
   getAuditLogs,
-  fetchAdminUserDetail,
+  fetchAdminUsers,
   FlagByDate,
 } from "@/lib/api";
+import type { AuditLogItem, TopFlagUser } from "@/lib/api";
+import type { AdminUserSummary } from "@/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type TopItem = { name: string; count: number; id: string };
-type AuditLog = { admin: string; action: string; targetId: number; time: string };
+type AuditLog = { admin: string; action: string; targetId: string | number; time: string };
 type ExportSection = { id: string; label: string; description: string };
+type CSVRow = Record<string, string | number | boolean | null | undefined>;
+type TooltipPayloadItem = { value: number };
+type TooltipProps = { active?: boolean; payload?: TooltipPayloadItem[]; label?: string };
+type AuditLogApiItem = AuditLogItem & {
+  action_type?: string | null;
+  profiles?: { display_name?: string | null } | null;
+};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const actionMeta: Record<string, { light: string; dark: string }> = {
@@ -54,7 +65,7 @@ const EXPORT_SECTIONS: ExportSection[] = [
 ];
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
-function exportToCSV(filename: string, rows: Record<string, any>[]) {
+function exportToCSV(filename: string, rows: CSVRow[]) {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);
   const csv = [
@@ -86,7 +97,7 @@ function useDarkMode(): boolean {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/10 rounded-2xl px-4 py-3 shadow-lg">
@@ -158,7 +169,15 @@ const ExportModal = ({
   }, []);
 
   const toggle = (id: string) =>
-    setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
 
   const allSelected = selected.size === EXPORT_SECTIONS.length;
 
@@ -264,9 +283,48 @@ const AdminAnalytics = () => {
   const [auditLogs, setAuditLogs]           = useState<AuditLog[]>([]);
   const [monthYear, setMonthYear]           = useState<string>("");
 
-  const [selectedUser, setSelectedUser]     = useState<UserSummary | null>(null);
-  const [isModalOpen, setIsModalOpen]       = useState(false);
-  const [isUserLoading, setIsUserLoading]   = useState(false);
+  const { user: currentUser } = useAuthContext();
+  const currentAdminUserId = currentUser?.user_id ?? null;
+  const [adminUsers, setAdminUsers]         = useState<AdminUserSummary[]>([]);
+  const adminCount = useMemo(
+    () => adminUsers.filter((user) => user.roles.includes("admin")).length,
+    [adminUsers]
+  );
+
+  const upsertUserSummary = (summary: AdminUserSummary) => {
+    setAdminUsers((users) => {
+      const existingIndex = users.findIndex((user) => user.userId === summary.userId);
+      if (existingIndex === -1) {
+        return [...users, summary];
+      }
+      return users.map((user) => (user.userId === summary.userId ? summary : user));
+    });
+  };
+
+  const {
+    selectedUser,
+    isOpen,
+    isLoading,
+    userActionKey,
+    userContentRejectTarget,
+    userContentRejectReason,
+    userContentRejectAttempted,
+    openUser,
+    closeUser,
+    updateRole,
+    toggleStatus,
+    resetLessonProgress,
+    deleteComment,
+    startTakeDownContent,
+    cancelTakeDownContent,
+    setTakeDownReason,
+    confirmTakeDownContent,
+  } = useAdminUserManagement({
+    currentAdminUserId,
+    adminCount,
+    findUserSummary: (userId) => adminUsers.find((user) => user.userId === userId) ?? null,
+    onUserSummaryUpdated: upsertUserSummary,
+  });
 
   const today    = new Date();
   const maxYear  = today.getFullYear();
@@ -287,28 +345,11 @@ const AdminAnalytics = () => {
     return days.map((day) => ({ day: day.toString(), count: map[day] || 0 }));
   };
 
-  const handleOpenUserDetail = async (userId: string) => {
-    setIsUserLoading(true);
-    try {
-      const profile = await fetchAdminUserDetail(userId);
-      const s = profile.summary;
-      setSelectedUser({
-        userId: s.userId,
-        displayName: s.displayName ?? "Unknown",
-        email: s.email ?? "",
-        status: s.status ?? "active",
-        roles: s.roles ?? [],
-        createdAt: s.createdAt ?? "",
-        lastSignInAt: s.lastSignInAt ?? "",
-        lastActivityDate: s.lastActivityDate ?? "",
-      });
-      setIsModalOpen(true);
-    } catch (err) {
-      console.error("Failed to fetch user profile:", err);
-    } finally {
-      setIsUserLoading(false);
-    }
-  };
+  useEffect(() => {
+    fetchAdminUsers()
+      .then(setAdminUsers)
+      .catch((error) => console.warn("Failed to load admin users", error));
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -322,13 +363,19 @@ const AdminAnalytics = () => {
         setAvgReviewTime(avgReview.avgReviewTime);
 
         const topUsersData = await getTopFlagUsers(monthStr, yearStr);
-        setTopUsers(topUsersData.map((u: any) => ({ name: u.display_name || "Unknown", count: u.flag_count, id: u.user_id })));
+        setTopUsers(
+          topUsersData.map((user: TopFlagUser) => ({
+            name: user.display_name || "Unknown",
+            count: user.flag_count,
+            id: user.user_id,
+          }))
+        );
 
         const topContentData = await getTopFlagContent(monthStr, yearStr);
         setTopContent(topContentData.map((c) => ({ name: c.content_title || "Untitled", count: c.flag_count, id: c.content_id })));
 
         const logs = await getAuditLogs(monthStr, yearStr);
-        setAuditLogs(logs.map((log: any) => ({
+        setAuditLogs(logs.map((log: AuditLogApiItem) => ({
           admin: log.admin_name ?? log.profiles?.display_name ?? "Unknown",
           action: log.action_type || log.action || "UNKNOWN",
           targetId: log.target_id ?? 0,
@@ -567,7 +614,9 @@ const AdminAnalytics = () => {
                       </div>
                       <button
                         className="text-sm font-medium text-gray-800 dark:text-neutral-200 hover:text-[#ff385c] dark:hover:text-[#ff385c] transition-colors"
-                        onClick={() => handleOpenUserDetail(user.id!)}
+                        onClick={() => {
+                          void openUser(user.id);
+                        }}
                       >
                         {user.name}
                       </button>
@@ -677,13 +726,25 @@ const AdminAnalytics = () => {
 
       </div>
 
-      <UserDetailModal
-        isOpen={isModalOpen}
+      <AdminUserManagementDialog
+        isOpen={isOpen}
         user={selectedUser}
-        isLoading={isUserLoading}
-        onClose={() => setIsModalOpen(false)}
-        onUpdateRole={(userId, role) => console.log("Change role", userId, role)}
-        onToggleStatus={(user) => console.log("Toggle status", user)}
+        isLoading={isLoading}
+        userActionKey={userActionKey}
+        currentAdminUserId={currentAdminUserId}
+        adminCount={adminCount}
+        userContentRejectTarget={userContentRejectTarget}
+        userContentRejectReason={userContentRejectReason}
+        userContentRejectAttempted={userContentRejectAttempted}
+        onClose={closeUser}
+        onToggleRole={updateRole}
+        onToggleStatus={toggleStatus}
+        onResetLessonProgress={resetLessonProgress}
+        onDeleteComment={deleteComment}
+        onStartTakeDownContent={startTakeDownContent}
+        onTakeDownReasonChange={setTakeDownReason}
+        onCancelTakeDownContent={cancelTakeDownContent}
+        onConfirmTakeDownContent={confirmTakeDownContent}
       />
     </MainLayout>
   );
