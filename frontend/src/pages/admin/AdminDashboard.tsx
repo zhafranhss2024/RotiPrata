@@ -16,7 +16,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { AdminFlagReviewDialog } from '@/components/admin/AdminFlagReviewDialog';
 import { AdminUserManagementDialog } from '@/components/admin/AdminUserManagementDialog';
+import { formatAdminFlagContentStatus } from '@/components/admin/adminFlagReviewUtils';
 import { getRoleChangeGuardReason } from '@/components/admin/adminUserManagementUtils';
 import { 
   Search,
@@ -35,10 +37,10 @@ import {
 import { Link } from 'react-router-dom';
 import { toast } from '@/components/ui/sonner';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useAdminFlagReview } from '@/hooks/useAdminFlagReview';
 import { useAdminUserManagement } from '@/hooks/useAdminUserManagement';
 import type {
   AdminContentFlagGroup,
-  AdminContentFlagReport,
   AdminUserSummary,
   AppRole,
   Category,
@@ -59,13 +61,10 @@ import {
   fetchCategories,
   fetchAdminContentQuiz,
   fetchContentFlags,
-  fetchFlagReports,
   fetchModerationQueue,
   fetchTags,
-  takeDownFlag,
   updateAdminContent,
   rejectContent,
-  resolveFlag,
   saveAdminContentQuiz,
 } from '@/lib/api';
 
@@ -78,7 +77,6 @@ const MAX_OBJECTIVE = 160;
 const MAX_LONG_TEXT = 500;
 const MAX_OLDER_REFERENCE = 160;
 const MAX_TAG = 30;
-const FLAG_REPORTS_PAGE_SIZE = 5;
 
 const stripControlCharacters = (value: string) =>
   Array.from(value)
@@ -104,20 +102,6 @@ const normalizeText = (value: string, maxLength: number) => {
 const sanitizeTag = (value: string) => {
   const trimmed = value.trim().replace(/^#/, '');
   return normalizeText(trimmed, MAX_TAG);
-};
-
-const formatContentStatus = (status?: string | null) => {
-  switch ((status ?? '').toLowerCase()) {
-    case 'approved':
-    case 'accepted':
-      return 'Approved';
-    case 'pending':
-      return 'Pending';
-    case 'rejected':
-      return 'Taken down';
-    default:
-      return status ?? 'Unknown';
-  }
 };
 
 type ContentQuizDraftQuestion = {
@@ -179,16 +163,6 @@ const AdminDashboard = () => {
   const [moderationQueue, setModerationQueue] = useState<(ModerationQueueItem & { content: Content })[]>([]);
   const [flags, setFlags] = useState<AdminContentFlagGroup[]>([]);
   const [selectedModerationItem, setSelectedModerationItem] = useState<(ModerationQueueItem & { content: Content }) | null>(null);
-  const [selectedFlag, setSelectedFlag] = useState<AdminContentFlagGroup | null>(null);
-  const [flagTakeDownTarget, setFlagTakeDownTarget] = useState<AdminContentFlagGroup | null>(null);
-  const [flagTakeDownReason, setFlagTakeDownReason] = useState('');
-  const [flagTakeDownAttempted, setFlagTakeDownAttempted] = useState(false);
-  const [isTakingDownFlag, setIsTakingDownFlag] = useState(false);
-  const [selectedFlagReports, setSelectedFlagReports] = useState<AdminContentFlagReport[]>([]);
-  const [selectedFlagReportsPage, setSelectedFlagReportsPage] = useState(1);
-  const [selectedFlagReportsHasNext, setSelectedFlagReportsHasNext] = useState(false);
-  const [selectedFlagReportsLoading, setSelectedFlagReportsLoading] = useState(false);
-  const [selectedFlagReporterSearch, setSelectedFlagReporterSearch] = useState('');
   const [categories, setCategories] = useState<Category[]>([]);
   const [editForm, setEditForm] = useState({
     title: '',
@@ -366,44 +340,6 @@ const AdminDashboard = () => {
   }, [selectedModerationItem?.content_id]);
 
   useEffect(() => {
-    if (!selectedFlag) {
-      setSelectedFlagReports([]);
-      setSelectedFlagReportsPage(1);
-      setSelectedFlagReportsHasNext(false);
-      setSelectedFlagReporterSearch('');
-      setSelectedFlagReportsLoading(false);
-      return;
-    }
-
-    let active = true;
-    setSelectedFlagReportsLoading(true);
-    fetchFlagReports(selectedFlag.id, selectedFlagReportsPage, selectedFlagReporterSearch)
-      .then((response) => {
-        if (!active) {
-          return;
-        }
-        setSelectedFlagReports(response.items ?? []);
-        setSelectedFlagReportsHasNext(Boolean(response.has_next));
-      })
-      .catch((error) => {
-        console.warn('Failed to load flag reports', error);
-        if (active) {
-          setSelectedFlagReports([]);
-          setSelectedFlagReportsHasNext(false);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setSelectedFlagReportsLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [selectedFlag?.id, selectedFlagReportsPage, selectedFlagReporterSearch]);
-
-  useEffect(() => {
     if (!selectedModerationItem) {
       return;
     }
@@ -468,48 +404,6 @@ const AdminDashboard = () => {
       setRejectAttempted(false);
     } catch (error) {
       console.warn('Reject failed', error);
-    }
-  };
-
-  const handleResolveFlag = async (flagId: string) => {
-    try {
-      await resolveFlag(flagId);
-      setFlags((items) => items.filter((flag) => flag.id !== flagId));
-      setSelectedFlag((current) => (current?.id === flagId ? null : current));
-      setFlagTakeDownTarget((current) => (current?.id === flagId ? null : current));
-    } catch (error) {
-      console.warn('Resolve flag failed', error);
-    }
-  };
-
-  const handleOpenFlagTakeDown = (flag: AdminContentFlagGroup) => {
-    setSelectedFlag(null);
-    setFlagTakeDownTarget(flag);
-    setFlagTakeDownReason('');
-    setFlagTakeDownAttempted(false);
-  };
-
-  const handleConfirmFlagTakeDown = async () => {
-    if (!flagTakeDownTarget) {
-      return;
-    }
-    const feedback = normalizeText(flagTakeDownReason, MAX_LONG_TEXT);
-    if (!feedback) {
-      setFlagTakeDownAttempted(true);
-      return;
-    }
-    try {
-      setIsTakingDownFlag(true);
-      await takeDownFlag(flagTakeDownTarget.id, feedback);
-      setFlags((items) => items.filter((flag) => flag.content_id !== flagTakeDownTarget.content_id));
-      setSelectedFlag((current) => (current?.content_id === flagTakeDownTarget.content_id ? null : current));
-      setFlagTakeDownTarget(null);
-      setFlagTakeDownReason('');
-      setFlagTakeDownAttempted(false);
-    } catch (error) {
-      console.warn('Flag take down failed', error);
-    } finally {
-      setIsTakingDownFlag(false);
     }
   };
 
@@ -679,6 +573,38 @@ const AdminDashboard = () => {
     adminCount,
     findUserSummary: (userId) => adminUsers.find((candidate) => candidate.userId === userId) ?? null,
     onUserSummaryUpdated: upsertUserSummary,
+  });
+
+  const {
+    isOpen: isFlagReviewOpen,
+    review: selectedFlagReview,
+    isReviewLoading: isFlagReviewLoading,
+    reports: selectedFlagReports,
+    isReportsLoading: selectedFlagReportsLoading,
+    reporterSearch: selectedFlagReporterSearch,
+    reportsPage: selectedFlagReportsPage,
+    reportsHasNext: selectedFlagReportsHasNext,
+    isResolveLoading,
+    isTakeDownOpen: isFlagTakeDownOpen,
+    takeDownReason: flagTakeDownReason,
+    takeDownAttempted: flagTakeDownAttempted,
+    isTakeDownLoading: isTakingDownFlag,
+    openReview: openFlagReview,
+    openTakeDownForContent,
+    closeReview: closeFlagReview,
+    setReporterSearch: setSelectedFlagReporterSearch,
+    previousReportsPage,
+    nextReportsPage,
+    handleResolve,
+    resolveContent,
+    openTakeDown: openFlagTakeDown,
+    closeTakeDown: closeFlagTakeDown,
+    setTakeDownReason: setFlagTakeDownReason,
+    confirmTakeDown: confirmFlagTakeDown,
+  } = useAdminFlagReview({
+    onReviewMutated: async (contentId) => {
+      setFlags((items) => items.filter((flag) => flag.content_id !== contentId));
+    },
   });
 
   return (
@@ -959,7 +885,9 @@ const AdminDashboard = () => {
                             </Badge>
                           ) : null}
                           {flag.content?.status ? (
-                            <Badge variant="secondary">{formatContentStatus(flag.content.status)}</Badge>
+                            <Badge variant="secondary">
+                              {formatAdminFlagContentStatus(flag.content.status)}
+                            </Badge>
                           ) : null}
                           <span className="text-xs text-muted-foreground">
                             {new Date(flag.created_at).toLocaleDateString()}
@@ -977,16 +905,14 @@ const AdminDashboard = () => {
                         </p>
                       </div>
                       <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:flex-col lg:flex-row">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full md:w-auto"
-                          onClick={() => {
-                            setSelectedFlagReportsPage(1);
-                            setSelectedFlagReporterSearch('');
-                            setSelectedFlag(flag);
-                          }}
-                        >
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full md:w-auto"
+                            onClick={() => {
+                              openFlagReview(flag.content_id);
+                            }}
+                          >
                           <Eye className="h-4 w-4 mr-1" />
                           View
                         </Button>
@@ -994,11 +920,19 @@ const AdminDashboard = () => {
                           size="sm"
                           variant="destructive"
                           className="w-full md:w-auto"
-                          onClick={() => handleOpenFlagTakeDown(flag)}
+                          onClick={() => {
+                            openTakeDownForContent(flag.content_id);
+                          }}
                         >
                           Take down
                         </Button>
-                        <Button size="sm" className="w-full md:w-auto" onClick={() => handleResolveFlag(flag.id)}>
+                        <Button
+                          size="sm"
+                          className="w-full md:w-auto"
+                          onClick={() => {
+                            void resolveContent(flag.content_id);
+                          }}
+                        >
                           Resolve
                         </Button>
                       </div>
@@ -1598,243 +1532,30 @@ const AdminDashboard = () => {
           </DialogContent>
         </Dialog>
 
-        <Dialog
-          open={selectedFlag !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSelectedFlag(null);
-              setSelectedFlagReportsPage(1);
-              setSelectedFlagReporterSearch('');
-            }
-          }}
-        >
-          <DialogContent className="max-h-[calc(100dvh-1.5rem)] max-w-2xl overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Flag Review</DialogTitle>
-              <DialogDescription>
-                Review the reported post, reporter context, and moderation action.
-              </DialogDescription>
-            </DialogHeader>
-            {selectedFlag ? (
-              <div className="grid gap-6">
-                <div className="grid gap-3 rounded-lg border border-border/70 p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="destructive">{getFlagReasonSummary(selectedFlag)}</Badge>
-                    <Badge variant="secondary">{getFlagReportCount(selectedFlag)} reports</Badge>
-                    {selectedFlag.content?.content_type ? (
-                      <Badge variant="outline" className="capitalize">
-                        {selectedFlag.content.content_type}
-                      </Badge>
-                    ) : null}
-                    {selectedFlag.content?.status ? (
-                      <Badge variant="secondary">{formatContentStatus(selectedFlag.content.status)}</Badge>
-                    ) : null}
-                  </div>
-                  <div>
-                    <p className="text-base font-semibold">
-                      {selectedFlag.content?.title ?? `Content ${selectedFlag.content_id}`}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Creator: @{selectedFlag.content?.creator?.display_name ?? 'anonymous'}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      Latest report on {new Date(selectedFlag.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="grid gap-3 rounded-md bg-muted/40 p-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Submitted reports</p>
-                        <p className="text-xs text-muted-foreground">
-                          Showing {selectedFlagReports.length} of {selectedFlag.report_count} reports
-                        </p>
-                      </div>
-                      <div className="grid gap-1">
-                        <Label htmlFor="flag-report-search">Search reporter</Label>
-                        <Input
-                          id="flag-report-search"
-                          value={selectedFlagReporterSearch}
-                          onChange={(event) => {
-                            setSelectedFlagReporterSearch(sanitizeInputValue(event.target.value, 80));
-                            setSelectedFlagReportsPage(1);
-                          }}
-                          placeholder="Search by username"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid gap-3">
-                      {selectedFlagReportsLoading ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Loading reports...
-                        </div>
-                      ) : selectedFlagReports.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          {selectedFlagReporterSearch.trim()
-                            ? 'No reports match that username.'
-                            : 'No submitted reports found.'}
-                        </p>
-                      ) : (
-                        selectedFlagReports.map((report: AdminContentFlagReport, index) => (
-                          <div key={report.id} className="rounded-md border border-border/70 bg-background px-3 py-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge variant="destructive" className="max-w-full whitespace-normal break-words leading-4">
-                                {report.reason}
-                              </Badge>
-                              <Badge variant="outline">
-                                Report {(selectedFlagReportsPage - 1) * FLAG_REPORTS_PAGE_SIZE + index + 1}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(report.created_at).toLocaleString()}
-                              </span>
-                            </div>
-                            <p className="mt-2 break-words text-xs text-muted-foreground">
-                              Reporter: @{report.reporter?.display_name ?? report.reported_by}
-                            </p>
-                            <p className="mt-2 break-words text-sm text-muted-foreground">
-                              {normalizeText(report.description ?? '', MAX_LONG_TEXT)
-                                ? `Reporter note: ${report.description}`
-                                : 'No additional reporter note.'}
-                            </p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-muted-foreground">
-                        Page {selectedFlagReportsPage}
-                        {!selectedFlagReporterSearch.trim()
-                          ? ` of ${Math.max(1, Math.ceil(selectedFlag.report_count / FLAG_REPORTS_PAGE_SIZE))}`
-                          : ''}
-                      </p>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={selectedFlagReportsLoading || selectedFlagReportsPage <= 1}
-                          onClick={() => setSelectedFlagReportsPage((current) => Math.max(1, current - 1))}
-                        >
-                          Previous
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={selectedFlagReportsLoading || !selectedFlagReportsHasNext}
-                          onClick={() => setSelectedFlagReportsPage((current) => current + 1)}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-border/70 bg-muted/30 p-3">
-                    {selectedFlag.content?.content_type === 'video' && selectedFlag.content.media_url ? (
-                      <video
-                        controls
-                        src={selectedFlag.content.media_url}
-                        className="w-full max-h-[360px] rounded-md bg-black"
-                      />
-                    ) : selectedFlag.content?.media_url ? (
-                      <img
-                        src={selectedFlag.content.media_url}
-                        alt={selectedFlag.content.title}
-                        className="w-full max-h-[360px] rounded-md object-contain bg-muted"
-                      />
-                    ) : selectedFlag.content?.thumbnail_url ? (
-                      <img
-                        src={selectedFlag.content.thumbnail_url}
-                        alt={selectedFlag.content.title ?? 'Flagged content preview'}
-                        className="w-full max-h-[360px] rounded-md object-contain bg-muted"
-                      />
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No media preview available.</p>
-                    )}
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      void handleResolveFlag(selectedFlag.id);
-                    }}
-                  >
-                    Resolve
-                  </Button>
-                  <Button type="button" variant="destructive" onClick={() => handleOpenFlagTakeDown(selectedFlag)}>
-                    Take down
-                  </Button>
-                </DialogFooter>
-              </div>
-            ) : null}
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
-          open={flagTakeDownTarget !== null}
-          onOpenChange={(open) => {
-            if (isTakingDownFlag) {
-              return;
-            }
-            if (!open) {
-              setFlagTakeDownTarget(null);
-              setFlagTakeDownReason('');
-              setFlagTakeDownAttempted(false);
-            }
-          }}
-        >
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Take Down Flagged Content</DialogTitle>
-              <DialogDescription>
-                This will mark the post as taken down and show your feedback to the creator in their Posted videos.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-2">
-              <Label htmlFor="flag-takedown-reason">Reason for creator</Label>
-              <Textarea
-                id="flag-takedown-reason"
-                value={flagTakeDownReason}
-                onChange={(e) => setFlagTakeDownReason(sanitizeInputValue(e.target.value, MAX_LONG_TEXT))}
-                maxLength={MAX_LONG_TEXT}
-                rows={4}
-              />
-              {flagTakeDownAttempted && !normalizeText(flagTakeDownReason, MAX_LONG_TEXT) ? (
-                <p className="text-xs text-destructive">A takedown reason is required.</p>
-              ) : null}
-              <p className="text-xs text-muted-foreground">
-                {flagTakeDownReason.length}/{MAX_LONG_TEXT}
-              </p>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={isTakingDownFlag}
-                onClick={() => {
-                  setFlagTakeDownTarget(null);
-                  setFlagTakeDownReason('');
-                  setFlagTakeDownAttempted(false);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={isTakingDownFlag}
-                onClick={() => {
-                  void handleConfirmFlagTakeDown();
-                }}
-              >
-                {isTakingDownFlag ? 'Taking down...' : 'Take down'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <AdminFlagReviewDialog
+          isOpen={isFlagReviewOpen}
+          review={selectedFlagReview}
+          isReviewLoading={isFlagReviewLoading}
+          reports={selectedFlagReports}
+          isReportsLoading={selectedFlagReportsLoading}
+          reporterSearch={selectedFlagReporterSearch}
+          reportsPage={selectedFlagReportsPage}
+          reportsHasNext={selectedFlagReportsHasNext}
+          isResolveLoading={isResolveLoading}
+          isTakeDownOpen={isFlagTakeDownOpen}
+          takeDownReason={flagTakeDownReason}
+          takeDownAttempted={flagTakeDownAttempted}
+          isTakeDownLoading={isTakingDownFlag}
+          onClose={closeFlagReview}
+          onReporterSearchChange={setSelectedFlagReporterSearch}
+          onPreviousReportsPage={previousReportsPage}
+          onNextReportsPage={nextReportsPage}
+          onResolve={handleResolve}
+          onOpenTakeDown={openFlagTakeDown}
+          onCloseTakeDown={closeFlagTakeDown}
+          onTakeDownReasonChange={setFlagTakeDownReason}
+          onConfirmTakeDown={confirmFlagTakeDown}
+        />
       </div>
     </MainLayout>
   );

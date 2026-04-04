@@ -168,6 +168,44 @@ public class AdminController {
         return adminService.getFlagReports(adminUserId, flagId, page, query, SecurityUtils.getAccessToken());
     }
 
+    @GetMapping("/flags/content/{contentId}/review")
+    public Map<String, Object> flagReviewByContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @RequestParam(required = false) Integer month,
+        @RequestParam(required = false) Integer year
+    ) {
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        return adminService.getFlagReviewByContent(
+            adminUserId,
+            contentId,
+            month,
+            year,
+            SecurityUtils.getAccessToken()
+        );
+    }
+
+    @GetMapping("/flags/content/{contentId}/reports")
+    public Map<String, Object> flagReportsByContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(required = false) String query,
+        @RequestParam(required = false) Integer month,
+        @RequestParam(required = false) Integer year
+    ) {
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        return adminService.getFlagReportsByContent(
+            adminUserId,
+            contentId,
+            page,
+            query,
+            month,
+            year,
+            SecurityUtils.getAccessToken()
+        );
+    }
+
     @PutMapping("/flags/{flagId}/resolve")
     public ResponseEntity<Void> resolveFlag(
         @AuthenticationPrincipal Jwt jwt,

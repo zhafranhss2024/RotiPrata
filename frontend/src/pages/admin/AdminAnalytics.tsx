@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { AdminFlagReviewDialog } from "@/components/admin/AdminFlagReviewDialog";
 import { AdminUserManagementDialog } from "@/components/admin/AdminUserManagementDialog";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useAdminFlagReview } from "@/hooks/useAdminFlagReview";
 import { useAdminUserManagement } from "@/hooks/useAdminUserManagement";
 import {
   BarChart,
@@ -285,6 +287,7 @@ const AdminAnalytics = () => {
   const [avgReviewTime, setAvgReviewTime]   = useState<number>(0);
   const [auditLogs, setAuditLogs]           = useState<AuditLog[]>([]);
   const [monthYear, setMonthYear]           = useState<string>("");
+  const [analyticsRefreshKey, setAnalyticsRefreshKey] = useState(0);
 
   const { user: currentUser } = useAuthContext();
   const currentAdminUserId = currentUser?.user_id ?? null;
@@ -327,6 +330,36 @@ const AdminAnalytics = () => {
     adminCount,
     findUserSummary: (userId) => adminUsers.find((user) => user.userId === userId) ?? null,
     onUserSummaryUpdated: upsertUserSummary,
+  });
+
+  const {
+    isOpen: isFlagReviewOpen,
+    review: selectedFlagReview,
+    isReviewLoading: isFlagReviewLoading,
+    reports: selectedFlagReports,
+    isReportsLoading: selectedFlagReportsLoading,
+    reporterSearch: selectedFlagReporterSearch,
+    reportsPage: selectedFlagReportsPage,
+    reportsHasNext: selectedFlagReportsHasNext,
+    isResolveLoading,
+    isTakeDownOpen: isFlagTakeDownOpen,
+    takeDownReason: flagTakeDownReason,
+    takeDownAttempted: flagTakeDownAttempted,
+    isTakeDownLoading: isTakingDownFlag,
+    openReview: openFlagReview,
+    closeReview: closeFlagReview,
+    setReporterSearch: setSelectedFlagReporterSearch,
+    previousReportsPage,
+    nextReportsPage,
+    handleResolve,
+    openTakeDown: openFlagTakeDown,
+    closeTakeDown: closeFlagTakeDown,
+    setTakeDownReason: setFlagTakeDownReason,
+    confirmTakeDown: confirmFlagTakeDown,
+  } = useAdminFlagReview({
+    onReviewMutated: async () => {
+      setAnalyticsRefreshKey((current) => current + 1);
+    },
   });
 
   const today    = new Date();
@@ -378,7 +411,6 @@ const AdminAnalytics = () => {
         setTopContent(topContentData.map((c) => ({ name: c.content_title || "Untitled", count: c.flag_count, id: c.content_id })));
 
         const logs = await getAuditLogs(monthStr, yearStr);
-        console.log(logs)
         setAuditLogs(logs.map((log: AuditLogApiItem) => ({
           admin: log.profiles?.display_name ?? "Unknown",
           adminId: log.admin_id, 
@@ -400,7 +432,7 @@ const AdminAnalytics = () => {
       }
     };
     load();
-  }, [selectedMonth]);
+  }, [analyticsRefreshKey, selectedMonth]);
 
   const totalFlags = flagTrend.reduce((a, d) => a + d.count, 0);
   const maxFlags   = Math.max(...flagTrend.map((d) => d.count), 0);
@@ -430,6 +462,7 @@ const AdminAnalytics = () => {
   const cursorColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
 
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const [selectedYear, selectedMonthValue] = selectedMonth.split("-");
 
   const selectCls =
     "rounded-full border border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] " +
@@ -649,15 +682,19 @@ const AdminAnalytics = () => {
               </p>
               <div className="space-y-1">
                 {topContent.map((c, i) => (
-                  <div
+                  <button
                     key={i}
-                    className="flex items-center justify-between py-3 border-b border-gray-50 dark:border-white/[0.04] last:border-0"
+                    type="button"
+                    className="flex w-full items-center justify-between py-3 border-b border-gray-50 text-left transition-colors hover:bg-gray-50/70 dark:border-white/[0.04] dark:hover:bg-white/[0.02] last:border-0"
+                    onClick={() => {
+                      openFlagReview(c.id, { month: selectedMonthValue, year: selectedYear });
+                    }}
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-white/[0.06] flex items-center justify-center text-sm">
                         📄
                       </div>
-                      <span className="text-sm font-medium text-gray-800 dark:text-neutral-200 max-w-[160px] truncate">
+                      <span className="max-w-[160px] truncate text-sm font-medium text-gray-800 dark:text-neutral-200">
                         {c.name}
                       </span>
                     </div>
@@ -672,7 +709,7 @@ const AdminAnalytics = () => {
                         {c.count}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -757,6 +794,31 @@ const AdminAnalytics = () => {
         onTakeDownReasonChange={setTakeDownReason}
         onCancelTakeDownContent={cancelTakeDownContent}
         onConfirmTakeDownContent={confirmTakeDownContent}
+      />
+
+      <AdminFlagReviewDialog
+        isOpen={isFlagReviewOpen}
+        review={selectedFlagReview}
+        isReviewLoading={isFlagReviewLoading}
+        reports={selectedFlagReports}
+        isReportsLoading={selectedFlagReportsLoading}
+        reporterSearch={selectedFlagReporterSearch}
+        reportsPage={selectedFlagReportsPage}
+        reportsHasNext={selectedFlagReportsHasNext}
+        isResolveLoading={isResolveLoading}
+        isTakeDownOpen={isFlagTakeDownOpen}
+        takeDownReason={flagTakeDownReason}
+        takeDownAttempted={flagTakeDownAttempted}
+        isTakeDownLoading={isTakingDownFlag}
+        onClose={closeFlagReview}
+        onReporterSearchChange={setSelectedFlagReporterSearch}
+        onPreviousReportsPage={previousReportsPage}
+        onNextReportsPage={nextReportsPage}
+        onResolve={handleResolve}
+        onOpenTakeDown={openFlagTakeDown}
+        onCloseTakeDown={closeFlagTakeDown}
+        onTakeDownReasonChange={setFlagTakeDownReason}
+        onConfirmTakeDown={confirmFlagTakeDown}
       />
     </MainLayout>
   );

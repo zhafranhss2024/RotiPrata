@@ -262,6 +262,100 @@ public class AdminService {
         return response;
     }
 
+    public Map<String, Object> getFlagReviewByContent(
+        UUID adminUserId,
+        UUID contentId,
+        Integer month,
+        Integer year,
+        String accessToken
+    ) {
+        requireAdmin(adminUserId, accessToken);
+        FlagReviewPeriod period = normalizeFlagReviewPeriod(month, year);
+        List<Map<String, Object>> allRows = fetchAllFlagRowsForContent(contentId, true);
+        List<Map<String, Object>> scopedRows = filterFlagRowsForReview(allRows, period);
+        if (scopedRows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Flag review not found");
+        }
+
+        Map<String, Object> latestScopedRow = scopedRows.get(0);
+        UUID actionableFlagId = findLatestPendingFlagId(allRows);
+
+        Map<String, Object> review = new LinkedHashMap<>();
+        review.put("contentId", contentId);
+        review.put("content", latestScopedRow.get("content"));
+        review.put(
+            "status",
+            actionableFlagId != null
+                ? "pending"
+                : normalizeNullableText(toStringOrNull(latestScopedRow.get("status")))
+        );
+        review.put("reportCount", scopedRows.size());
+        review.put(
+            "notesCount",
+            Math.toIntExact(
+                scopedRows.stream()
+                    .filter(row -> normalizeNullableText(toStringOrNull(row.get("description"))) != null)
+                    .count()
+            )
+        );
+        review.put(
+            "reasons",
+            scopedRows.stream()
+                .map(row -> normalizeNullableText(toStringOrNull(row.get("reason"))))
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList()
+        );
+        review.put("latestReportAt", latestScopedRow.get("created_at"));
+        review.put("actionableFlagId", actionableFlagId == null ? null : actionableFlagId.toString());
+        review.put("canResolve", actionableFlagId != null);
+        review.put("canTakeDown", actionableFlagId != null);
+        attachFlagContentCreators(List.of(review));
+        return review;
+    }
+
+    public Map<String, Object> getFlagReportsByContent(
+        UUID adminUserId,
+        UUID contentId,
+        int page,
+        String reporterQuery,
+        Integer month,
+        Integer year,
+        String accessToken
+    ) {
+        requireAdmin(adminUserId, accessToken);
+        FlagReviewPeriod period = normalizeFlagReviewPeriod(month, year);
+        int normalizedPage = Math.max(page, 1);
+        int offset = (normalizedPage - 1) * FLAG_REPORTS_PAGE_SIZE;
+        String normalizedReporterQuery = normalizeReporterQuery(reporterQuery);
+
+        List<Map<String, Object>> allRows = fetchAllFlagRowsForContent(contentId, false);
+        List<Map<String, Object>> scopedRows = filterFlagRowsForReview(allRows, period);
+        if (scopedRows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Flag review not found");
+        }
+
+        List<Map<String, Object>> filteredRows = filterFlagRowsByReporter(scopedRows, normalizedReporterQuery);
+        boolean hasNext = filteredRows.size() > offset + FLAG_REPORTS_PAGE_SIZE;
+        List<Map<String, Object>> pageRows = filteredRows.stream()
+            .skip(offset)
+            .limit(FLAG_REPORTS_PAGE_SIZE)
+            .toList();
+        Map<UUID, Map<String, Object>> profileByUserId = fetchProfilesByUserId(extractReportedUserIds(pageRows));
+
+        List<Map<String, Object>> items = pageRows.stream()
+            .map(row -> createFlagReport(row, profileByUserId.get(parseUuid(row.get("reported_by")))))
+            .toList();
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("items", items);
+        response.put("page", normalizedPage);
+        response.put("page_size", FLAG_REPORTS_PAGE_SIZE);
+        response.put("has_next", hasNext);
+        response.put("query", normalizedReporterQuery == null ? "" : normalizedReporterQuery);
+        return response;
+    }
+
     public AdminStatsResponse getStats(UUID adminUserId, String accessToken) {
         requireAdmin(adminUserId, accessToken);
         int totalUsers = count("profiles", buildQuery(Map.of("select", "id")));
@@ -941,6 +1035,19 @@ public class AdminService {
         return flag;
     }
 
+    private List<Map<String, Object>> fetchAllFlagRowsForContent(UUID contentId, boolean includeContent) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put(
+            "select",
+            includeContent
+                ? "id,content_id,status,reported_by,reason,description,created_at,content:content_id(*,content_tags(tag))"
+                : "id,content_id,status,reported_by,reason,description,created_at"
+        );
+        params.put("content_id", "eq." + contentId);
+        params.put("order", "created_at.desc");
+        return supabaseAdminRestClient.getList("content_flags", buildQuery(params), MAP_LIST);
+    }
+
     private List<Map<String, Object>> groupOpenFlags(List<Map<String, Object>> flags) {
         if (flags == null || flags.isEmpty()) {
             return List.of();
@@ -1053,6 +1160,55 @@ public class AdminService {
         }
 
         return supabaseAdminRestClient.getList("content_flags", buildQuery(params), MAP_LIST);
+    }
+
+    private List<Map<String, Object>> filterFlagRowsForReview(
+        List<Map<String, Object>> rows,
+        FlagReviewPeriod period
+    ) {
+        return rows.stream()
+            .filter(row -> {
+                if (period != null) {
+                    return matchesFlagReviewPeriod(row, period);
+                }
+                return "pending".equalsIgnoreCase(toStringOrNull(row.get("status")));
+            })
+            .toList();
+    }
+
+    private boolean matchesFlagReviewPeriod(Map<String, Object> row, FlagReviewPeriod period) {
+        OffsetDateTime createdAt = parseOffsetDateTime(row.get("created_at"));
+        return createdAt != null
+            && createdAt.getYear() == period.year()
+            && createdAt.getMonthValue() == period.month();
+    }
+
+    private List<Map<String, Object>> filterFlagRowsByReporter(
+        List<Map<String, Object>> rows,
+        String normalizedReporterQuery
+    ) {
+        if (normalizedReporterQuery == null || normalizedReporterQuery.isBlank()) {
+            return rows;
+        }
+        Set<UUID> userIds = searchProfileUserIds(normalizedReporterQuery);
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+            .filter(row -> {
+                UUID reportedBy = parseUuid(row.get("reported_by"));
+                return reportedBy != null && userIds.contains(reportedBy);
+            })
+            .toList();
+    }
+
+    private UUID findLatestPendingFlagId(List<Map<String, Object>> rows) {
+        return rows.stream()
+            .filter(row -> "pending".equalsIgnoreCase(toStringOrNull(row.get("status"))))
+            .map(row -> parseUuid(row.get("id")))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
     }
 
     private Set<UUID> searchProfileUserIds(String reporterQuery) {
@@ -1383,11 +1539,29 @@ public class AdminService {
         return text == null || text.isBlank() ? null : text;
     }
 
+    private FlagReviewPeriod normalizeFlagReviewPeriod(Integer month, Integer year) {
+        if (month == null && year == null) {
+            return null;
+        }
+        if (month == null || year == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Month and year are required together");
+        }
+        if (month < 1 || month > 12) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Month must be between 1 and 12");
+        }
+        return new FlagReviewPeriod(month, year);
+    }
+
     private record AuthUserData(
         UUID userId,
         String email,
         OffsetDateTime createdAt,
         OffsetDateTime lastSignInAt,
         OffsetDateTime suspendedUntil
+    ) {}
+
+    private record FlagReviewPeriod(
+        int month,
+        int year
     ) {}
 }

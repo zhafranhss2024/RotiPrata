@@ -673,6 +673,19 @@ export interface AdminContentFlagGroup {
   content?: Content;
 }
 
+export interface AdminFlagReview {
+  contentId: string;
+  content?: Content;
+  status: string | null;
+  reportCount: number;
+  notesCount: number;
+  reasons: string[];
+  latestReportAt: string | null;
+  actionableFlagId: string | null;
+  canResolve: boolean;
+  canTakeDown: boolean;
+}
+
 export interface AdminContentFlagReportPage {
   items: AdminContentFlagReport[];
   page: number;
