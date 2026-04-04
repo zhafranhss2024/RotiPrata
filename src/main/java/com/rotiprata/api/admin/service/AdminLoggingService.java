@@ -1,22 +1,16 @@
 package com.rotiprata.api.admin.service;
 
-import java.time.OffsetDateTime;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.stereotype.Service;
+/**
+ * Service interface for logging admin actions into audit logs.
+ */
+public interface AdminLoggingService {
 
-import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
-import com.fasterxml.jackson.core.type.TypeReference;
-
-@Service
-public class AdminLoggingService {
-
-    private final SupabaseAdminRestClient supabaseAdminRestClient;
-    private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
-
-    public enum AdminAction {
+    /**
+     * Enum representing all possible admin actions.
+     */
+    enum AdminAction {
         // User Related
         SUSPEND_USER,
         UPDATE_USER_ROLE,
@@ -30,38 +24,33 @@ public class AdminLoggingService {
         DELETE_CONTENT,
 
         // Flag Related
-        TAKE_DOWN_CONTENT, 
+        TAKE_DOWN_CONTENT, // Take down content due to a flag
         RESOLVE_FLAG,
     }
 
-    public enum TargetType {
+    /**
+     * Enum representing the type of target affected by the admin action.
+     */
+    enum TargetType {
         USER,
         CONTENT,
         FLAG,
     }
 
-    public AdminLoggingService(SupabaseAdminRestClient supabaseAdminRestClient) {
-        this.supabaseAdminRestClient = supabaseAdminRestClient;
-    }
-
-    public void logAdminAction(
+    /**
+     * Logs an admin action into the audit_logs table.
+     *
+     * @param adminId     the ID of the admin performing the action
+     * @param action      the type of action performed
+     * @param targetId    the ID of the affected entity
+     * @param targetType  the type of entity affected (USER, CONTENT, FLAG)
+     * @param description additional details describing the action
+     */
+    void logAdminAction(
             UUID adminId,
             AdminAction action,
             UUID targetId,
             TargetType targetType,
             String description
-    ) {
-        Map<String, Object> logEntry = Map.of(
-                "admin_id", adminId,
-                "action", action.name(),
-                "target_id", targetId,
-                "target_type", targetType.name(),
-                "description", description,
-                "created_at", OffsetDateTime.now()
-        );
-
-        List<Map<String, Object>> rows = List.of(logEntry);
-
-        supabaseAdminRestClient.postList("audit_logs", rows, MAP_LIST);
-    }
+    );
 }
