@@ -213,8 +213,8 @@ export type AvgReviewTimeDTO = {
 
 export type TopFlagUser = {
   user_id: string;
-  name: string;
-  count: number;
+  display_name: string | null;
+  flag_count: number;
 };
 
 export type TopFlagContentItem = {

@@ -16,6 +16,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { AdminUserManagementDialog } from '@/components/admin/AdminUserManagementDialog';
+import { getRoleChangeGuardReason } from '@/components/admin/adminUserManagementUtils';
 import { 
   Search,
   CheckCircle,
@@ -32,12 +34,11 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from '@/components/ui/sonner';
-import { AdminUserDetailPanel } from '@/components/admin/AdminUserDetailPanel';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useAdminUserManagement } from '@/hooks/useAdminUserManagement';
 import type {
   AdminContentFlagGroup,
   AdminContentFlagReport,
-  AdminUserDetail,
   AdminUserSummary,
   AppRole,
   Category,
@@ -53,8 +54,6 @@ import {
 } from '@/pages/admin/flagModeration';
 import {
   approveContent,
-  deleteContentComment,
-  fetchAdminUserDetail,
   fetchAdminUsers,
   fetchAdminStats,
   fetchCategories,
@@ -63,11 +62,8 @@ import {
   fetchFlagReports,
   fetchModerationQueue,
   fetchTags,
-  resetAdminUserLessonProgress,
   takeDownFlag,
   updateAdminContent,
-  updateAdminUserRole,
-  updateAdminUserStatus,
   rejectContent,
   resolveFlag,
   saveAdminContentQuiz,
@@ -223,13 +219,6 @@ const AdminDashboard = () => {
   const [hasAttemptedQuizSave, setHasAttemptedQuizSave] = useState(false);
   const [adminUsers, setAdminUsers] = useState<AdminUserSummary[]>([]);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
-  const [isUserDetailOpen, setIsUserDetailOpen] = useState(false);
-  const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
-  const [userActionKey, setUserActionKey] = useState<string | null>(null);
-  const [userContentRejectTarget, setUserContentRejectTarget] = useState<Content | null>(null);
-  const [userContentRejectReason, setUserContentRejectReason] = useState('');
-  const [userContentRejectAttempted, setUserContentRejectAttempted] = useState(false);
 
   const fieldErrors = {
     title: normalizeText(editForm.title, MAX_TITLE) ? '' : 'Title is required.',
@@ -289,19 +278,6 @@ const AdminDashboard = () => {
       [user.displayName, user.email ?? '', user.userId].some((value) => value.toLowerCase().includes(normalized))
     );
   }, [adminUsers, searchQuery]);
-
-  const getRoleChangeGuardReason = (user: AdminUserSummary | null, role: AppRole) => {
-    if (!user || role === 'admin' || !user.roles.includes('admin')) {
-      return null;
-    }
-    if (user.userId === currentAdminUserId) {
-      return 'You cannot remove your own admin role';
-    }
-    if (adminCount <= 1) {
-      return 'At least one admin must exist';
-    }
-    return null;
-  };
 
   useEffect(() => {
     fetchAdminStats()
@@ -678,158 +654,32 @@ const AdminDashboard = () => {
     setAdminUsers((users) =>
       users.map((user) => (user.userId === summary.userId ? summary : user))
     );
-    setSelectedUser((current) =>
-      current && current.summary.userId === summary.userId
-        ? { ...current, summary }
-        : current
-    );
   };
 
-  const loadUserDetail = async (userId: string, keepDialogOpen = true) => {
-    try {
-      setIsUserDetailLoading(true);
-      if (keepDialogOpen) {
-        setIsUserDetailOpen(true);
-      }
-      const detail = await fetchAdminUserDetail(userId);
-      setSelectedUser(detail);
-      return detail;
-    } catch (error) {
-      console.warn('Failed to load admin user detail', error);
-      toast('Failed to load user details', { position: 'bottom-center' });
-      if (!selectedUser) {
-        setIsUserDetailOpen(false);
-      }
-      return null;
-    } finally {
-      setIsUserDetailLoading(false);
-    }
-  };
-
-  const handleUpdateUserRole = async (userId: string, role: AppRole) => {
-    const targetUser =
-      adminUsers.find((candidate) => candidate.userId === userId)
-      ?? (selectedUser?.summary.userId === userId ? selectedUser.summary : null);
-    const guardReason = getRoleChangeGuardReason(targetUser, role);
-    if (guardReason) {
-      toast(guardReason, { position: 'bottom-center' });
-      return;
-    }
-    try {
-      setUserActionKey(`role:${userId}:${role}`);
-      const updated = await updateAdminUserRole(userId, role);
-      upsertUserSummary(updated);
-      await loadUserDetail(userId, false);
-      toast(`User role updated to ${role}`, { position: 'bottom-center' });
-    } catch (error) {
-      console.warn('Failed to update user role', error);
-      toast(error instanceof Error ? error.message : 'Failed to update user role', {
-        position: 'bottom-center',
-      });
-    } finally {
-      setUserActionKey(null);
-    }
-  };
-
-  const handleToggleUserStatus = async (user: AdminUserSummary) => {
-    const nextStatus = user.status === 'active' ? 'suspended' : 'active';
-    try {
-      setUserActionKey(`status:${user.userId}:${nextStatus}`);
-      const updated = await updateAdminUserStatus(user.userId, nextStatus);
-      upsertUserSummary(updated);
-      await loadUserDetail(user.userId, false);
-      toast(
-        nextStatus === 'suspended' ? 'User suspended' : 'User reactivated',
-        { position: 'bottom-center' }
-      );
-    } catch (error) {
-      console.warn('Failed to update user status', error);
-      toast(error instanceof Error ? error.message : 'Failed to update user status', {
-        position: 'bottom-center',
-      });
-    } finally {
-      setUserActionKey(null);
-    }
-  };
-
-  const handleResetLessonProgress = async (lessonId: string | null) => {
-    if (!selectedUser || !lessonId) {
-      return;
-    }
-    try {
-      setUserActionKey(`progress:${lessonId}`);
-      await resetAdminUserLessonProgress(selectedUser.summary.userId, lessonId);
-      const refreshed = await loadUserDetail(selectedUser.summary.userId, false);
-      if (refreshed) {
-        upsertUserSummary(refreshed.summary);
-      }
-      toast('Lesson progress reset', { position: 'bottom-center' });
-    } catch (error) {
-      console.warn('Failed to reset lesson progress', error);
-      toast(error instanceof Error ? error.message : 'Failed to reset lesson progress', {
-        position: 'bottom-center',
-      });
-    } finally {
-      setUserActionKey(null);
-    }
-  };
-
-  const handleDeleteUserComment = async (commentId: string, contentId: string | null) => {
-    if (!selectedUser || !contentId) {
-      return;
-    }
-    try {
-      setUserActionKey(`comment:${commentId}`);
-      await deleteContentComment(contentId, commentId);
-      setSelectedUser((current) =>
-        current
-          ? {
-              ...current,
-              comments: current.comments.filter((comment) => comment.id !== commentId),
-              activity: {
-                ...current.activity,
-                commentCount: Math.max(0, current.activity.commentCount - 1),
-              },
-            }
-          : current
-      );
-      toast('Comment removed', { position: 'bottom-center' });
-    } catch (error) {
-      console.warn('Failed to delete user comment', error);
-      toast(error instanceof Error ? error.message : 'Failed to delete comment', {
-        position: 'bottom-center',
-      });
-    } finally {
-      setUserActionKey(null);
-    }
-  };
-
-  const handleTakeDownUserContent = async () => {
-    if (!selectedUser || !userContentRejectTarget) {
-      return;
-    }
-    const feedback = normalizeText(userContentRejectReason, MAX_LONG_TEXT);
-    if (!feedback) {
-      setUserContentRejectAttempted(true);
-      return;
-    }
-    try {
-      setUserActionKey(`content:${userContentRejectTarget.id}`);
-      await rejectContent(userContentRejectTarget.id, feedback);
-      toast('Content taken down', { position: 'bottom-center' });
-      setUserContentRejectTarget(null);
-      setUserContentRejectReason('');
-      setUserContentRejectAttempted(false);
-      await loadUserDetail(selectedUser.summary.userId, false);
-    } catch (error) {
-      console.warn('Failed to take down user content', error);
-      toast(error instanceof Error ? error.message : 'Failed to take down content', {
-        position: 'bottom-center',
-      });
-    } finally {
-      setUserActionKey(null);
-    }
-  };
+  const {
+    selectedUser,
+    isOpen: isUserDetailOpen,
+    isLoading: isUserDetailLoading,
+    userActionKey,
+    userContentRejectTarget,
+    userContentRejectReason,
+    userContentRejectAttempted,
+    openUser,
+    closeUser,
+    updateRole,
+    toggleStatus,
+    resetLessonProgress,
+    deleteComment,
+    startTakeDownContent,
+    cancelTakeDownContent,
+    setTakeDownReason,
+    confirmTakeDownContent,
+  } = useAdminUserManagement({
+    currentAdminUserId,
+    adminCount,
+    findUserSummary: (userId) => adminUsers.find((candidate) => candidate.userId === userId) ?? null,
+    onUserSummaryUpdated: upsertUserSummary,
+  });
 
   return (
     <MainLayout>
@@ -1192,7 +1042,12 @@ const AdminDashboard = () => {
                   filteredUsers.map((user) => (
                     (() => {
                       const nextRole: AppRole = user.roles.includes('admin') ? 'user' : 'admin';
-                      const roleGuardReason = getRoleChangeGuardReason(user, nextRole);
+                      const roleGuardReason = getRoleChangeGuardReason(
+                        user,
+                        nextRole,
+                        currentAdminUserId,
+                        adminCount
+                      );
                       return (
                         <div
                           key={user.userId}
@@ -1225,7 +1080,7 @@ const AdminDashboard = () => {
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                void loadUserDetail(user.userId);
+                                void openUser(user.userId);
                               }}
                             >
                               <Eye className="mr-1 h-4 w-4" />
@@ -1237,7 +1092,7 @@ const AdminDashboard = () => {
                               title={roleGuardReason ?? undefined}
                               disabled={Boolean(roleGuardReason) || userActionKey === `role:${user.userId}:${nextRole}`}
                               onClick={() => {
-                                void handleUpdateUserRole(user.userId, nextRole);
+                                void updateRole(user.userId, nextRole);
                               }}
                             >
                               {user.roles.includes('admin') ? 'Make User' : 'Make Admin'}
@@ -1247,7 +1102,7 @@ const AdminDashboard = () => {
                               variant={user.status === 'active' ? 'destructive' : 'secondary'}
                               disabled={userActionKey === `status:${user.userId}:${user.status === 'active' ? 'suspended' : 'active'}`}
                               onClick={() => {
-                                void handleToggleUserStatus(user);
+                                void toggleStatus(user);
                               }}
                             >
                               {user.status === 'active' ? 'Suspend' : 'Reactivate'}
@@ -1263,111 +1118,26 @@ const AdminDashboard = () => {
           </TabsContent>
         </Tabs>
 
-        <Dialog
-          open={isUserDetailOpen}
-          onOpenChange={(open) => {
-            setIsUserDetailOpen(open);
-            if (!open) {
-              setSelectedUser(null);
-              setUserContentRejectTarget(null);
-              setUserContentRejectReason('');
-              setUserContentRejectAttempted(false);
-            }
-          }}
-        >
-          <DialogContent className="max-w-6xl w-[95vw] p-0 overflow-hidden">
-            <div className="max-h-[85vh] overflow-y-auto">
-              <DialogHeader className="p-6">
-                <DialogTitle>User Management</DialogTitle>
-                <DialogDescription>
-                  Review account status, moderation footprint, and learning activity for a user.
-                </DialogDescription>
-              </DialogHeader>
-
-              {isUserDetailLoading ? (
-                <div className="flex items-center justify-center px-6 pb-8 text-muted-foreground">
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Loading user details...
-                </div>
-              ) : selectedUser ? (
-                <AdminUserDetailPanel
-                  user={selectedUser}
-                  userActionKey={userActionKey}
-                  currentAdminUserId={currentAdminUserId}
-                  adminCount={adminCount}
-                  onToggleRole={handleUpdateUserRole}
-                  onToggleStatus={handleToggleUserStatus}
-                  onResetLessonProgress={handleResetLessonProgress}
-                  onDeleteComment={handleDeleteUserComment}
-                  onTakeDownContent={(content) => {
-                    setUserContentRejectTarget(content);
-                    setUserContentRejectReason('');
-                    setUserContentRejectAttempted(false);
-                  }}
-                />
-              ) : (
-                <div className="px-6 pb-8 text-sm text-muted-foreground">Select a user to review.</div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        <Dialog
-          open={userContentRejectTarget !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setUserContentRejectTarget(null);
-              setUserContentRejectReason('');
-              setUserContentRejectAttempted(false);
-            }
-          }}
-        >
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Take Down User Content</DialogTitle>
-              <DialogDescription>
-                Provide a clear moderation reason before removing this content from the user profile.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-2">
-              <Label htmlFor="user-content-reject-reason">Reason</Label>
-              <Textarea
-                id="user-content-reject-reason"
-                value={userContentRejectReason}
-                onChange={(e) => setUserContentRejectReason(sanitizeInputValue(e.target.value, MAX_LONG_TEXT))}
-                maxLength={MAX_LONG_TEXT}
-                rows={4}
-              />
-              {userContentRejectAttempted && !normalizeText(userContentRejectReason, MAX_LONG_TEXT) ? (
-                <p className="text-xs text-destructive">A takedown reason is required.</p>
-              ) : null}
-              <p className="text-xs text-muted-foreground">{userContentRejectReason.length}/{MAX_LONG_TEXT}</p>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setUserContentRejectTarget(null);
-                  setUserContentRejectReason('');
-                  setUserContentRejectAttempted(false);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={!!userContentRejectTarget && userActionKey === `content:${userContentRejectTarget.id}`}
-                onClick={() => {
-                  void handleTakeDownUserContent();
-                }}
-              >
-                Take down
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <AdminUserManagementDialog
+          isOpen={isUserDetailOpen}
+          user={selectedUser}
+          isLoading={isUserDetailLoading}
+          userActionKey={userActionKey}
+          currentAdminUserId={currentAdminUserId}
+          adminCount={adminCount}
+          userContentRejectTarget={userContentRejectTarget}
+          userContentRejectReason={userContentRejectReason}
+          userContentRejectAttempted={userContentRejectAttempted}
+          onClose={closeUser}
+          onToggleRole={updateRole}
+          onToggleStatus={toggleStatus}
+          onResetLessonProgress={resetLessonProgress}
+          onDeleteComment={deleteComment}
+          onStartTakeDownContent={startTakeDownContent}
+          onTakeDownReasonChange={setTakeDownReason}
+          onCancelTakeDownContent={cancelTakeDownContent}
+          onConfirmTakeDownContent={confirmTakeDownContent}
+        />
 
         <Dialog
           open={selectedModerationItem !== null}

@@ -66,6 +66,10 @@ public class SupabaseAdminRestClient {
         return exchangeList("DELETE", path, query, null, typeRef);
     }
 
+    public <T> List<T> rpcList(String functionName, Object body, TypeReference<List<T>> typeRef) {
+        return exchangeList("POST", "rpc/" + functionName, null, body, typeRef);
+    }
+
     private <T> List<T> exchangeList(
         String method,
         String path,

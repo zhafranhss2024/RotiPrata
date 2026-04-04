@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getRoleChangeGuardReason } from '@/components/admin/adminUserManagementUtils';
 import { cn } from '@/lib/utils';
 import type { AdminUserDetail, AdminUserSummary, AppRole, Content } from '@/types';
 
@@ -47,14 +48,12 @@ export const AdminUserDetailPanel = ({
 }: Props) => {
   const nextRole: AppRole = user.summary.roles.includes('admin') ? 'user' : 'admin';
   const nextStatus = user.summary.status === 'active' ? 'suspended' : 'active';
-  const isDemotingAdmin = user.summary.roles.includes('admin') && nextRole !== 'admin';
-  const roleGuardReason = !isDemotingAdmin
-    ? null
-    : user.summary.userId === currentAdminUserId
-      ? 'You cannot remove your own admin role'
-      : adminCount <= 1
-        ? 'At least one admin must exist'
-        : null;
+  const roleGuardReason = getRoleChangeGuardReason(
+    user.summary,
+    nextRole,
+    currentAdminUserId,
+    adminCount
+  );
 
   return (
     <div className={cn('grid gap-6 px-6 pb-6', className)}>

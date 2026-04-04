@@ -10,18 +10,18 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.content.service.ContentService;
 import com.rotiprata.api.generalutils.DateUtils;
-import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
+import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 
 @Service
 public class AdminAnalyticsService {
 
     private final ContentService contentService;
-    private final SupabaseRestClient supabaseRestClient;
+    private final SupabaseAdminRestClient supabaseAdminRestClient;
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
 
-    public AdminAnalyticsService(ContentService contentService, SupabaseRestClient supabaseRestClient) {
+    public AdminAnalyticsService(ContentService contentService, SupabaseAdminRestClient supabaseAdminRestClient) {
         this.contentService = contentService;
-        this.supabaseRestClient = supabaseRestClient;
+        this.supabaseAdminRestClient = supabaseAdminRestClient;
     }
     
     public List<Map<String, Object>> getFlaggedContentByMonthAndYear (String accessToken, String month, String year) {
@@ -71,34 +71,31 @@ public class AdminAnalyticsService {
         return reviewTimes.stream().mapToLong(Long::longValue).average().orElse(0);
     }
 
-    public List<Map<String, Object>> getTopFlagUsers(String accessToken, String month, String year) {
-        return supabaseRestClient.rpcList(
+    public List<Map<String, Object>> getTopFlagUsers(String month, String year) {
+        return supabaseAdminRestClient.rpcList(
             "get_top_flag_users",
             DateUtils.buildMonthYearParams(month, year),
-            accessToken,
             MAP_LIST
         );
     }
 
-    public List<Map<String, Object>> getTopFlagContents(String accessToken, String month, String year) {
-        return supabaseRestClient.rpcList(
+    public List<Map<String, Object>> getTopFlagContents(String month, String year) {
+        return supabaseAdminRestClient.rpcList(
             "get_top_flag_content",
             DateUtils.buildMonthYearParams(month, year),
-            accessToken,
             MAP_LIST
         );
     }
 
-    public List<Map<String, Object>> getAuditLogs(String accessToken, String month, String year) {
+    public List<Map<String, Object>> getAuditLogs(String month, String year) {
         String query = DateUtils.buildDateQuery(month, year);
         // Join profiles table to get display_name
-        String select = "*,profiles(display_name)";
+        String select = "*,profiles(user_id,display_name)";
         
         List<Map<String, Object>> result =
-        supabaseRestClient.getList(
+        supabaseAdminRestClient.getList(
             "audit_logs",
             query + "&select=" + select,  
-            accessToken,
             MAP_LIST
         );
 

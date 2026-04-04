@@ -64,9 +64,7 @@ public class AdminAnalyticsController {
         @RequestParam String year
     ) {
         validateMonthYear(month, year);
-
-        String accessToken = jwt.getTokenValue();
-        return analyticsService.getTopFlagUsers(accessToken, month, year);
+        return analyticsService.getTopFlagUsers(month, year);
     }
 
     @GetMapping("/top-flag-contents")
@@ -77,9 +75,7 @@ public class AdminAnalyticsController {
         @RequestParam String year
     ) {
         validateMonthYear(month, year);
-
-        String accessToken = jwt.getTokenValue();
-        return analyticsService.getTopFlagContents(accessToken, month, year);
+        return analyticsService.getTopFlagContents(month, year);
     }
 
     @GetMapping("/audit-logs")
@@ -90,9 +86,7 @@ public class AdminAnalyticsController {
         @RequestParam String year
     ) {
         validateMonthYear(month, year);
-
-        String accessToken = jwt.getTokenValue();
-        return analyticsService.getAuditLogs(accessToken, month, year);
+        return analyticsService.getAuditLogs(month, year);
     }
 
     // Private Helpers
