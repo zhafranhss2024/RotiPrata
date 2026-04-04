@@ -131,8 +131,47 @@ export interface Lesson {
   lore_content: string | null;
   evolution_content: string | null;
   comparison_content: string | null;
+  content_sections?: LessonContentSection[] | null;
   created_at: string;
   updated_at: string;
+}
+
+export type LessonSectionBlockType = "text" | "image" | "gif" | "video";
+
+export interface LessonMediaAsset {
+  id: string;
+  lesson_id?: string | null;
+  source_type: "upload" | "link";
+  media_kind: "image" | "gif" | "video";
+  source_url?: string | null;
+  status: "processing" | "ready" | "failed";
+  playback_url?: string | null;
+  thumbnail_url?: string | null;
+  storage_path?: string | null;
+  mime_type?: string | null;
+  duration_ms?: number | null;
+  width?: number | null;
+  height?: number | null;
+  size_bytes?: number | null;
+  error_message?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface LessonSectionBlock {
+  id: string;
+  block_type: LessonSectionBlockType;
+  text_content?: string | null;
+  media_asset_id?: string | null;
+  caption?: string | null;
+  alt_text?: string | null;
+  media?: LessonMediaAsset | null;
+}
+
+export interface LessonContentSection {
+  sectionKey: string;
+  title: string;
+  blocks: LessonSectionBlock[];
 }
 
 export interface LessonHubLesson {
@@ -173,6 +212,7 @@ export interface LessonSection {
   id: string;
   title: string;
   content: string;
+  blocks: LessonSectionBlock[];
   order_index: number;
   duration_minutes: number;
   completed: boolean;
@@ -204,9 +244,6 @@ export interface LessonHeartsStatus {
 export type LessonQuizQuestionType =
   | "multiple_choice"
   | "true_false"
-  | "cloze"
-  | "word_bank"
-  | "conversation"
   | "match_pairs"
   | "short_text";
 
@@ -241,38 +278,6 @@ export interface LessonQuizTrueFalseQuestion extends LessonQuizQuestionBase {
   };
 }
 
-export interface LessonQuizClozeQuestion extends LessonQuizQuestionBase {
-  questionType: "cloze";
-  payload: {
-    blankOptions: Record<string, LessonQuizChoice[]>;
-  };
-}
-
-export interface LessonQuizConversationTurn {
-  id: string;
-  prompt: string;
-  replies: LessonQuizChoice[];
-}
-
-export interface LessonQuizConversationQuestion extends LessonQuizQuestionBase {
-  questionType: "conversation";
-  payload: {
-    turns: LessonQuizConversationTurn[];
-  };
-}
-
-export interface LessonQuizWordBankToken {
-  id: string;
-  text: string;
-}
-
-export interface LessonQuizWordBankQuestion extends LessonQuizQuestionBase {
-  questionType: "word_bank";
-  payload: {
-    tokens: LessonQuizWordBankToken[];
-  };
-}
-
 export interface LessonQuizMatchPairsItem {
   id: string;
   text: string;
@@ -298,9 +303,6 @@ export interface LessonQuizShortTextQuestion extends LessonQuizQuestionBase {
 export type LessonQuizQuestion =
   | LessonQuizMultipleChoiceQuestion
   | LessonQuizTrueFalseQuestion
-  | LessonQuizClozeQuestion
-  | LessonQuizWordBankQuestion
-  | LessonQuizConversationQuestion
   | LessonQuizMatchPairsQuestion
   | LessonQuizShortTextQuestion;
 
@@ -392,6 +394,13 @@ export interface AdminQuizQuestionBaseDraft {
   order_index: number;
   options: Record<string, unknown>;
   correct_answer: string;
+  media_url: string | null;
+  media_kind?: "image" | "gif" | "video" | null;
+  media_asset_id?: string | null;
+  media_thumbnail_url?: string | null;
+  media_status?: "idle" | "processing" | "ready" | "failed";
+  media_link_url?: string;
+  media_error?: string | null;
 }
 
 export interface AdminQuizMultipleChoiceDraft extends AdminQuizQuestionBaseDraft {
@@ -400,18 +409,6 @@ export interface AdminQuizMultipleChoiceDraft extends AdminQuizQuestionBaseDraft
 
 export interface AdminQuizTrueFalseDraft extends AdminQuizQuestionBaseDraft {
   question_type: "true_false";
-}
-
-export interface AdminQuizClozeDraft extends AdminQuizQuestionBaseDraft {
-  question_type: "cloze";
-}
-
-export interface AdminQuizWordBankDraft extends AdminQuizQuestionBaseDraft {
-  question_type: "word_bank";
-}
-
-export interface AdminQuizConversationDraft extends AdminQuizQuestionBaseDraft {
-  question_type: "conversation";
 }
 
 export interface AdminQuizMatchPairsDraft extends AdminQuizQuestionBaseDraft {
@@ -425,9 +422,6 @@ export interface AdminQuizShortTextDraft extends AdminQuizQuestionBaseDraft {
 export type AdminQuizQuestionDraft =
   | AdminQuizMultipleChoiceDraft
   | AdminQuizTrueFalseDraft
-  | AdminQuizClozeDraft
-  | AdminQuizWordBankDraft
-  | AdminQuizConversationDraft
   | AdminQuizMatchPairsDraft
   | AdminQuizShortTextDraft;
 
@@ -457,6 +451,21 @@ export interface AdminPublishLessonResult {
   firstInvalidStep: WizardStepKey | null;
   errors: AdminValidationError[];
   lessonSnapshot: Record<string, unknown>;
+}
+
+export interface LessonMediaStartResponse {
+  assetId: string;
+  status: string;
+  pollUrl: string;
+}
+
+export interface LessonMediaStatusResponse {
+  assetId: string;
+  status: "processing" | "ready" | "failed";
+  mediaKind: "image" | "gif" | "video";
+  playbackUrl?: string | null;
+  thumbnailUrl?: string | null;
+  errorMessage?: string | null;
 }
 
 export interface AdminLessonWizardState {

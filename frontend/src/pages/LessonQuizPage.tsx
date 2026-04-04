@@ -4,7 +4,6 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import {
   ArrowDown,
   ArrowLeft,
-  ArrowUp,
   Check,
   CheckCircle2,
   Heart,
@@ -20,6 +19,7 @@ import type {
   LessonQuizQuestion,
   LessonQuizState,
 } from "@/types";
+import { LessonMediaDisplay } from "@/components/lesson/LessonMediaDisplay";
 import {
   fetchLessonById,
   fetchLessonProgressDetail,
@@ -30,20 +30,7 @@ import {
 import { emitHeartsUpdated } from "@/lib/heartsEvents";
 import { cn } from "@/lib/utils";
 import { MatchPairsBoard } from "@/components/quiz/MatchPairsBoard";
-import { ConversationBoard } from "@/components/quiz/ConversationBoard";
 import Chatbot from '@/components/ui/chatbot';
-
-type ClozeTemplatePart = { kind: "text"; value: string } | { kind: "blank"; blankId: string };
-type ClozeBankOption = {
-  optionKey: string;
-  text: string;
-  matches: Array<{
-    blankId: string;
-    choiceId: string;
-  }>;
-};
-
-const CLOZE_TOKEN_REGEX = /\{\{([a-zA-Z0-9_-]+)\}\}/g;
 const STEP_GAP = 70;
 const MAX_VISIBLE_DISTANCE = 3;
 const STEP_HORIZONTAL_OFFSET = 26;
@@ -61,12 +48,6 @@ const questionTypeLabel = (question: LessonQuizQuestion) => {
       return "Choose one answer";
     case "true_false":
       return "Choose true or false";
-    case "cloze":
-      return "Fill in the blanks";
-    case "word_bank":
-      return "Build the sentence";
-    case "conversation":
-      return "Complete the dialogue";
     case "match_pairs":
       return "Match the pairs";
     case "short_text":
@@ -74,28 +55,6 @@ const questionTypeLabel = (question: LessonQuizQuestion) => {
     default:
       return "Answer the question";
   }
-};
-
-const parseClozeTemplate = (template: string | null | undefined): ClozeTemplatePart[] => {
-  const source = template ?? "";
-  const parts: ClozeTemplatePart[] = [];
-  let cursor = 0;
-  const regex = new RegExp(CLOZE_TOKEN_REGEX.source, "g");
-  let match = regex.exec(source);
-  while (match) {
-    const tokenStart = match.index;
-    const tokenEnd = regex.lastIndex;
-    if (tokenStart > cursor) {
-      parts.push({ kind: "text", value: source.slice(cursor, tokenStart) });
-    }
-    parts.push({ kind: "blank", blankId: match[1] });
-    cursor = tokenEnd;
-    match = regex.exec(source);
-  }
-  if (cursor < source.length) {
-    parts.push({ kind: "text", value: source.slice(cursor) });
-  }
-  return parts;
 };
 
 const normalizeQuestionResponse = (
@@ -109,27 +68,10 @@ const normalizeQuestionResponse = (
       return typeof response.choiceId === "string" ? response : null;
     case "true_false":
       return typeof response.value === "boolean" ? response : null;
-    case "cloze": {
-      const answers = response.answers as Record<string, unknown> | undefined;
-      if (!answers || typeof answers !== "object") return null;
-      const blanks = Object.keys(question.payload.blankOptions);
-      return blanks.every((blankId) => typeof answers[blankId] === "string") ? response : null;
-    }
-    case "conversation": {
-      const answers = response.answers as Record<string, unknown> | undefined;
-      if (!answers || typeof answers !== "object") return null;
-      return question.payload.turns.every((turn) => typeof answers[turn.id] === "string") ? response : null;
-    }
     case "match_pairs": {
       const pairs = response.pairs as Record<string, unknown> | undefined;
       if (!pairs || typeof pairs !== "object") return null;
       return question.payload.left.every((item) => typeof pairs[item.id] === "string") ? response : null;
-    }
-    case "word_bank": {
-      const tokenOrder = response.tokenOrder;
-      if (!Array.isArray(tokenOrder) || tokenOrder.length === 0) return null;
-      if (!tokenOrder.every((tokenId) => typeof tokenId === "string")) return null;
-      return response;
     }
     case "short_text": {
       const text = typeof response.text === "string" ? response.text.trim() : "";
@@ -197,11 +139,6 @@ const LessonQuizQuestionRenderer = ({
   onChange: (next: Record<string, unknown>) => void;
   disabled: boolean;
 }) => {
-  const [selectedClozeOptionKey, setSelectedClozeOptionKey] = useState<string | null>(null);
-  const [clozeUiError, setClozeUiError] = useState<string | null>(null);
-  const [draggingClozeOptionKey, setDraggingClozeOptionKey] = useState<string | null>(null);
-  const [hoveredBlankId, setHoveredBlankId] = useState<string | null>(null);
-
   if (question.questionType === "multiple_choice" || question.questionType === "true_false") {
     const choices = question.payload.choices;
     const selectedId =
@@ -239,183 +176,6 @@ const LessonQuizQuestionRenderer = ({
     );
   }
 
-  if (question.questionType === "cloze") {
-    const blankOptions = question.payload.blankOptions;
-    const answers = (response?.answers as Record<string, unknown>) ?? {};
-    const templateParts = parseClozeTemplate(question.questionText);
-    const hasTemplateBlanks = templateParts.some((part) => part.kind === "blank");
-    const optionBank = (() => {
-      const map = new Map<string, ClozeBankOption>();
-      Object.entries(blankOptions).forEach(([blankId, choices]) => {
-        choices.forEach((choice) => {
-          const normalizedText = choice.text.trim().toLowerCase();
-          const existing = map.get(normalizedText);
-          if (existing) {
-            existing.matches.push({ blankId, choiceId: choice.id });
-            return;
-          }
-          map.set(normalizedText, {
-            optionKey: normalizedText,
-            text: choice.text,
-            matches: [{ blankId, choiceId: choice.id }],
-          });
-        });
-      });
-      return Array.from(map.values());
-    })();
-
-    const assignOptionToBlank = (targetBlankId: string, optionKey: string) => {
-      const option = optionBank.find((item) => item.optionKey === optionKey);
-      if (!option) return;
-      const match = option.matches.find((item) => item.blankId === targetBlankId);
-      if (!match) {
-        setClozeUiError("This option does not fit this blank.");
-        return;
-      }
-      setClozeUiError(null);
-      onChange({
-        answers: {
-          ...answers,
-          [targetBlankId]: match.choiceId,
-        },
-      });
-      setSelectedClozeOptionKey(null);
-      setDraggingClozeOptionKey(null);
-      setHoveredBlankId(null);
-    };
-
-    const clearBlankAnswer = (blankId: string) => {
-      const nextAnswers = { ...answers };
-      delete nextAnswers[blankId];
-      onChange({ answers: nextAnswers });
-    };
-
-    return (
-      <div className="space-y-4">
-        <p className="text-sm text-mainAccent">Drag an option into a blank, or tap an option then tap a blank.</p>
-        {hasTemplateBlanks ? (
-          <div className="p-1 text-lg leading-9 text-mainAccent dark:text-white">
-            {templateParts.map((part, index) => {
-              if (part.kind === "text") return <span key={`cloze-text-${index}`}>{part.value}</span>;
-              const blankId = part.blankId;
-              const selectedChoiceId =
-                typeof answers[blankId] === "string" ? String(answers[blankId]) : null;
-              const label =
-                selectedChoiceId == null
-                  ? "Drop here"
-                  : blankOptions[blankId]?.find((choice) => choice.id === selectedChoiceId)?.text ??
-                    "Filled";
-              return (
-                <button
-                  key={`cloze-blank-${blankId}-${index}`}
-                  type="button"
-                  className={cn(
-                    "mx-1 inline-flex min-w-24 items-center justify-center rounded-xl border px-3 py-2 align-middle text-sm transition",
-                    selectedChoiceId
-                      ? "border-[#b51f3d] bg-duoGreen text-white"
-                      : "border-mainAlt bg-main text-mainAccent border-dashed",
-                    hoveredBlankId === blankId && "border-mainAccent bg-mainAlt text-mainAccent dark:text-white"
-                  )}
-                  onClick={() => {
-                    if (disabled) return;
-                    if (selectedClozeOptionKey) {
-                      assignOptionToBlank(blankId, selectedClozeOptionKey);
-                    } else if (selectedChoiceId) {
-                      clearBlankAnswer(blankId);
-                    }
-                  }}
-                  onDragOver={(event) => {
-                    if (disabled) return;
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    setHoveredBlankId(blankId);
-                  }}
-                  onDragEnter={(event) => {
-                    if (disabled) return;
-                    event.preventDefault();
-                    setHoveredBlankId(blankId);
-                  }}
-                  onDragLeave={() => {
-                    setHoveredBlankId((current) => (current === blankId ? null : current));
-                  }}
-                  onDrop={(event) => {
-                    if (disabled) return;
-                    event.preventDefault();
-                    const droppedOptionKey = event.dataTransfer.getData("text/plain");
-                    if (droppedOptionKey) {
-                      assignOptionToBlank(blankId, droppedOptionKey);
-                    }
-                  }}
-                  disabled={disabled}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          {optionBank.map((option) => {
-            const selected = option.matches.some((item) => answers[item.blankId] === item.choiceId);
-            const tapSelected = selectedClozeOptionKey === option.optionKey;
-            return (
-              <button
-                key={`cloze-opt-${option.optionKey}`}
-                type="button"
-                draggable={!disabled}
-                onDragStart={(event) => {
-                  event.dataTransfer.setData("text/plain", option.optionKey);
-                  event.dataTransfer.effectAllowed = "move";
-                  setDraggingClozeOptionKey(option.optionKey);
-                  setClozeUiError(null);
-                }}
-                onDragEnd={() => {
-                  setDraggingClozeOptionKey(null);
-                  setHoveredBlankId(null);
-                }}
-                onClick={() => {
-                  if (disabled) return;
-                  setClozeUiError(null);
-                  setSelectedClozeOptionKey((prev) => (prev === option.optionKey ? null : option.optionKey));
-                }}
-                className={cn(
-                  "rounded-2xl border px-3 py-2 text-sm transition",
-                  selected
-                    ? "border-[#b51f3d] bg-duoGreen text-white"
-                    : tapSelected
-                      ? "border-mainAccent bg-mainAccent text-main"
-                      : "border-mainAlt bg-main text-mainAccent dark:text-white hover:bg-mainAlt",
-                  draggingClozeOptionKey === option.optionKey && "opacity-60 scale-[0.98]"
-                )}
-                disabled={disabled}
-              >
-                {option.text}
-              </button>
-            );
-          })}
-        </div>
-        {clozeUiError ? <p className="text-sm text-statusStrong">{clozeUiError}</p> : null}
-      </div>
-    );
-  }
-
-  if (question.questionType === "conversation") {
-    const answers = (response?.answers as Record<string, unknown>) ?? {};
-    return (
-      <ConversationBoard
-        turns={question.payload.turns}
-        answers={Object.entries(answers).reduce((acc, [turnId, replyId]) => {
-          if (typeof replyId === "string") {
-            acc[turnId] = replyId;
-          }
-          return acc;
-        }, {} as Record<string, string>)}
-        onChange={(nextAnswers) => onChange({ answers: nextAnswers })}
-        disabled={disabled}
-      />
-    );
-  }
-
   if (question.questionType === "match_pairs") {
     const pairs = Object.entries((response?.pairs as Record<string, unknown>) ?? {}).reduce(
       (acc, [leftId, rightId]) => {
@@ -435,59 +195,6 @@ const LessonQuizQuestionRenderer = ({
         disabled={disabled}
         seed={question.questionId}
       />
-    );
-  }
-
-  if (question.questionType === "word_bank") {
-    const tokenOrder = (response?.tokenOrder as string[] | undefined) ?? [];
-    const tokenById = new Map(question.payload.tokens.map((token) => [token.id, token]));
-    const selected = tokenOrder.map((tokenId) => tokenById.get(tokenId)).filter(Boolean);
-    const selectedSet = new Set(tokenOrder);
-
-    return (
-      <div className="space-y-4">
-        <div className="min-h-20 rounded-2xl p-4 flex flex-wrap gap-2">
-          {selected.length === 0 ? (
-            <p className="text-sm text-mainAccent">Tap words to build your answer.</p>
-          ) : (
-            selected.map((token, idx) => (
-              <button
-                key={`selected-${token!.id}-${idx}`}
-                type="button"
-                className="rounded-2xl border border-[#b51f3d] bg-duoGreen px-3 py-1 text-sm text-white"
-                onClick={() => {
-                  const next = tokenOrder.filter((_, itemIdx) => itemIdx !== idx);
-                  onChange({ tokenOrder: next });
-                }}
-                disabled={disabled}
-              >
-                {token!.text}
-              </button>
-            ))
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {question.payload.tokens.map((token) => {
-            const isSelected = selectedSet.has(token.id);
-            return (
-              <button
-                key={token.id}
-                type="button"
-                className={cn(
-                  "rounded-2xl border px-3 py-2 text-sm transition",
-                  isSelected
-                    ? "border-mainAlt bg-mainAlt text-mainAccent/50 dark:text-white/50"
-                    : "border-mainAlt bg-main text-mainAccent dark:text-white hover:bg-mainAlt"
-                )}
-                onClick={() => onChange({ tokenOrder: [...tokenOrder, token.id] })}
-                disabled={disabled || isSelected}
-              >
-                {token.text}
-              </button>
-            );
-          })}
-        </div>
-      </div>
     );
   }
 
@@ -984,10 +691,17 @@ const LessonQuizPage = () => {
                   <p className="text-xs uppercase tracking-wide text-mainAccent">
                     {questionTypeLabel(currentQuestion)}
                   </p>
-                  {currentQuestion.questionType !== "cloze" ? (
-                    <h2 className="text-4xl text-mainAccent dark:text-white mt-2 mb-7">
-                      {currentQuestion.prompt ?? currentQuestion.questionText}
-                    </h2>
+                  <h2 className="text-4xl text-mainAccent dark:text-white mt-2 mb-7">
+                    {currentQuestion.prompt ?? currentQuestion.questionText}
+                  </h2>
+                  {currentQuestion.mediaUrl ? (
+                    <div className="mb-7">
+                      <LessonMediaDisplay
+                        mediaUrl={currentQuestion.mediaUrl}
+                        alt={currentQuestion.questionText || "Question media"}
+                        mediaClassName="max-h-[32rem]"
+                      />
+                    </div>
                   ) : null}
                   <LessonQuizQuestionRenderer
                     key={currentQuestion.questionId}

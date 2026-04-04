@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from '@/components/ui/sonner';
+import { AdminUserDetailPanel } from '@/components/admin/AdminUserDetailPanel';
+import { useAuthContext } from '@/contexts/AuthContext';
 import type {
   AdminContentFlagGroup,
   AdminContentFlagReport,
@@ -167,6 +169,7 @@ const mapQuizQuestionToDraft = (question: QuizQuestion, index: number): ContentQ
 });
 
 const AdminDashboard = () => {
+  const { user: currentUser } = useAuthContext();
   const [activeTab, setActiveTab] = useState('overview');
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState({
@@ -272,6 +275,11 @@ const AdminDashboard = () => {
     () => flags.reduce((sum, flag) => sum + getFlagReportCount(flag), 0),
     [flags]
   );
+  const currentAdminUserId = currentUser?.user_id ?? null;
+  const adminCount = useMemo(
+    () => adminUsers.filter((user) => user.roles.includes('admin')).length,
+    [adminUsers]
+  );
   const filteredUsers = useMemo(() => {
     const normalized = searchQuery.trim().toLowerCase();
     if (!normalized) {
@@ -281,6 +289,19 @@ const AdminDashboard = () => {
       [user.displayName, user.email ?? '', user.userId].some((value) => value.toLowerCase().includes(normalized))
     );
   }, [adminUsers, searchQuery]);
+
+  const getRoleChangeGuardReason = (user: AdminUserSummary | null, role: AppRole) => {
+    if (!user || role === 'admin' || !user.roles.includes('admin')) {
+      return null;
+    }
+    if (user.userId === currentAdminUserId) {
+      return 'You cannot remove your own admin role';
+    }
+    if (adminCount <= 1) {
+      return 'At least one admin must exist';
+    }
+    return null;
+  };
 
   useEffect(() => {
     fetchAdminStats()
@@ -686,6 +707,14 @@ const AdminDashboard = () => {
   };
 
   const handleUpdateUserRole = async (userId: string, role: AppRole) => {
+    const targetUser =
+      adminUsers.find((candidate) => candidate.userId === userId)
+      ?? (selectedUser?.summary.userId === userId ? selectedUser.summary : null);
+    const guardReason = getRoleChangeGuardReason(targetUser, role);
+    if (guardReason) {
+      toast(guardReason, { position: 'bottom-center' });
+      return;
+    }
     try {
       setUserActionKey(`role:${userId}:${role}`);
       const updated = await updateAdminUserRole(userId, role);
@@ -1161,65 +1190,72 @@ const AdminDashboard = () => {
                   </div>
                 ) : (
                   filteredUsers.map((user) => (
-                    <div
-                      key={user.userId}
-                      className="flex flex-col gap-4 rounded-lg border border-border/70 p-4 md:flex-row md:items-center md:justify-between"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="font-semibold">{user.displayName}</p>
-                          <Badge variant={user.status === 'active' ? 'secondary' : 'destructive'}>
-                            {user.status}
-                          </Badge>
-                          {user.roles.map((role) => (
-                            <Badge key={`${user.userId}-${role}`} variant="outline">
-                              {role}
-                            </Badge>
-                          ))}
+                    (() => {
+                      const nextRole: AppRole = user.roles.includes('admin') ? 'user' : 'admin';
+                      const roleGuardReason = getRoleChangeGuardReason(user, nextRole);
+                      return (
+                        <div
+                          key={user.userId}
+                          className="flex flex-col gap-4 rounded-lg border border-border/70 p-4 md:flex-row md:items-center md:justify-between"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold">{user.displayName}</p>
+                              <Badge variant={user.status === 'active' ? 'secondary' : 'destructive'}>
+                                {user.status}
+                              </Badge>
+                              {user.roles.map((role) => (
+                                <Badge key={`${user.userId}-${role}`} variant="outline">
+                                  {role}
+                                </Badge>
+                              ))}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{user.email ?? user.userId}</p>
+                            <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                              <span>XP {user.reputationPoints}</span>
+                              <span>Current streak {user.currentStreak}</span>
+                              <span>Hours learned {user.totalHoursLearned}</span>
+                              <span>
+                                Last active {user.lastActivityDate ? new Date(user.lastActivityDate).toLocaleDateString() : 'Unknown'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                void loadUserDetail(user.userId);
+                              }}
+                            >
+                              <Eye className="mr-1 h-4 w-4" />
+                              Open
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              title={roleGuardReason ?? undefined}
+                              disabled={Boolean(roleGuardReason) || userActionKey === `role:${user.userId}:${nextRole}`}
+                              onClick={() => {
+                                void handleUpdateUserRole(user.userId, nextRole);
+                              }}
+                            >
+                              {user.roles.includes('admin') ? 'Make User' : 'Make Admin'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={user.status === 'active' ? 'destructive' : 'secondary'}
+                              disabled={userActionKey === `status:${user.userId}:${user.status === 'active' ? 'suspended' : 'active'}`}
+                              onClick={() => {
+                                void handleToggleUserStatus(user);
+                              }}
+                            >
+                              {user.status === 'active' ? 'Suspend' : 'Reactivate'}
+                            </Button>
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">{user.email ?? user.userId}</p>
-                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
-                          <span>XP {user.reputationPoints}</span>
-                          <span>Current streak {user.currentStreak}</span>
-                          <span>Hours learned {user.totalHoursLearned}</span>
-                          <span>
-                            Last active {user.lastActivityDate ? new Date(user.lastActivityDate).toLocaleDateString() : 'Unknown'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            void loadUserDetail(user.userId);
-                          }}
-                        >
-                          <Eye className="mr-1 h-4 w-4" />
-                          Open
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={userActionKey === `role:${user.userId}:${user.roles.includes('admin') ? 'user' : 'admin'}`}
-                          onClick={() => {
-                            void handleUpdateUserRole(user.userId, user.roles.includes('admin') ? 'user' : 'admin');
-                          }}
-                        >
-                          {user.roles.includes('admin') ? 'Make User' : 'Make Admin'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={user.status === 'active' ? 'destructive' : 'secondary'}
-                          disabled={userActionKey === `status:${user.userId}:${user.status === 'active' ? 'suspended' : 'active'}`}
-                          onClick={() => {
-                            void handleToggleUserStatus(user);
-                          }}
-                        >
-                          {user.status === 'active' ? 'Suspend' : 'Reactivate'}
-                        </Button>
-                      </div>
-                    </div>
+                      );
+                    })()
                   ))
                 )}
               </CardContent>
@@ -1254,312 +1290,21 @@ const AdminDashboard = () => {
                   Loading user details...
                 </div>
               ) : selectedUser ? (
-                <div className="grid gap-6 px-6 pb-6">
-                  <div className="grid gap-4 rounded-lg border border-border/70 p-4 lg:grid-cols-[1.6fr_1fr]">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-xl font-semibold">{selectedUser.summary.displayName}</p>
-                        <Badge variant={selectedUser.summary.status === 'active' ? 'secondary' : 'destructive'}>
-                          {selectedUser.summary.status}
-                        </Badge>
-                        {selectedUser.summary.roles.map((role) => (
-                          <Badge key={`${selectedUser.summary.userId}-${role}`} variant="outline">
-                            {role}
-                          </Badge>
-                        ))}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedUser.summary.email ?? selectedUser.summary.userId}
-                      </p>
-                      <div className="grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
-                        <p>Created: {selectedUser.summary.createdAt ? new Date(selectedUser.summary.createdAt).toLocaleString() : 'Unknown'}</p>
-                        <p>Last sign in: {selectedUser.summary.lastSignInAt ? new Date(selectedUser.summary.lastSignInAt).toLocaleString() : 'Never'}</p>
-                        <p>Last active: {selectedUser.summary.lastActivityDate ? new Date(selectedUser.summary.lastActivityDate).toLocaleDateString() : 'Unknown'}</p>
-                        <p>Suspended until: {selectedUser.suspendedUntil ? new Date(selectedUser.suspendedUntil).toLocaleString() : 'Not suspended'}</p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={userActionKey === `role:${selectedUser.summary.userId}:${selectedUser.summary.roles.includes('admin') ? 'user' : 'admin'}`}
-                        onClick={() => {
-                          void handleUpdateUserRole(
-                            selectedUser.summary.userId,
-                            selectedUser.summary.roles.includes('admin') ? 'user' : 'admin'
-                          );
-                        }}
-                      >
-                        {selectedUser.summary.roles.includes('admin') ? 'Make User' : 'Make Admin'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={selectedUser.summary.status === 'active' ? 'destructive' : 'secondary'}
-                        disabled={userActionKey === `status:${selectedUser.summary.userId}:${selectedUser.summary.status === 'active' ? 'suspended' : 'active'}`}
-                        onClick={() => {
-                          void handleToggleUserStatus(selectedUser.summary);
-                        }}
-                      >
-                        {selectedUser.summary.status === 'active' ? 'Suspend Account' : 'Reactivate Account'}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-xs text-muted-foreground">Posted</p>
-                        <p className="text-xl font-semibold">{selectedUser.activity.postedContentCount}</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-xs text-muted-foreground">Comments</p>
-                        <p className="text-xl font-semibold">{selectedUser.activity.commentCount}</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-xs text-muted-foreground">Lessons</p>
-                        <p className="text-xl font-semibold">{selectedUser.activity.enrolledLessonCount}</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-xs text-muted-foreground">Completed</p>
-                        <p className="text-xl font-semibold">{selectedUser.activity.completedLessonCount}</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="p-4">
-                        <p className="text-xs text-muted-foreground">Badges</p>
-                        <p className="text-xl font-semibold">{selectedUser.activity.badgeCount}</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Posted Content</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {selectedUser.postedContent.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No posted content.</p>
-                        ) : (
-                          selectedUser.postedContent.map((content) => (
-                            <div key={content.id} className="rounded-lg border border-border/70 p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                  <p className="font-medium">{content.title}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {content.content_type} · {content.status}
-                                  </p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="destructive"
-                                  disabled={content.status === 'rejected'}
-                                  onClick={() => {
-                                    setUserContentRejectTarget(content);
-                                    setUserContentRejectReason('');
-                                    setUserContentRejectAttempted(false);
-                                  }}
-                                >
-                                  {content.status === 'rejected' ? 'Taken down' : 'Take down'}
-                                </Button>
-                              </div>
-                              {content.description ? (
-                                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                                  {content.description}
-                                </p>
-                              ) : null}
-                            </div>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Comments</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {selectedUser.comments.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No comments recorded.</p>
-                        ) : (
-                          selectedUser.comments.map((comment) => (
-                            <div key={comment.id} className="rounded-lg border border-border/70 p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="text-sm font-medium">{comment.contentTitle ?? 'Unknown content'}</p>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={userActionKey === `comment:${comment.id}` || !comment.contentId}
-                                  onClick={() => {
-                                    void handleDeleteUserComment(comment.id, comment.contentId);
-                                  }}
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                              <p className="mt-2 text-sm text-muted-foreground">{comment.body ?? 'No comment body.'}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {comment.createdAt ? new Date(comment.createdAt).toLocaleString() : 'Unknown time'}
-                              </p>
-                            </div>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Lesson Progress</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {selectedUser.lessonProgress.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No lesson progress recorded.</p>
-                        ) : (
-                          selectedUser.lessonProgress.map((progress) => (
-                            <div key={progress.id} className="rounded-lg border border-border/70 p-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                  <p className="font-medium">{progress.lessonTitle ?? progress.lessonId ?? 'Unknown lesson'}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {progress.status ?? 'unknown'} · {progress.progressPercentage}%
-                                  </p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={userActionKey === `progress:${progress.lessonId}` || !progress.lessonId}
-                                  onClick={() => {
-                                    void handleResetLessonProgress(progress.lessonId);
-                                  }}
-                                >
-                                  Reset
-                                </Button>
-                              </div>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Last accessed {progress.lastAccessedAt ? new Date(progress.lastAccessedAt).toLocaleString() : 'Unknown'}
-                              </p>
-                            </div>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Badges and Saved Activity</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium">Badges</p>
-                          {selectedUser.badges.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No badges yet.</p>
-                          ) : (
-                            selectedUser.badges.map((badge) => (
-                              <div key={`${badge.lessonId ?? badge.badgeName}-${badge.earnedAt ?? 'locked'}`} className="rounded-md border border-border/70 p-3">
-                                <p className="font-medium">{badge.badgeName}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {badge.lessonTitle ?? 'Lesson badge'} · {badge.earned ? 'Earned' : 'Locked'}
-                                </p>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium">Liked and Saved</p>
-                          <p className="text-sm text-muted-foreground">
-                            {selectedUser.activity.likedContentCount} liked · {selectedUser.activity.savedContentCount} saved
-                          </p>
-                          {selectedUser.likedContent.slice(0, 3).map((content) => (
-                            <div key={`liked-${content.id}`} className="rounded-md border border-border/70 p-3">
-                              <p className="font-medium">{content.title}</p>
-                              <p className="text-xs text-muted-foreground">Liked content</p>
-                            </div>
-                          ))}
-                          {selectedUser.savedContent.slice(0, 3).map((content) => (
-                            <div key={`saved-${content.id}`} className="rounded-md border border-border/70 p-3">
-                              <p className="font-medium">{content.title}</p>
-                              <p className="text-xs text-muted-foreground">Saved content</p>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Browsing History</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {selectedUser.browsingHistory.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No browsing history.</p>
-                        ) : (
-                          selectedUser.browsingHistory.map((entry) => (
-                            <div key={entry.id} className="rounded-md border border-border/70 p-3">
-                              <p className="font-medium">{entry.title ?? entry.itemId ?? 'Viewed item'}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {entry.viewedAt ? new Date(entry.viewedAt).toLocaleString() : 'Unknown time'}
-                              </p>
-                            </div>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Search History</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {selectedUser.searchHistory.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No search history.</p>
-                        ) : (
-                          selectedUser.searchHistory.map((entry) => (
-                            <div key={entry.id} className="rounded-md border border-border/70 p-3">
-                              <p className="font-medium">{entry.query ?? 'Untitled query'}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {entry.searchedAt ? new Date(entry.searchedAt).toLocaleString() : 'Unknown time'}
-                              </p>
-                            </div>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Chat History</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {selectedUser.chatHistory.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No chat history.</p>
-                        ) : (
-                          selectedUser.chatHistory.map((message, index) => (
-                            <div key={`${message.timestamp}-${index}`} className="rounded-md border border-border/70 p-3">
-                              <p className="text-xs uppercase text-muted-foreground">{message.role}</p>
-                              <p className="mt-1 text-sm">{message.message}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {message.timestamp ? new Date(message.timestamp).toLocaleString() : 'Unknown time'}
-                              </p>
-                            </div>
-                          ))
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
+                <AdminUserDetailPanel
+                  user={selectedUser}
+                  userActionKey={userActionKey}
+                  currentAdminUserId={currentAdminUserId}
+                  adminCount={adminCount}
+                  onToggleRole={handleUpdateUserRole}
+                  onToggleStatus={handleToggleUserStatus}
+                  onResetLessonProgress={handleResetLessonProgress}
+                  onDeleteComment={handleDeleteUserComment}
+                  onTakeDownContent={(content) => {
+                    setUserContentRejectTarget(content);
+                    setUserContentRejectReason('');
+                    setUserContentRejectAttempted(false);
+                  }}
+                />
               ) : (
                 <div className="px-6 pb-8 text-sm text-muted-foreground">Select a user to review.</div>
               )}

@@ -5,12 +5,14 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.dto.AdminLessonDraftResponse;
 import com.rotiprata.api.dto.AdminLessonCategoryMoveRequest;
 import com.rotiprata.api.dto.AdminLessonCategoryMoveResponse;
-import com.rotiprata.api.dto.AdminLessonPathOrderRequest;
 import com.rotiprata.api.dto.AdminLessonWizardStep;
 import com.rotiprata.api.dto.AdminPublishLessonResponse;
 import com.rotiprata.api.dto.AdminStepSaveRequest;
 import com.rotiprata.api.dto.AdminStepSaveResponse;
 import com.rotiprata.api.dto.AdminValidationError;
+import com.rotiprata.api.dto.LessonMediaStartLinkRequest;
+import com.rotiprata.api.dto.LessonMediaStartResponse;
+import com.rotiprata.api.dto.LessonMediaStatusResponse;
 import com.rotiprata.api.dto.LessonFeedRequest;
 import com.rotiprata.api.dto.LessonFeedResponse;
 import com.rotiprata.api.dto.LessonHubCategoryResponse;
@@ -27,7 +29,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -48,12 +50,17 @@ public class LessonService {
     private static final String UNCATEGORIZED_NAME = "Uncategorized";
     private static final String UNCATEGORIZED_TYPE = "other";
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
+    private static final Map<String, String> SECTION_TITLES = Map.of(
+        LessonFlowConstants.SECTION_INTRO, "Origin",
+        LessonFlowConstants.SECTION_DEFINITION, "Definition",
+        LessonFlowConstants.SECTION_USAGE, "Usage Examples",
+        LessonFlowConstants.SECTION_LORE, "Lore",
+        LessonFlowConstants.SECTION_EVOLUTION, "Evolution",
+        LessonFlowConstants.SECTION_COMPARISON, "Comparison"
+    );
     private static final Set<String> SUPPORTED_QUIZ_TYPES = Set.of(
         "multiple_choice",
         "true_false",
-        "cloze",
-        "word_bank",
-        "conversation",
         "match_pairs",
         "short_text"
     );
@@ -62,18 +69,21 @@ public class LessonService {
     private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final LessonQuizService lessonQuizService;
     private final EmbeddingService embeddingService;
+    private final MediaProcessingService mediaProcessingService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public LessonService(
         SupabaseRestClient supabaseRestClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
         LessonQuizService lessonQuizService,
-        EmbeddingService embeddingService
+        EmbeddingService embeddingService,
+        MediaProcessingService mediaProcessingService
     ) {
         this.supabaseRestClient = supabaseRestClient;
         this.supabaseAdminRestClient = supabaseAdminRestClient;
         this.lessonQuizService = lessonQuizService;
         this.embeddingService = embeddingService;
+        this.mediaProcessingService = mediaProcessingService;
     }
 
     public String findRelevantLesson(String accessToken, String question) {
@@ -170,7 +180,7 @@ public class LessonService {
             token,
             MAP_LIST
         );
-        List<Map<String, Object>> sortedLessons = sortLessonsForPath(lessons);
+        List<Map<String, Object>> sortedLessons = sortLessonsForList(lessons);
         List<Map<String, Object>> categories = fetchOrderedCategories();
 
         Map<String, Integer> progressByLesson = getUserLessonProgress(userId, token);
@@ -237,7 +247,7 @@ public class LessonService {
     public List<Map<String, Object>> getAdminLessons(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
         ensureAdmin(userId, token);
-        return sortLessonsForPath(supabaseAdminRestClient.getList(
+        return sortLessonsForList(supabaseAdminRestClient.getList(
             "lessons",
             buildQuery(Map.of(
                 "select", "*",
@@ -294,7 +304,9 @@ public class LessonService {
         AdminLessonWizardStep step = AdminLessonWizardStep.fromKey(stepKey);
 
         Map<String, Object> lesson = getAdminLessonById(lessonId);
-        Map<String, Object> lessonPatch = request == null || request.lesson() == null ? Map.of() : request.lesson();
+        Map<String, Object> lessonPatch = normalizeLessonPayload(
+            request == null || request.lesson() == null ? Map.of() : request.lesson()
+        );
         List<Map<String, Object>> questionsInput = request == null ? List.of() : normalizeQuestions(request.questions());
         Map<String, Object> mergedLesson = new LinkedHashMap<>(lesson);
         mergedLesson.putAll(lessonPatch);
@@ -346,7 +358,9 @@ public class LessonService {
         ensureAdmin(userId, token);
 
         Map<String, Object> lesson = getAdminLessonById(lessonId);
-        Map<String, Object> lessonPatch = request == null || request.lesson() == null ? Map.of() : request.lesson();
+        Map<String, Object> lessonPatch = normalizeLessonPayload(
+            request == null || request.lesson() == null ? Map.of() : request.lesson()
+        );
         List<Map<String, Object>> questionsInput = request == null ? List.of() : normalizeQuestions(request.questions());
         Map<String, Object> mergedLesson = new LinkedHashMap<>(lesson);
         mergedLesson.putAll(lessonPatch);
@@ -370,7 +384,6 @@ public class LessonService {
 
         Map<String, Object> publishPatch = new LinkedHashMap<>();
         applyEditableLessonFields(mergedLesson, publishPatch);
-        publishPatch.put("path_order", resolvePathOrderForPublish(lessonId, lesson, mergedLesson));
         publishPatch.put("is_published", true);
         publishPatch.put("is_active", true);
         publishPatch.put("updated_at", OffsetDateTime.now());
@@ -380,6 +393,7 @@ public class LessonService {
             publishPatch,
             MAP_LIST
         );
+        persistContentSectionsIfProvided(lessonId, lessonPatch.get("content_sections"));
 
         Map<String, Object> refreshedLesson = getAdminLessonById(lessonId);
         return new AdminPublishLessonResponse(
@@ -429,7 +443,7 @@ public class LessonService {
         if (lessons.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lesson not found");
         }
-        return lessons.get(0);
+        return enrichLessonWithContentSections(lessons.get(0));
     }
 
     private Map<String, Object> getAdminLessonById(UUID lessonId) {
@@ -441,7 +455,7 @@ public class LessonService {
         if (lessons.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lesson not found");
         }
-        return lessons.get(0);
+        return enrichLessonWithContentSections(lessons.get(0));
     }
 
     public List<Map<String, Object>> getLessonSections(UUID lessonId, String accessToken) {
@@ -449,17 +463,101 @@ public class LessonService {
         return buildLessonSections(lesson);
     }
 
+    public LessonMediaStartResponse startLessonMediaUpload(
+        UUID userId,
+        UUID lessonId,
+        MultipartFile file,
+        String accessToken
+    ) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File is required");
+        }
+        getAdminLessonById(lessonId);
+        String mediaKind = detectLessonMediaKind(file.getContentType());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("lesson_id", lessonId);
+        body.put("source_type", "upload");
+        body.put("media_kind", mediaKind);
+        body.put("status", "processing");
+        body.put("size_bytes", file.getSize());
+        body.put("created_at", OffsetDateTime.now());
+        body.put("updated_at", OffsetDateTime.now());
+
+        List<Map<String, Object>> created = supabaseAdminRestClient.postList("lesson_media_assets", body, MAP_LIST);
+        if (created.isEmpty() || created.get(0).get("id") == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create lesson media asset");
+        }
+        UUID assetId = UUID.fromString(created.get(0).get("id").toString());
+        mediaProcessingService.processLessonUpload(assetId, mediaKind, file);
+        return new LessonMediaStartResponse(assetId, "processing", buildLessonMediaPollUrl(lessonId, assetId));
+    }
+
+    public LessonMediaStartResponse startLessonMediaLink(
+        UUID userId,
+        UUID lessonId,
+        LessonMediaStartLinkRequest request,
+        String accessToken
+    ) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+        getAdminLessonById(lessonId);
+        if (request == null || request.sourceUrl() == null || request.sourceUrl().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Source URL is required");
+        }
+
+        String mediaKind = normalizeLessonMediaKind(request.mediaKind());
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("lesson_id", lessonId);
+        body.put("source_type", "link");
+        body.put("media_kind", mediaKind);
+        body.put("source_url", request.sourceUrl().trim());
+        body.put("status", "processing");
+        body.put("created_at", OffsetDateTime.now());
+        body.put("updated_at", OffsetDateTime.now());
+
+        List<Map<String, Object>> created = supabaseAdminRestClient.postList("lesson_media_assets", body, MAP_LIST);
+        if (created.isEmpty() || created.get(0).get("id") == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create lesson media asset");
+        }
+        UUID assetId = UUID.fromString(created.get(0).get("id").toString());
+        mediaProcessingService.processLessonLink(assetId, mediaKind, request.sourceUrl().trim());
+        return new LessonMediaStartResponse(assetId, "processing", buildLessonMediaPollUrl(lessonId, assetId));
+    }
+
+    public LessonMediaStatusResponse getLessonMediaStatus(
+        UUID userId,
+        UUID lessonId,
+        UUID assetId,
+        String accessToken
+    ) {
+        String token = requireAccessToken(accessToken);
+        ensureAdmin(userId, token);
+        Map<String, Object> asset = requireLessonMediaAsset(lessonId, assetId);
+        return new LessonMediaStatusResponse(
+            assetId,
+            stringValue(asset.get("status")),
+            stringValue(asset.get("media_kind")),
+            stringValue(asset.get("playback_url")),
+            stringValue(asset.get("thumbnail_url")),
+            stringValue(asset.get("error_message"))
+        );
+    }
+
     public Map<String, Object> createLesson(UUID userId, Map<String, Object> payload, String accessToken) {
         String token = requireAccessToken(accessToken);
         ensureAdmin(userId, token);
+        Map<String, Object> normalizedPayload = normalizeLessonPayload(payload);
 
-        List<Map<String, Object>> questions = normalizeQuestions(payload.get("questions"));
-        Boolean requestedPublish = parseBoolean(payload.get("is_published"));
+        List<Map<String, Object>> questions = normalizeQuestions(normalizedPayload.get("questions"));
+        Boolean requestedPublish = parseBoolean(normalizedPayload.get("is_published"));
         boolean publishRequested = Boolean.TRUE.equals(requestedPublish);
 
-        validateLessonTitle(payload);
+        validateLessonTitle(normalizedPayload);
 
-        List<String> publishErrors = collectLessonPublishErrors(payload);
+        List<String> publishErrors = collectLessonPublishErrors(normalizedPayload);
         List<String> questionErrors = collectQuestionErrors(questions, publishRequested);
         if (!questionErrors.isEmpty()) {
             throw new ResponseStatusException(
@@ -476,7 +574,7 @@ public class LessonService {
         }
 
         if (publish) {
-            validateLessonFields(payload);
+            validateLessonFields(normalizedPayload);
             validateQuestions(questions);
         } else if (!questions.isEmpty()) {
             validateQuestions(questions);
@@ -484,24 +582,21 @@ public class LessonService {
 
         Map<String, Object> insert = new LinkedHashMap<>();
         insert.put("created_by", userId);
-        copyIfPresent(payload, insert, "title");
-        copyIfPresent(payload, insert, "description");
-        copyIfPresent(payload, insert, "summary");
-        copyIfPresent(payload, insert, "learning_objectives");
-        copyIfPresent(payload, insert, "estimated_minutes");
-        copyIfPresent(payload, insert, "xp_reward");
-        copyIfPresent(payload, insert, "badge_name");
-        copyIfPresent(payload, insert, "difficulty_level");
-        copyIfPresent(payload, insert, "category_id");
-        copyIfPresent(payload, insert, "origin_content");
-        copyIfPresent(payload, insert, "definition_content");
-        copyIfPresent(payload, insert, "usage_examples");
-        copyIfPresent(payload, insert, "lore_content");
-        copyIfPresent(payload, insert, "evolution_content");
-        copyIfPresent(payload, insert, "comparison_content");
-        if (publish) {
-            insert.put("path_order", nextPathOrderForCategory(parseUuid(insert.get("category_id")), null));
-        }
+        copyIfPresent(normalizedPayload, insert, "title");
+        copyIfPresent(normalizedPayload, insert, "description");
+        copyIfPresent(normalizedPayload, insert, "summary");
+        copyIfPresent(normalizedPayload, insert, "learning_objectives");
+        copyIfPresent(normalizedPayload, insert, "estimated_minutes");
+        copyIfPresent(normalizedPayload, insert, "xp_reward");
+        copyIfPresent(normalizedPayload, insert, "badge_name");
+        copyIfPresent(normalizedPayload, insert, "difficulty_level");
+        copyIfPresent(normalizedPayload, insert, "category_id");
+        copyIfPresent(normalizedPayload, insert, "origin_content");
+        copyIfPresent(normalizedPayload, insert, "definition_content");
+        copyIfPresent(normalizedPayload, insert, "usage_examples");
+        copyIfPresent(normalizedPayload, insert, "lore_content");
+        copyIfPresent(normalizedPayload, insert, "evolution_content");
+        copyIfPresent(normalizedPayload, insert, "comparison_content");
         insert.put("is_published", publish);
         insert.put("is_active", true);
         insert.put("archived_at", null);
@@ -514,12 +609,13 @@ public class LessonService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to create lesson");
         }
         Map<String, Object> lesson = created.get(0);
+        persistContentSectionsIfProvided(parseUuid(lesson.get("id")), normalizedPayload.get("content_sections"));
 
         if (!questions.isEmpty()) {
             createQuizWithQuestions(userId, lesson, questions);
         }
 
-        Boolean skipEmbedding = parseBoolean(payload.get("skip_embedding"));
+        Boolean skipEmbedding = parseBoolean(normalizedPayload.get("skip_embedding"));
         boolean shouldEmbed = !Boolean.TRUE.equals(skipEmbedding);
 
         if (publish && shouldEmbed) {
@@ -549,34 +645,34 @@ public class LessonService {
                 );
             }
 
-            return lesson;
+            return enrichLessonWithContentSections(lesson);
     }
 
 
     public Map<String, Object> updateLesson(UUID userId, UUID lessonId, Map<String, Object> payload, String accessToken) {
         String token = requireAccessToken(accessToken);
         ensureAdmin(userId, token);
+        Map<String, Object> normalizedPayload = normalizeLessonPayload(payload);
 
         Map<String, Object> lesson = getAdminLessonById(lessonId);
-        UUID previousCategoryId = parseUuid(lesson.get("category_id"));
 
         Map<String, Object> patch = new LinkedHashMap<>();
-        copyIfPresent(payload, patch, "title");
-        copyIfPresent(payload, patch, "description");
-        copyIfPresent(payload, patch, "summary");
-        copyIfPresent(payload, patch, "learning_objectives");
-        copyIfPresent(payload, patch, "estimated_minutes");
-        copyIfPresent(payload, patch, "xp_reward");
-        copyIfPresent(payload, patch, "badge_name");
-        copyIfPresent(payload, patch, "difficulty_level");
-        copyIfPresent(payload, patch, "category_id");
-        copyIfPresent(payload, patch, "origin_content");
-        copyIfPresent(payload, patch, "definition_content");
-        copyIfPresent(payload, patch, "usage_examples");
-        copyIfPresent(payload, patch, "lore_content");
-        copyIfPresent(payload, patch, "evolution_content");
-        copyIfPresent(payload, patch, "comparison_content");
-        copyIfPresent(payload, patch, "is_published");
+        copyIfPresent(normalizedPayload, patch, "title");
+        copyIfPresent(normalizedPayload, patch, "description");
+        copyIfPresent(normalizedPayload, patch, "summary");
+        copyIfPresent(normalizedPayload, patch, "learning_objectives");
+        copyIfPresent(normalizedPayload, patch, "estimated_minutes");
+        copyIfPresent(normalizedPayload, patch, "xp_reward");
+        copyIfPresent(normalizedPayload, patch, "badge_name");
+        copyIfPresent(normalizedPayload, patch, "difficulty_level");
+        copyIfPresent(normalizedPayload, patch, "category_id");
+        copyIfPresent(normalizedPayload, patch, "origin_content");
+        copyIfPresent(normalizedPayload, patch, "definition_content");
+        copyIfPresent(normalizedPayload, patch, "usage_examples");
+        copyIfPresent(normalizedPayload, patch, "lore_content");
+        copyIfPresent(normalizedPayload, patch, "evolution_content");
+        copyIfPresent(normalizedPayload, patch, "comparison_content");
+        copyIfPresent(normalizedPayload, patch, "is_published");
 
         if (patch.isEmpty()) {
             return lesson;
@@ -584,9 +680,6 @@ public class LessonService {
 
         Map<String, Object> merged = new LinkedHashMap<>(lesson);
         merged.putAll(patch);
-        UUID nextCategoryId = parseUuid(merged.get("category_id"));
-        boolean categoryChanged = !Objects.equals(previousCategoryId, nextCategoryId);
-
         Boolean requestedPublish = parseBoolean(patch.get("is_published"));
         Boolean currentPublish = parseBoolean(lesson.get("is_published"));
         boolean publishTarget = requestedPublish != null ? requestedPublish : Boolean.TRUE.equals(currentPublish);
@@ -602,10 +695,7 @@ public class LessonService {
             } else {
                 validateLessonFields(merged);
                 ensureLessonHasQuestions(lessonId);
-                patch.put("path_order", resolvePathOrderForPublish(lessonId, lesson, merged));
             }
-        } else if (categoryChanged) {
-            patch.put("path_order", null);
         }
         patch.put("updated_at", OffsetDateTime.now());
 
@@ -618,11 +708,9 @@ public class LessonService {
         if (updated.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to update lesson");
         }
+        persistContentSectionsIfProvided(lessonId, normalizedPayload.get("content_sections"));
 
         Map<String, Object> updatedLesson = updated.get(0);
-        if (categoryChanged) {
-            normalizeCategoryBucket(previousCategoryId);
-        }
 
         // Fields that affect embeddings
         // List<String> embeddingFields = List.of(
@@ -662,61 +750,7 @@ public class LessonService {
         //     );
         // }
 
-        return updatedLesson;
-    }
-
-    public List<Map<String, Object>> reorderLessonPath(
-        UUID userId,
-        AdminLessonPathOrderRequest request,
-        String accessToken
-    ) {
-        String token = requireAccessToken(accessToken);
-        ensureAdmin(userId, token);
-        if (request == null || request.lessonIds() == null || request.lessonIds().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lesson order payload is required");
-        }
-
-        List<Map<String, Object>> bucketLessons = getAdminLessonsByCategoryBucket(request.categoryId());
-        Map<String, Map<String, Object>> lessonsById = bucketLessons.stream()
-            .filter(lesson -> stringValue(lesson.get("id")) != null)
-            .collect(Collectors.toMap(lesson -> stringValue(lesson.get("id")), lesson -> lesson));
-
-        List<String> submittedIds = request.lessonIds().stream()
-            .filter(Objects::nonNull)
-            .map(UUID::toString)
-            .distinct()
-            .toList();
-        if (submittedIds.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one lesson id is required");
-        }
-
-        boolean hasOutsideLesson = submittedIds.stream().anyMatch(id -> !lessonsById.containsKey(id));
-        if (hasOutsideLesson) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lessons do not belong to the selected category");
-        }
-
-        List<String> normalizedIds = new ArrayList<>(submittedIds);
-        for (Map<String, Object> lesson : bucketLessons) {
-            String lessonId = stringValue(lesson.get("id"));
-            if (lessonId != null && !normalizedIds.contains(lessonId)) {
-                normalizedIds.add(lessonId);
-            }
-        }
-
-        for (int index = 0; index < normalizedIds.size(); index++) {
-            String lessonId = normalizedIds.get(index);
-            supabaseAdminRestClient.patchList(
-                "lessons",
-                buildQuery(Map.of("id", "eq." + lessonId)),
-                Map.of(
-                    "path_order", index + 1,
-                    "updated_at", OffsetDateTime.now()
-                ),
-                MAP_LIST
-            );
-        }
-
-        return getAdminLessonsByCategoryBucket(request.categoryId());
+        return enrichLessonWithContentSections(updatedLesson);
     }
 
     public AdminLessonCategoryMoveResponse moveLessonToCategory(
@@ -742,35 +776,8 @@ public class LessonService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a different category");
         }
 
-        List<Map<String, Object>> sourceBucketLessons = getAdminLessonsByCategoryBucket(sourceCategoryId);
-        List<Map<String, Object>> targetBucketLessons = getAdminLessonsByCategoryBucket(targetCategoryId);
-        String movedLessonId = lessonId.toString();
-
-        List<String> sourceAvailableIds = sourceBucketLessons.stream()
-            .map(item -> stringValue(item.get("id")))
-            .filter(Objects::nonNull)
-            .filter(id -> !movedLessonId.equals(id))
-            .toList();
-        List<String> targetAvailableIds = targetBucketLessons.stream()
-            .map(item -> stringValue(item.get("id")))
-            .filter(Objects::nonNull)
-            .toList();
-
-        List<String> submittedSourceIds = normalizeSubmittedLessonIds(request.sourceLessonIds());
-        List<String> submittedTargetIds = normalizeSubmittedLessonIds(request.targetLessonIds());
-        if (!sameMembers(sourceAvailableIds, submittedSourceIds)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Source category lesson order is invalid");
-        }
-
-        List<String> expectedTargetIds = new ArrayList<>(targetAvailableIds);
-        expectedTargetIds.add(movedLessonId);
-        if (!sameMembers(expectedTargetIds, submittedTargetIds) || !submittedTargetIds.contains(movedLessonId)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target category lesson order is invalid");
-        }
-
         Map<String, Object> movePatch = new LinkedHashMap<>();
         movePatch.put("category_id", targetCategoryId);
-        movePatch.put("path_order", submittedTargetIds.indexOf(movedLessonId) + 1);
         movePatch.put("updated_at", OffsetDateTime.now());
         supabaseAdminRestClient.patchList(
             "lessons",
@@ -778,9 +785,6 @@ public class LessonService {
             movePatch,
             MAP_LIST
         );
-
-        applySequentialPathOrder(submittedSourceIds);
-        applySequentialPathOrder(submittedTargetIds);
 
         List<Map<String, Object>> updatedSourceLessons = getAdminLessonsByCategoryBucket(sourceCategoryId);
         List<Map<String, Object>> updatedTargetLessons = getAdminLessonsByCategoryBucket(targetCategoryId);
@@ -840,9 +844,6 @@ public class LessonService {
         List<Map<String, Object>> types = new ArrayList<>();
         types.add(questionTypeMeta("multiple_choice", "Single-select choices (A/B/C/D)", "{ \"choices\": { \"A\": \"\", \"B\": \"\" } }", "A"));
         types.add(questionTypeMeta("true_false", "Boolean true/false question", "{}", "true"));
-        types.add(questionTypeMeta("cloze", "Fill blank(s) with provided choices", "{ \"blankOptions\": { \"blank1\": { \"A\": \"\", \"B\": \"\" } } }", "{ \"blank1\": \"A\" }"));
-        types.add(questionTypeMeta("word_bank", "Build answer from ordered token list", "{ \"tokens\": [ { \"id\": \"t1\", \"text\": \"hello\" }, { \"id\": \"t2\", \"text\": \"world\" } ] }", "[\"t1\",\"t2\"]"));
-        types.add(questionTypeMeta("conversation", "Choose best reply for each turn", "{ \"turns\": [ { \"id\": \"turn_1\", \"prompt\": \"\", \"replies\": [ { \"id\": \"r1\", \"text\": \"\" }, { \"id\": \"r2\", \"text\": \"\" } ] } ] }", "{ \"turn_1\": \"r1\" }"));
         types.add(questionTypeMeta("match_pairs", "Match left and right items", "{ \"left\": [ { \"id\": \"l1\", \"text\": \"\" } ], \"right\": [ { \"id\": \"r1\", \"text\": \"\" } ] }", "{ \"l1\": \"r1\" }"));
         types.add(questionTypeMeta("short_text", "Free text answer compared server-side", "{ \"placeholder\": \"Type answer\", \"minLength\": 1, \"maxLength\": 120 }", "{\"accepted\":[\"example answer\"]}"));
         return types;
@@ -1169,6 +1170,13 @@ public class LessonService {
     }
 
     private List<Map<String, Object>> buildLessonSections(Map<String, Object> lesson) {
+        UUID lessonId = parseUuid(lesson.get("id"));
+        if (lessonId != null) {
+            List<Map<String, Object>> structuredSections = fetchStructuredLessonSections(lessonId);
+            if (!structuredSections.isEmpty()) {
+                return structuredSections;
+            }
+        }
         List<Map<String, Object>> sections = new ArrayList<>();
         addSection(sections, LessonFlowConstants.SECTION_INTRO, "Origin", lesson.get("origin_content"), 1);
         addSection(sections, LessonFlowConstants.SECTION_DEFINITION, "Definition", lesson.get("definition_content"), 2);
@@ -1482,6 +1490,439 @@ public class LessonService {
         }
     }
 
+    private Map<String, Object> enrichLessonWithContentSections(Map<String, Object> lesson) {
+        if (lesson == null) {
+            return null;
+        }
+        Map<String, Object> enriched = new LinkedHashMap<>(lesson);
+        UUID lessonId = parseUuid(enriched.get("id"));
+        List<Map<String, Object>> contentSections = lessonId == null
+            ? buildLegacyContentSections(enriched)
+            : fetchStructuredLessonSections(lessonId);
+        if (contentSections.isEmpty()) {
+            contentSections = buildLegacyContentSections(enriched);
+        }
+        enriched.put("content_sections", contentSections);
+        return enriched;
+    }
+
+    private List<Map<String, Object>> fetchStructuredLessonSections(UUID lessonId) {
+        if (lessonId == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> blockRows;
+        try {
+            blockRows = supabaseAdminRestClient.getList(
+                "lesson_section_blocks",
+                buildQuery(
+                    Map.of(
+                        "select",
+                        "id,section_key,block_order,block_type,text_content,media_asset_id,caption,alt_text,lesson_media_assets!left(id,lesson_id,source_type,media_kind,source_url,status,playback_url,thumbnail_url,mime_type,duration_ms,width,height,size_bytes,error_message,created_at,updated_at)",
+                        "lesson_id",
+                        "eq." + lessonId,
+                        "order",
+                        "section_key.asc,block_order.asc"
+                    )
+                ),
+                MAP_LIST
+            );
+        } catch (ResponseStatusException ex) {
+            if (isMissingStructuredLessonTables(ex)) {
+                return List.of();
+            }
+            throw ex;
+        }
+        if (blockRows.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, List<Map<String, Object>>> rowsBySection = new LinkedHashMap<>();
+        for (Map<String, Object> row : blockRows) {
+            String sectionKey = stringValue(row.get("section_key"));
+            if (sectionKey == null || !LessonFlowConstants.CONTENT_SECTION_IDS.contains(sectionKey)) {
+                continue;
+            }
+            rowsBySection.computeIfAbsent(sectionKey, ignored -> new ArrayList<>()).add(row);
+        }
+
+        List<Map<String, Object>> sections = new ArrayList<>();
+        for (int index = 0; index < LessonFlowConstants.CONTENT_SECTION_IDS.size(); index++) {
+            String sectionKey = LessonFlowConstants.CONTENT_SECTION_IDS.get(index);
+            List<Map<String, Object>> rows = rowsBySection.getOrDefault(sectionKey, List.of());
+            if (rows.isEmpty()) {
+                continue;
+            }
+            List<Map<String, Object>> blocks = new ArrayList<>();
+            for (Map<String, Object> row : rows) {
+                blocks.add(mapLessonSectionBlock(row));
+            }
+            String textContent = blocks.stream()
+                .filter(block -> "text".equals(stringValue(block.get("block_type"))))
+                .map(block -> stringValue(block.get("text_content")))
+                .filter(Objects::nonNull)
+                .collect(Collectors.joining("\n"));
+
+            Map<String, Object> section = new LinkedHashMap<>();
+            section.put("id", sectionKey);
+            section.put("sectionKey", sectionKey);
+            section.put("title", SECTION_TITLES.getOrDefault(sectionKey, sectionKey));
+            section.put("content", textContent);
+            section.put("blocks", blocks);
+            section.put("order_index", index + 1);
+            section.put("duration_minutes", 3);
+            section.put("completed", false);
+            sections.add(section);
+        }
+        return sections;
+    }
+
+    private Map<String, Object> mapLessonSectionBlock(Map<String, Object> row) {
+        Map<String, Object> block = new LinkedHashMap<>();
+        block.put("id", stringValue(row.get("id")));
+        block.put("block_type", stringValue(row.get("block_type")));
+        block.put("text_content", stringValue(row.get("text_content")));
+        block.put("media_asset_id", stringValue(row.get("media_asset_id")));
+        block.put("caption", stringValue(row.get("caption")));
+        block.put("alt_text", stringValue(row.get("alt_text")));
+
+        Object media = row.get("lesson_media_assets");
+        if (media instanceof Map<?, ?> mediaMap) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> typedMedia = new LinkedHashMap<>((Map<String, Object>) mediaMap);
+            block.put("media", typedMedia);
+        }
+        return block;
+    }
+
+    private List<Map<String, Object>> buildLegacyContentSections(Map<String, Object> lesson) {
+        if (lesson == null) {
+            return List.of();
+        }
+        List<Map<String, Object>> sections = new ArrayList<>();
+        addContentSectionFromLegacy(sections, LessonFlowConstants.SECTION_INTRO, lesson.get("origin_content"), 1);
+        addContentSectionFromLegacy(sections, LessonFlowConstants.SECTION_DEFINITION, lesson.get("definition_content"), 2);
+        addContentSectionFromLegacy(sections, LessonFlowConstants.SECTION_USAGE, lesson.get("usage_examples"), 3);
+        addContentSectionFromLegacy(sections, LessonFlowConstants.SECTION_LORE, lesson.get("lore_content"), 4);
+        addContentSectionFromLegacy(sections, LessonFlowConstants.SECTION_EVOLUTION, lesson.get("evolution_content"), 5);
+        addContentSectionFromLegacy(sections, LessonFlowConstants.SECTION_COMPARISON, lesson.get("comparison_content"), 6);
+        return sections;
+    }
+
+    private void addContentSectionFromLegacy(
+        List<Map<String, Object>> sections,
+        String sectionKey,
+        Object rawContent,
+        int order
+    ) {
+        List<Map<String, Object>> blocks = new ArrayList<>();
+        if (rawContent instanceof List<?> list) {
+            int index = 0;
+            for (Object value : list) {
+                String text = stringValue(value);
+                if (text == null) {
+                    continue;
+                }
+                Map<String, Object> block = new LinkedHashMap<>();
+                block.put("id", sectionKey + "-legacy-" + index);
+                block.put("block_type", "text");
+                block.put("text_content", text);
+                block.put("caption", "");
+                block.put("alt_text", "");
+                blocks.add(block);
+                index += 1;
+            }
+        } else {
+            String text = stringValue(rawContent);
+            if (text != null) {
+                Map<String, Object> block = new LinkedHashMap<>();
+                block.put("id", sectionKey + "-legacy-text");
+                block.put("block_type", "text");
+                block.put("text_content", text);
+                block.put("caption", "");
+                block.put("alt_text", "");
+                blocks.add(block);
+            }
+        }
+        if (blocks.isEmpty()) {
+            return;
+        }
+        Map<String, Object> section = new LinkedHashMap<>();
+        section.put("id", sectionKey);
+        section.put("sectionKey", sectionKey);
+        section.put("title", SECTION_TITLES.getOrDefault(sectionKey, sectionKey));
+        section.put("content", blocks.stream()
+            .map(block -> stringValue(block.get("text_content")))
+            .filter(Objects::nonNull)
+            .collect(Collectors.joining("\n")));
+        section.put("blocks", blocks);
+        section.put("order_index", order);
+        section.put("duration_minutes", 3);
+        section.put("completed", false);
+        sections.add(section);
+    }
+
+    private Map<String, Object> normalizeLessonPayload(Map<String, Object> payload) {
+        Map<String, Object> normalized = payload == null ? new LinkedHashMap<>() : new LinkedHashMap<>(payload);
+        Object contentSectionsRaw = normalized.get("content_sections");
+        if (contentSectionsRaw != null) {
+            List<Map<String, Object>> normalizedSections = normalizeContentSectionsPayload(contentSectionsRaw);
+            normalized.put("content_sections", normalizedSections);
+            normalized.putAll(deriveLegacyFieldsFromContentSections(normalizedSections));
+        }
+        return normalized;
+    }
+
+    private void persistContentSectionsIfProvided(UUID lessonId, Object contentSectionsRaw) {
+        if (lessonId == null || contentSectionsRaw == null) {
+            return;
+        }
+        List<Map<String, Object>> sections = normalizeContentSectionsPayload(contentSectionsRaw);
+        try {
+            supabaseAdminRestClient.deleteList(
+                "lesson_section_blocks",
+                buildQuery(Map.of("lesson_id", "eq." + lessonId)),
+                MAP_LIST
+            );
+        } catch (ResponseStatusException ex) {
+            if (!isMissingStructuredLessonTables(ex)) {
+                throw ex;
+            }
+            return;
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> section : sections) {
+            String sectionKey = stringValue(section.get("sectionKey"));
+            if (sectionKey == null || !LessonFlowConstants.CONTENT_SECTION_IDS.contains(sectionKey)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> blocks = (List<Map<String, Object>>) section.getOrDefault("blocks", List.of());
+            int order = 0;
+            for (Map<String, Object> block : blocks) {
+                String blockType = normalizeBlockType(block.get("blockType"));
+                if (blockType == null) {
+                    blockType = normalizeBlockType(block.get("block_type"));
+                }
+                if (blockType == null) {
+                    continue;
+                }
+                String textContent = stringValue(block.get("textContent"));
+                if (textContent == null) {
+                    textContent = stringValue(block.get("text_content"));
+                }
+                String mediaAssetId = stringValue(block.get("mediaAssetId"));
+                if (mediaAssetId == null) {
+                    mediaAssetId = stringValue(block.get("media_asset_id"));
+                }
+                if ("text".equals(blockType) && textContent == null) {
+                    continue;
+                }
+                if (!"text".equals(blockType) && mediaAssetId == null) {
+                    continue;
+                }
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("lesson_id", lessonId);
+                row.put("section_key", sectionKey);
+                row.put("block_order", order);
+                row.put("block_type", blockType);
+                row.put("text_content", textContent);
+                row.put("media_asset_id", mediaAssetId);
+                row.put("caption", coalesceText(block.get("caption")));
+                row.put("alt_text", coalesceText(block.get("altText"), block.get("alt_text")));
+                row.put("created_at", OffsetDateTime.now());
+                row.put("updated_at", OffsetDateTime.now());
+                rows.add(row);
+                order += 1;
+            }
+        }
+
+        if (!rows.isEmpty()) {
+            supabaseAdminRestClient.postList("lesson_section_blocks", rows, MAP_LIST);
+        }
+    }
+
+    private List<Map<String, Object>> normalizeContentSectionsPayload(Object raw) {
+        if (!(raw instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Map<String, Object>> normalizedSections = new ArrayList<>();
+        for (String sectionKey : LessonFlowConstants.CONTENT_SECTION_IDS) {
+            Map<String, Object> matched = list.stream()
+                .filter(item -> item instanceof Map<?, ?>)
+                .map(item -> {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> map = new LinkedHashMap<>((Map<String, Object>) item);
+                    return map;
+                })
+                .filter(item -> sectionKey.equals(stringValue(item.get("sectionKey")))
+                    || sectionKey.equals(stringValue(item.get("section_key")))
+                    || sectionKey.equals(stringValue(item.get("id"))))
+                .findFirst()
+                .orElse(new LinkedHashMap<>());
+
+            Map<String, Object> section = new LinkedHashMap<>();
+            section.put("sectionKey", sectionKey);
+            section.put("title", SECTION_TITLES.getOrDefault(sectionKey, sectionKey));
+            section.put("blocks", normalizeContentBlocks(matched.get("blocks")));
+            normalizedSections.add(section);
+        }
+        return normalizedSections;
+    }
+
+    private List<Map<String, Object>> normalizeContentBlocks(Object raw) {
+        if (!(raw instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Map<String, Object>> blocks = new ArrayList<>();
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?>)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> rawMap = (Map<String, Object>) item;
+            String blockType = normalizeBlockType(rawMap.get("blockType"));
+            if (blockType == null) {
+                blockType = normalizeBlockType(rawMap.get("block_type"));
+            }
+            if (blockType == null) {
+                continue;
+            }
+
+            Map<String, Object> block = new LinkedHashMap<>();
+            block.put("id", coalesceText(rawMap.get("id")));
+            block.put("blockType", blockType);
+            block.put("textContent", coalesceText(rawMap.get("textContent"), rawMap.get("text_content")));
+            block.put("mediaAssetId", coalesceText(rawMap.get("mediaAssetId"), rawMap.get("media_asset_id")));
+            block.put("caption", coalesceText(rawMap.get("caption")));
+            block.put("altText", coalesceText(rawMap.get("altText"), rawMap.get("alt_text")));
+            blocks.add(block);
+        }
+        return blocks;
+    }
+
+    private Map<String, Object> deriveLegacyFieldsFromContentSections(List<Map<String, Object>> sections) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("origin_content", aggregateSectionText(sections, LessonFlowConstants.SECTION_INTRO, false));
+        fields.put("definition_content", aggregateSectionText(sections, LessonFlowConstants.SECTION_DEFINITION, false));
+        fields.put("usage_examples", aggregateSectionTextList(sections, LessonFlowConstants.SECTION_USAGE));
+        fields.put("lore_content", aggregateSectionText(sections, LessonFlowConstants.SECTION_LORE, false));
+        fields.put("evolution_content", aggregateSectionText(sections, LessonFlowConstants.SECTION_EVOLUTION, false));
+        fields.put("comparison_content", aggregateSectionText(sections, LessonFlowConstants.SECTION_COMPARISON, false));
+        return fields;
+    }
+
+    private String aggregateSectionText(List<Map<String, Object>> sections, String sectionKey, boolean nullable) {
+        List<String> values = aggregateSectionTextList(sections, sectionKey);
+        if (values.isEmpty()) {
+            return nullable ? null : "";
+        }
+        return String.join("\n", values);
+    }
+
+    private List<String> aggregateSectionTextList(List<Map<String, Object>> sections, String sectionKey) {
+        for (Map<String, Object> section : sections) {
+            String candidateKey = coalesceText(section.get("sectionKey"), section.get("section_key"), section.get("id"));
+            if (!sectionKey.equals(candidateKey)) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> blocks = (List<Map<String, Object>>) section.getOrDefault("blocks", List.of());
+            return blocks.stream()
+                .filter(block -> "text".equals(normalizeBlockType(block.get("blockType")))
+                    || "text".equals(normalizeBlockType(block.get("block_type"))))
+                .map(block -> coalesceText(block.get("textContent"), block.get("text_content")))
+                .filter(Objects::nonNull)
+                .toList();
+        }
+        return List.of();
+    }
+
+    private String normalizeBlockType(Object raw) {
+        String value = stringValue(raw);
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.toLowerCase();
+        return Set.of("text", "image", "gif", "video").contains(normalized) ? normalized : null;
+    }
+
+    private boolean isMissingStructuredLessonTables(ResponseStatusException ex) {
+        StringBuilder message = new StringBuilder();
+        if (ex.getReason() != null) {
+            message.append(ex.getReason().toLowerCase());
+        }
+        if (ex.getCause() instanceof RestClientResponseException responseException) {
+            String body = responseException.getResponseBodyAsString();
+            if (body != null) {
+                message.append(" ").append(body.toLowerCase());
+            }
+        }
+        String normalized = message.toString();
+        return normalized.contains("lesson_section_blocks")
+            || normalized.contains("lesson_media_assets")
+            || normalized.contains("pgrst205")
+            || normalized.contains("does not exist");
+    }
+
+    private Map<String, Object> requireLessonMediaAsset(UUID lessonId, UUID assetId) {
+        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+            "lesson_media_assets",
+            buildQuery(Map.of("id", "eq." + assetId, "lesson_id", "eq." + lessonId)),
+            MAP_LIST
+        );
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Lesson media asset not found");
+        }
+        return rows.get(0);
+    }
+
+    private String buildLessonMediaPollUrl(UUID lessonId, UUID assetId) {
+        return "/api/admin/lessons/" + lessonId + "/media/" + assetId;
+    }
+
+    private String detectLessonMediaKind(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing content type");
+        }
+        String normalized = contentType.toLowerCase();
+        if (normalized.startsWith("video/")) {
+            return "video";
+        }
+        if ("image/gif".equals(normalized)) {
+            return "gif";
+        }
+        if (normalized.startsWith("image/")) {
+            return "image";
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image, GIF, or video uploads are supported");
+    }
+
+    private String normalizeLessonMediaKind(String mediaKind) {
+        String normalized = stringValue(mediaKind);
+        if (normalized == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Media kind is required");
+        }
+        normalized = normalized.toLowerCase();
+        if (!Set.of("image", "gif", "video").contains(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported media kind");
+        }
+        return normalized;
+    }
+
+    private String coalesceText(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            String text = stringValue(value);
+            if (text != null) {
+                return text;
+            }
+        }
+        return null;
+    }
+
     private void addSection(List<Map<String, Object>> sections, String id, String title, Object rawContent, int order) {
         String content = stringify(rawContent);
         if (content == null || content.isBlank()) {
@@ -1491,6 +1932,18 @@ public class LessonService {
         section.put("id", id);
         section.put("title", title);
         section.put("content", content);
+        section.put(
+            "blocks",
+            List.of(
+                Map.of(
+                    "id", id + "-legacy-text",
+                    "block_type", "text",
+                    "text_content", content,
+                    "caption", "",
+                    "alt_text", ""
+                )
+            )
+        );
         section.put("order_index", order);
         section.put("duration_minutes", 3);
         section.put("completed", false);
@@ -1666,6 +2119,82 @@ public class LessonService {
             errors.add("difficulty_level");
         }
 
+        Object contentSections = lesson.get("content_sections");
+        if (contentSections != null) {
+            for (String error : collectContentSectionErrors(contentSections)) {
+                if (!errors.contains(error)) {
+                    errors.add(error);
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    private List<String> collectContentSectionErrors(Object contentSectionsRaw) {
+        List<Map<String, Object>> sections = normalizeContentSectionsPayload(contentSectionsRaw);
+        List<String> errors = new ArrayList<>();
+        for (String sectionKey : LessonFlowConstants.CONTENT_SECTION_IDS) {
+            Map<String, Object> section = sections.stream()
+                .filter(item -> sectionKey.equals(stringValue(item.get("sectionKey"))))
+                .findFirst()
+                .orElse(null);
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> blocks = section == null
+                ? List.of()
+                : (List<Map<String, Object>>) section.getOrDefault("blocks", List.of());
+            if (blocks.isEmpty()) {
+                errors.add("content_sections." + sectionKey);
+                continue;
+            }
+
+            boolean hasRenderableBlock = false;
+            for (Map<String, Object> block : blocks) {
+                String blockType = normalizeBlockType(block.get("blockType"));
+                if (blockType == null) {
+                    blockType = normalizeBlockType(block.get("block_type"));
+                }
+                if (blockType == null) {
+                    continue;
+                }
+                if ("text".equals(blockType)) {
+                    if (coalesceText(block.get("textContent"), block.get("text_content")) != null) {
+                        hasRenderableBlock = true;
+                    }
+                    continue;
+                }
+                String assetIdRaw = coalesceText(block.get("mediaAssetId"), block.get("media_asset_id"));
+                if (assetIdRaw == null) {
+                    errors.add("content_sections." + sectionKey);
+                    continue;
+                }
+
+                Map<String, Object> media = null;
+                if (block.get("media") instanceof Map<?, ?> mediaMap) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> typedMedia = (Map<String, Object>) mediaMap;
+                    media = typedMedia;
+                } else {
+                    UUID assetId = parseUuid(assetIdRaw);
+                    if (assetId != null) {
+                        List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
+                            "lesson_media_assets",
+                            buildQuery(Map.of("id", "eq." + assetId, "select", "id,status")),
+                            MAP_LIST
+                        );
+                        media = rows.isEmpty() ? null : rows.get(0);
+                    }
+                }
+                if (media == null || !"ready".equalsIgnoreCase(stringValue(media.get("status")))) {
+                    errors.add("content_sections." + sectionKey);
+                    continue;
+                }
+                hasRenderableBlock = true;
+            }
+            if (!hasRenderableBlock && !errors.contains("content_sections." + sectionKey)) {
+                errors.add("content_sections." + sectionKey);
+            }
+        }
         return errors;
     }
 
@@ -1692,6 +2221,10 @@ public class LessonService {
             if (points == null || points < 1 || points > 100) {
                 errors.add(prefix + "points");
             }
+            Object rawMediaUrl = q.get("media_url");
+            if (rawMediaUrl != null && !(rawMediaUrl instanceof String)) {
+                errors.add(prefix + "media_url");
+            }
 
             Map<String, Object> options = extractOptions(q.get("options"));
             String correct = stringValue(q.get("correct_answer"));
@@ -1713,20 +2246,11 @@ public class LessonService {
                         errors.add(prefix + "correct_answer");
                     }
                 }
-                case "cloze", "conversation", "match_pairs" -> {
+                case "match_pairs" -> {
                     if (options.isEmpty()) {
                         errors.add(prefix + "options");
                     }
                     if (correct == null || !canParseJsonObject(correct)) {
-                        errors.add(prefix + "correct_answer");
-                    }
-                }
-                case "word_bank" -> {
-                    Object tokensRaw = options.get("tokens");
-                    if (!(tokensRaw instanceof List<?> tokens) || tokens.size() < 2) {
-                        errors.add(prefix + "options.tokens");
-                    }
-                    if (correct == null || (!canParseJsonObject(correct) && !canParseJsonArray(correct))) {
                         errors.add(prefix + "correct_answer");
                     }
                 }
@@ -1808,6 +2332,7 @@ public class LessonService {
             questionMap.put("quiz_id", quizId);
             questionMap.put("question_text", stringValue(rawMap.get("question_text")));
             questionMap.put("question_type", questionType);
+            questionMap.put("media_url", stringValue(rawMap.get("media_url")));
             questionMap.put("options", extractOptions(rawMap.get("options")));
             questionMap.put("correct_answer", rawCorrectAnswer);
             questionMap.put("answer_key", buildAnswerKey(questionType, rawCorrectAnswer));
@@ -1839,7 +2364,7 @@ public class LessonService {
         return switch (normalizedType) {
             case "multiple_choice" -> Map.of("correctChoiceId", correctAnswerRaw.toUpperCase());
             case "true_false" -> Map.of("correctBoolean", "true".equalsIgnoreCase(correctAnswerRaw));
-            case "cloze", "conversation", "match_pairs", "word_bank", "short_text" -> parseJsonOrTextAnswerKey(correctAnswerRaw);
+            case "match_pairs", "short_text" -> parseJsonOrTextAnswerKey(correctAnswerRaw);
             default -> new LinkedHashMap<>();
         };
     }
@@ -1891,6 +2416,9 @@ public class LessonService {
             patch,
             MAP_LIST
         );
+        if (step == AdminLessonWizardStep.CONTENT || step == AdminLessonWizardStep.REVIEW_PUBLISH) {
+            persistContentSectionsIfProvided(lessonId, lessonPatch.get("content_sections"));
+        }
     }
 
     private void applyEditableLessonFields(Map<String, Object> source, Map<String, Object> patch) {
@@ -1951,6 +2479,10 @@ public class LessonService {
         if (examples != null && !(examples instanceof List<?>)) {
             errors.add(new AdminValidationError("content", "usage_examples", "Usage examples must be a list", null));
         }
+        Object contentSections = lesson.get("content_sections");
+        if (contentSections != null && !(contentSections instanceof List<?>)) {
+            errors.add(new AdminValidationError("content", "content_sections", "Content sections must be a list", null));
+        }
         return errors;
     }
 
@@ -1996,16 +2528,6 @@ public class LessonService {
                 }
                 if (question.get("options") != null && !choices.isEmpty() && choices.size() < 2) {
                     errors.add(new AdminValidationError("quiz_builder", prefix + "options.choices", "Multiple choice requires at least two options", i));
-                }
-            } else if ("word_bank".equals(type)) {
-                Object tokens = options.get("tokens");
-                if (tokens != null && !(tokens instanceof List<?>)) {
-                    errors.add(new AdminValidationError("quiz_builder", prefix + "options.tokens", "Word bank tokens must be a list", i));
-                }
-            } else if ("conversation".equals(type)) {
-                Object turns = options.get("turns");
-                if (turns != null && !(turns instanceof List<?>)) {
-                    errors.add(new AdminValidationError("quiz_builder", prefix + "options.turns", "Conversation turns must be a list", i));
                 }
             } else if ("match_pairs".equals(type)) {
                 Object left = options.get("left");
@@ -2093,7 +2615,7 @@ public class LessonService {
                 "evolution_content",
                 "comparison_content",
                 "learning_objectives"
-            ).contains(field)
+            ).contains(field) || field.startsWith("content_sections.")
         );
         boolean quizSetup = questions != null && !questions.isEmpty();
         boolean quizBuilder = collectQuestionErrors(questions, true).isEmpty();
@@ -2205,91 +2727,7 @@ public class LessonService {
         } else {
             params.put("category_id", "eq." + categoryId);
         }
-        return sortLessonsForPath(supabaseAdminRestClient.getList("lessons", buildQuery(params), MAP_LIST));
-    }
-
-    private int resolvePathOrderForPublish(UUID lessonId, Map<String, Object> existingLesson, Map<String, Object> mergedLesson) {
-        UUID currentCategoryId = parseUuid(existingLesson.get("category_id"));
-        UUID targetCategoryId = parseUuid(mergedLesson.get("category_id"));
-        Integer currentPathOrder = parseInteger(existingLesson.get("path_order"));
-        boolean wasPublished = Boolean.TRUE.equals(parseBoolean(existingLesson.get("is_published")));
-        boolean categoryChanged = !Objects.equals(currentCategoryId, targetCategoryId);
-
-        if (targetCategoryId == null) {
-            return currentPathOrder != null && currentPathOrder > 0 ? currentPathOrder : 1;
-        }
-        if (!wasPublished) {
-            if (categoryChanged || currentPathOrder == null || currentPathOrder < 1) {
-                return nextPathOrderForCategory(targetCategoryId, lessonId);
-            }
-            return currentPathOrder;
-        }
-        if (categoryChanged) {
-            return nextPathOrderForCategory(targetCategoryId, lessonId);
-        }
-        return currentPathOrder != null && currentPathOrder > 0
-            ? currentPathOrder
-            : nextPathOrderForCategory(targetCategoryId, lessonId);
-    }
-
-    private int nextPathOrderForCategory(UUID categoryId, UUID excludedLessonId) {
-        if (categoryId == null) {
-            return 1;
-        }
-        return getAdminLessonsByCategoryBucket(categoryId).stream()
-            .filter(lesson -> {
-                String lessonId = stringValue(lesson.get("id"));
-                return excludedLessonId == null || lessonId == null || !excludedLessonId.toString().equals(lessonId);
-            })
-            .map(lesson -> parseInteger(lesson.get("path_order")))
-            .filter(Objects::nonNull)
-            .max(Integer::compareTo)
-            .orElse(0) + 1;
-    }
-
-    private List<String> normalizeSubmittedLessonIds(List<UUID> lessonIds) {
-        if (lessonIds == null || lessonIds.isEmpty()) {
-            return List.of();
-        }
-        return lessonIds.stream()
-            .filter(Objects::nonNull)
-            .map(UUID::toString)
-            .distinct()
-            .toList();
-    }
-
-    private boolean sameMembers(List<String> expectedIds, List<String> submittedIds) {
-        if (expectedIds.size() != submittedIds.size()) {
-            return false;
-        }
-        return new HashSet<>(expectedIds).equals(new HashSet<>(submittedIds));
-    }
-
-    private void applySequentialPathOrder(List<String> lessonIds) {
-        for (int index = 0; index < lessonIds.size(); index++) {
-            String currentLessonId = lessonIds.get(index);
-            if (currentLessonId == null) {
-                continue;
-            }
-            Map<String, Object> patch = new LinkedHashMap<>();
-            patch.put("path_order", index + 1);
-            patch.put("updated_at", OffsetDateTime.now());
-            supabaseAdminRestClient.patchList(
-                "lessons",
-                buildQuery(Map.of("id", "eq." + currentLessonId)),
-                patch,
-                MAP_LIST
-            );
-        }
-    }
-
-    private void normalizeCategoryBucket(UUID categoryId) {
-        applySequentialPathOrder(
-            getAdminLessonsByCategoryBucket(categoryId).stream()
-                .map(lesson -> stringValue(lesson.get("id")))
-                .filter(Objects::nonNull)
-                .toList()
-        );
+        return sortLessonsForList(supabaseAdminRestClient.getList("lessons", buildQuery(params), MAP_LIST));
     }
 
     private UUID parseUuid(Object value) {
@@ -2308,29 +2746,15 @@ public class LessonService {
         List<Map<String, Object>> lessons,
         Map<String, Integer> progressByLesson
     ) {
-        List<Map<String, Object>> orderedLessons = sortLessonsForPath(lessons);
+        List<Map<String, Object>> orderedLessons = sortLessonsForList(lessons);
         List<LessonHubLessonResponse> hubLessons = new ArrayList<>();
-        int currentIndex = -1;
-        for (int index = 0; index < orderedLessons.size(); index++) {
-            String lessonId = stringValue(orderedLessons.get(index).get("id"));
-            int progress = lessonId == null ? 0 : progressByLesson.getOrDefault(lessonId, 0);
-            if (progress < 100) {
-                currentIndex = index;
-                break;
-            }
-        }
-        if (currentIndex < 0 && !orderedLessons.isEmpty()) {
-            currentIndex = orderedLessons.size() - 1;
-        }
-
-        for (int index = 0; index < orderedLessons.size(); index++) {
-            Map<String, Object> lesson = orderedLessons.get(index);
+        for (Map<String, Object> lesson : orderedLessons) {
             String lessonIdRaw = stringValue(lesson.get("id"));
             UUID lessonId = lessonIdRaw == null ? null : UUID.fromString(lessonIdRaw);
             int progress = lessonIdRaw == null ? 0 : progressByLesson.getOrDefault(lessonIdRaw, 0);
             boolean completed = progress >= 100;
-            boolean current = index == currentIndex;
-            boolean visuallyLocked = !completed && currentIndex >= 0 && index > currentIndex;
+            boolean current = progress > 0 && !completed;
+            boolean visuallyLocked = false;
             hubLessons.add(
                 new LessonHubLessonResponse(
                     lessonId,
@@ -2350,15 +2774,14 @@ public class LessonService {
         return hubLessons;
     }
 
-    private List<Map<String, Object>> sortLessonsForPath(List<Map<String, Object>> lessons) {
+    private List<Map<String, Object>> sortLessonsForList(List<Map<String, Object>> lessons) {
         if (lessons == null || lessons.isEmpty()) {
             return List.of();
         }
         List<Map<String, Object>> sorted = new ArrayList<>(lessons);
         sorted.sort(
             Comparator
-                .comparing((Map<String, Object> lesson) -> parseInteger(lesson.get("path_order")), Comparator.nullsLast(Integer::compareTo))
-                .thenComparing((Map<String, Object> lesson) -> parseCreatedAt(lesson.get("created_at")), Comparator.nullsLast(OffsetDateTime::compareTo))
+                .comparing((Map<String, Object> lesson) -> parseCreatedAt(lesson.get("created_at")), Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(lesson -> stringValue(lesson.get("title")), Comparator.nullsLast(String::compareToIgnoreCase))
         );
         return sorted;

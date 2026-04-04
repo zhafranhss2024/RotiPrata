@@ -3,10 +3,12 @@ package com.rotiprata.api;
 import com.rotiprata.api.dto.AdminLessonDraftResponse;
 import com.rotiprata.api.dto.AdminLessonCategoryMoveRequest;
 import com.rotiprata.api.dto.AdminLessonCategoryMoveResponse;
-import com.rotiprata.api.dto.AdminLessonPathOrderRequest;
 import com.rotiprata.api.dto.AdminPublishLessonResponse;
 import com.rotiprata.api.dto.AdminStepSaveRequest;
 import com.rotiprata.api.dto.AdminStepSaveResponse;
+import com.rotiprata.api.dto.LessonMediaStartLinkRequest;
+import com.rotiprata.api.dto.LessonMediaStartResponse;
+import com.rotiprata.api.dto.LessonMediaStatusResponse;
 import com.rotiprata.api.dto.LessonFeedRequest;
 import com.rotiprata.api.dto.LessonFeedResponse;
 import com.rotiprata.api.dto.LessonHubResponse;
@@ -32,8 +34,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api")
@@ -221,15 +225,6 @@ public class LessonController {
         lessonService.deleteLesson(userId, lessonId, SecurityUtils.getAccessToken());
     }
 
-    @PutMapping("/admin/lessons/path-order")
-    public List<Map<String, Object>> reorderLessonPath(
-        @AuthenticationPrincipal Jwt jwt,
-        @RequestBody AdminLessonPathOrderRequest request
-    ) {
-        UUID userId = SecurityUtils.getUserId(jwt);
-        return lessonService.reorderLessonPath(userId, request, SecurityUtils.getAccessToken());
-    }
-
     @PutMapping("/admin/lessons/{lessonId}/move-category")
     public AdminLessonCategoryMoveResponse moveLessonToCategory(
         @AuthenticationPrincipal Jwt jwt,
@@ -273,5 +268,35 @@ public class LessonController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.replaceLessonQuiz(userId, lessonId, payload, SecurityUtils.getAccessToken());
+    }
+
+    @PostMapping("/admin/lessons/{lessonId}/media/start")
+    public LessonMediaStartResponse startLessonMediaUpload(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @RequestPart("file") MultipartFile file
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.startLessonMediaUpload(userId, lessonId, file, SecurityUtils.getAccessToken());
+    }
+
+    @PostMapping("/admin/lessons/{lessonId}/media/start-link")
+    public LessonMediaStartResponse startLessonMediaLink(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @Valid @RequestBody LessonMediaStartLinkRequest request
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.startLessonMediaLink(userId, lessonId, request, SecurityUtils.getAccessToken());
+    }
+
+    @GetMapping("/admin/lessons/{lessonId}/media/{assetId}")
+    public LessonMediaStatusResponse lessonMediaStatus(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @PathVariable UUID assetId
+    ) {
+        UUID userId = SecurityUtils.getUserId(jwt);
+        return lessonService.getLessonMediaStatus(userId, lessonId, assetId, SecurityUtils.getAccessToken());
     }
 }

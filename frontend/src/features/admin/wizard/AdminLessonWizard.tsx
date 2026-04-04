@@ -2,28 +2,44 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Image as ImageIcon,
+  Link2,
   Loader2,
   Plus,
   Save,
+  Star,
   Trash2,
+  Type,
+  Video,
 } from "lucide-react";
 import type {
   AdminQuizQuestionDraft,
   AdminValidationError,
   Category,
   Lesson,
+  LessonMediaAsset,
+  LessonSectionBlockType,
   QuizQuestion,
   WizardStepKey,
 } from "@/types";
 import {
   createAdminLessonDraft,
+  fetchLessonMediaStatus,
   fetchAdminLessonById,
   fetchAdminLessonQuizQuestions,
   fetchCategories,
   publishAdminLesson,
   saveAdminLessonDraftStep,
+  startLessonMediaLink,
+  startLessonMediaUpload,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +49,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AdminQuestionEditor } from "@/features/admin/quiz-builder/AdminQuestionEditor";
+import { FeedVideoPlayer } from "@/components/feed/FeedVideoPlayer";
+import { inferLessonMediaKind, type LessonMediaKind } from "@/components/lesson/LessonMediaDisplay";
+import { cn } from "@/lib/utils";
 
 type Props = {
   mode: "create" | "edit";
@@ -50,13 +69,27 @@ type LessonDraftForm = {
   xp_reward: number;
   badge_name: string;
   difficulty_level: number;
-  origin_content: string;
-  definition_content: string;
-  usage_examples: string[];
-  lore_content: string;
-  evolution_content: string;
-  comparison_content: string;
+  content_sections: LessonContentSectionForm[];
   is_published?: boolean;
+};
+
+type LessonContentBlockForm = {
+  id: string;
+  blockType: LessonSectionBlockType;
+  textContent: string;
+  mediaAssetId: string;
+  caption: string;
+  altText: string;
+  media: LessonMediaAsset | null;
+  linkUrl: string;
+  isUploading: boolean;
+  error: string | null;
+};
+
+type LessonContentSectionForm = {
+  sectionKey: string;
+  title: string;
+  blocks: LessonContentBlockForm[];
 };
 
 type StepState = "saved" | "unsaved" | "invalid" | "saving";
@@ -71,9 +104,6 @@ const STEPS: Array<{ key: WizardStepKey; label: string }> = [
 const QUESTION_TYPE_CHOICES: Array<{ value: AdminQuizQuestionDraft["question_type"]; label: string }> = [
   { value: "multiple_choice", label: "Multiple Choice" },
   { value: "true_false", label: "True / False" },
-  { value: "cloze", label: "Cloze" },
-  { value: "word_bank", label: "Word Bank" },
-  { value: "conversation", label: "Conversation" },
   { value: "match_pairs", label: "Match Pairs" },
   { value: "short_text", label: "Short Text" },
 ];
@@ -131,52 +161,6 @@ const questionDraftErrors = (question: AdminQuizQuestionDraft): string[] => {
     if (!["true", "false"].includes(correctAnswer.toLowerCase())) {
       errors.push("Pick true or false as the correct answer.");
     }
-  } else if (question.question_type === "cloze") {
-    const blanks = (options.blankOptions ?? {}) as Record<string, unknown>;
-    const blankEntries = Object.entries(blanks);
-    if (blankEntries.length === 0) errors.push("Add at least one blank.");
-    const answerMap = parseJsonObject(correctAnswer);
-    if (!answerMap) errors.push("Correct answer mapping is invalid.");
-    blankEntries.forEach(([blankId, rawChoices]) => {
-      const choiceEntries = Object.entries(rawChoices as Record<string, unknown>).filter(
-        ([, text]) => asTrimmed(text).length > 0
-      );
-      if (choiceEntries.length < 2) errors.push(`Blank ${blankId} needs at least 2 options.`);
-      const mapped = answerMap?.[blankId];
-      if (!mapped || !choiceEntries.some(([choiceId]) => choiceId === mapped)) {
-        errors.push(`Blank ${blankId} needs a valid correct option.`);
-      }
-    });
-  } else if (question.question_type === "word_bank") {
-    const tokens = Array.isArray(options.tokens) ? options.tokens : [];
-    const validTokens = tokens
-      .map((token) => token as Record<string, unknown>)
-      .filter((token) => asTrimmed(token.id) && asTrimmed(token.text));
-    if (validTokens.length < 2) errors.push("Add at least 2 tokens with text.");
-    const tokenOrder = parseJsonArray(correctAnswer);
-    if (!tokenOrder || tokenOrder.length === 0) {
-      errors.push("Set a valid correct token order.");
-    }
-  } else if (question.question_type === "conversation") {
-    const turns = Array.isArray(options.turns) ? options.turns : [];
-    if (turns.length === 0) errors.push("Add at least one conversation turn.");
-    const answerMap = parseJsonObject(correctAnswer);
-    if (!answerMap) errors.push("Correct answer mapping is invalid.");
-    turns.forEach((rawTurn, index) => {
-      const turn = rawTurn as Record<string, unknown>;
-      const turnId = asTrimmed(turn.id) || `turn_${index + 1}`;
-      const promptText = asTrimmed(turn.prompt);
-      const replies = Array.isArray(turn.replies) ? turn.replies : [];
-      const validReplies = replies
-        .map((reply) => reply as Record<string, unknown>)
-        .filter((reply) => asTrimmed(reply.id) && asTrimmed(reply.text));
-      if (!promptText) errors.push(`Turn ${index + 1} prompt is required.`);
-      if (validReplies.length < 2) errors.push(`Turn ${index + 1} needs at least 2 replies.`);
-      const mapped = answerMap?.[turnId];
-      if (!mapped || !validReplies.some((reply) => asTrimmed(reply.id) === String(mapped))) {
-        errors.push(`Turn ${index + 1} needs a valid correct reply.`);
-      }
-    });
   } else if (question.question_type === "match_pairs") {
     const left = Array.isArray(options.left) ? options.left : [];
     const right = Array.isArray(options.right) ? options.right : [];
@@ -208,6 +192,13 @@ const questionDraftErrors = (question: AdminQuizQuestionDraft): string[] => {
         errors.push("Accepted answers must include at least one value.");
       }
     }
+  }
+
+  if (question.media_status === "processing") {
+    errors.push("Wait for question media to finish processing.");
+  }
+  if (question.media_status === "failed") {
+    errors.push(question.media_error?.trim() || "Question media failed to process. Remove it or attach another file or URL.");
   }
 
   return Array.from(new Set(errors));
@@ -259,6 +250,160 @@ const toStringList = (value: unknown) => {
   return [""];
 };
 
+const LESSON_SECTION_CONFIG: Array<{ sectionKey: string; title: string }> = [
+  { sectionKey: "intro", title: "Origin" },
+  { sectionKey: "definition", title: "Definition" },
+  { sectionKey: "usage", title: "Usage Examples" },
+  { sectionKey: "lore", title: "Lore" },
+  { sectionKey: "evolution", title: "Evolution" },
+  { sectionKey: "comparison", title: "Comparison" },
+];
+
+const PREVIEW_STEP_GAP = 88;
+const PREVIEW_MAX_VISIBLE_DISTANCE = 3;
+const PREVIEW_STEP_HORIZONTAL_OFFSET = 18;
+
+const createBlockId = () => createClientId();
+
+const createEmptyBlock = (blockType: LessonSectionBlockType): LessonContentBlockForm => ({
+  id: createBlockId(),
+  blockType,
+  textContent: "",
+  mediaAssetId: "",
+  caption: "",
+  altText: "",
+  media: null,
+  linkUrl: "",
+  isUploading: false,
+  error: null,
+});
+
+const createDefaultSections = (): LessonContentSectionForm[] =>
+  LESSON_SECTION_CONFIG.map((section) => ({
+    sectionKey: section.sectionKey,
+    title: section.title,
+    blocks: [],
+  }));
+
+const normalizeMediaAsset = (value: unknown): LessonMediaAsset | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const media = value as Record<string, unknown>;
+  const id = toString(media.id);
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    lesson_id: toString(media.lesson_id) || null,
+    source_type: (toString(media.source_type) || "upload") as "upload" | "link",
+    media_kind: (toString(media.media_kind) || "image") as "image" | "gif" | "video",
+    source_url: toString(media.source_url) || null,
+    status: (toString(media.status) || "processing") as "processing" | "ready" | "failed",
+    playback_url: toString(media.playback_url) || null,
+    thumbnail_url: toString(media.thumbnail_url) || null,
+    storage_path: toString(media.storage_path) || null,
+    mime_type: toString(media.mime_type) || null,
+    duration_ms: Number(media.duration_ms ?? 0) || null,
+    width: Number(media.width ?? 0) || null,
+    height: Number(media.height ?? 0) || null,
+    size_bytes: Number(media.size_bytes ?? 0) || null,
+    error_message: toString(media.error_message) || null,
+    created_at: toString(media.created_at) || null,
+    updated_at: toString(media.updated_at) || null,
+  };
+};
+
+const normalizeContentSections = (lesson: Partial<Lesson> | Record<string, unknown> | null | undefined) => {
+  const rawSections = Array.isArray((lesson as Record<string, unknown> | null | undefined)?.content_sections)
+    ? (((lesson as Record<string, unknown>).content_sections as unknown[]) ?? [])
+    : [];
+
+  if (rawSections.length > 0) {
+    return LESSON_SECTION_CONFIG.map((config) => {
+      const sourceSection =
+        rawSections.find((section) => {
+          if (!section || typeof section !== "object") return false;
+          const typed = section as Record<string, unknown>;
+          const key = toString(typed.sectionKey ?? typed.section_key ?? typed.id);
+          return key === config.sectionKey;
+        }) ?? {};
+      const typedSection = sourceSection as Record<string, unknown>;
+      const rawBlocks = Array.isArray(typedSection.blocks) ? (typedSection.blocks as unknown[]) : [];
+      return {
+        sectionKey: config.sectionKey,
+        title: config.title,
+        blocks: rawBlocks
+          .map((block) => {
+            if (!block || typeof block !== "object") return null;
+            const typedBlock = block as Record<string, unknown>;
+            const blockType = toString(typedBlock.blockType ?? typedBlock.block_type) as LessonSectionBlockType;
+            if (!["text", "image", "gif", "video"].includes(blockType)) return null;
+            return {
+              id: toString(typedBlock.id) || createBlockId(),
+              blockType,
+              textContent: toString(typedBlock.textContent ?? typedBlock.text_content),
+              mediaAssetId: toString(typedBlock.mediaAssetId ?? typedBlock.media_asset_id),
+              caption: toString(typedBlock.caption),
+              altText: toString(typedBlock.altText ?? typedBlock.alt_text),
+              media: normalizeMediaAsset(typedBlock.media),
+              linkUrl: "",
+              isUploading: false,
+              error: null,
+            } satisfies LessonContentBlockForm;
+          })
+          .filter(Boolean) as LessonContentBlockForm[],
+      } satisfies LessonContentSectionForm;
+    });
+  }
+
+  return [
+    {
+      sectionKey: "intro",
+      title: "Origin",
+      blocks: toString(lesson?.origin_content)
+        ? [{ ...createEmptyBlock("text"), textContent: toString(lesson?.origin_content) }]
+        : [],
+    },
+    {
+      sectionKey: "definition",
+      title: "Definition",
+      blocks: toString(lesson?.definition_content)
+        ? [{ ...createEmptyBlock("text"), textContent: toString(lesson?.definition_content) }]
+        : [],
+    },
+    {
+      sectionKey: "usage",
+      title: "Usage Examples",
+      blocks: toStringList(lesson?.usage_examples)
+        .filter((value) => value.trim().length > 0)
+        .map((value) => ({ ...createEmptyBlock("text"), textContent: value })),
+    },
+    {
+      sectionKey: "lore",
+      title: "Lore",
+      blocks: toString(lesson?.lore_content)
+        ? [{ ...createEmptyBlock("text"), textContent: toString(lesson?.lore_content) }]
+        : [],
+    },
+    {
+      sectionKey: "evolution",
+      title: "Evolution",
+      blocks: toString(lesson?.evolution_content)
+        ? [{ ...createEmptyBlock("text"), textContent: toString(lesson?.evolution_content) }]
+        : [],
+    },
+    {
+      sectionKey: "comparison",
+      title: "Comparison",
+      blocks: toString(lesson?.comparison_content)
+        ? [{ ...createEmptyBlock("text"), textContent: toString(lesson?.comparison_content) }]
+        : [],
+    },
+  ];
+};
+
 const normalizeLessonDraft = (lesson: Partial<Lesson> | Record<string, unknown> | null | undefined): LessonDraftForm => ({
   id: lesson?.id ? String(lesson.id) : undefined,
   title: toString(lesson?.title),
@@ -270,12 +415,7 @@ const normalizeLessonDraft = (lesson: Partial<Lesson> | Record<string, unknown> 
   xp_reward: Number(lesson?.xp_reward ?? 100),
   badge_name: toString(lesson?.badge_name),
   difficulty_level: Number(lesson?.difficulty_level ?? 1),
-  origin_content: toString(lesson?.origin_content),
-  definition_content: toString(lesson?.definition_content),
-  usage_examples: toStringList(lesson?.usage_examples),
-  lore_content: toString(lesson?.lore_content),
-  evolution_content: toString(lesson?.evolution_content),
-  comparison_content: toString(lesson?.comparison_content),
+  content_sections: normalizeContentSections(lesson),
   is_published: Boolean(lesson?.is_published),
 });
 
@@ -290,6 +430,13 @@ const newQuestionByType = (
     explanation: "",
     points: 10,
     order_index: orderIndex,
+    media_url: null,
+    media_kind: null,
+    media_asset_id: null,
+    media_thumbnail_url: null,
+    media_status: "idle" as const,
+    media_link_url: "",
+    media_error: null,
   } as const;
 
   if (type === "multiple_choice") {
@@ -306,41 +453,6 @@ const newQuestionByType = (
       question_type: "true_false",
       options: {},
       correct_answer: "true",
-    };
-  }
-  if (type === "cloze") {
-    return {
-      ...base,
-      question_type: "cloze",
-      options: { blankOptions: { blank1: { A: "", B: "" } } },
-      correct_answer: '{"blank1":"A"}',
-    };
-  }
-  if (type === "word_bank") {
-    return {
-      ...base,
-      question_type: "word_bank",
-      options: { tokens: [{ id: "t1", text: "" }, { id: "t2", text: "" }] },
-      correct_answer: '["t1"]',
-    };
-  }
-  if (type === "conversation") {
-    return {
-      ...base,
-      question_type: "conversation",
-      options: {
-        turns: [
-          {
-            id: "turn_1",
-            prompt: "",
-            replies: [
-              { id: "r1", text: "" },
-              { id: "r2", text: "" },
-            ],
-          },
-        ],
-      },
-      correct_answer: '{"turn_1":"r1"}',
     };
   }
   if (type === "match_pairs") {
@@ -380,6 +492,13 @@ const normalizeAdminQuestion = (question: Partial<QuizQuestion>, orderIndex: num
     explanation: toString(question.explanation),
     points: Number(question.points ?? 10),
     order_index: Number(question.order_index ?? orderIndex),
+    media_url: toString(question.media_url) || null,
+    media_kind: inferLessonMediaKind(toString(question.media_url) || null, null),
+    media_asset_id: null,
+    media_thumbnail_url: null,
+    media_status: toString(question.media_url) ? "ready" : "idle",
+    media_link_url: "",
+    media_error: null,
     options:
       question.options && typeof question.options === "object" && !Array.isArray(question.options)
         ? (question.options as Record<string, unknown>)
@@ -398,12 +517,18 @@ const toLessonPayload = (form: LessonDraftForm) => ({
   xp_reward: Number(form.xp_reward || 0),
   badge_name: form.badge_name,
   difficulty_level: Number(form.difficulty_level || 1),
-  origin_content: form.origin_content,
-  definition_content: form.definition_content,
-  usage_examples: form.usage_examples.map((item) => item.trim()).filter(Boolean),
-  lore_content: form.lore_content,
-  evolution_content: form.evolution_content,
-  comparison_content: form.comparison_content,
+  content_sections: form.content_sections.map((section) => ({
+    sectionKey: section.sectionKey,
+    title: section.title,
+    blocks: section.blocks.map((block) => ({
+      id: block.id,
+      blockType: block.blockType,
+      textContent: block.textContent,
+      mediaAssetId: block.mediaAssetId || null,
+      caption: block.caption || null,
+      altText: block.altText || null,
+    })),
+  })),
 });
 
 const mapCompletenessToStatus = (
@@ -456,6 +581,9 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
   const [draftQuestion, setDraftQuestion] = useState<AdminQuizQuestionDraft | null>(null);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
   const [highlightedQuestionId, setHighlightedQuestionId] = useState<string | null>(null);
+  const [previewSectionKey, setPreviewSectionKey] = useState<string>(LESSON_SECTION_CONFIG[0]?.sectionKey ?? "intro");
+  const [previewAnimatingIndex, setPreviewAnimatingIndex] = useState<number | null>(null);
+  const [previewNextPulseIndex, setPreviewNextPulseIndex] = useState<number | null>(null);
   const [lessonForm, setLessonForm] = useState<LessonDraftForm>(() => normalizeLessonDraft(null));
   const [questions, setQuestions] = useState<AdminQuizQuestionDraft[]>([]);
   const [skipEmbedding, setSkipEmbedding] = useState(false);
@@ -487,6 +615,13 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
     const timeout = window.setTimeout(() => setHighlightedQuestionId(null), 600);
     return () => window.clearTimeout(timeout);
   }, [highlightedQuestionId]);
+
+  useEffect(() => {
+    if (lessonForm.content_sections.some((section) => section.sectionKey === previewSectionKey)) {
+      return;
+    }
+    setPreviewSectionKey(lessonForm.content_sections[0]?.sectionKey ?? LESSON_SECTION_CONFIG[0]?.sectionKey ?? "intro");
+  }, [lessonForm.content_sections, previewSectionKey]);
 
   useEffect(() => {
     let active = true;
@@ -566,6 +701,434 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
   const markStepUnsaved = (step: WizardStepKey) => {
     setStepStatus((prev) => ({ ...prev, [step]: "unsaved" }));
     setIsDirty(true);
+  };
+
+  const updateSectionBlocks = (
+    sectionKey: string,
+    updater: (blocks: LessonContentBlockForm[]) => LessonContentBlockForm[]
+  ) => {
+    setPreviewSectionKey(sectionKey);
+    setLessonForm((prev) => ({
+      ...prev,
+      content_sections: prev.content_sections.map((section) =>
+        section.sectionKey === sectionKey ? { ...section, blocks: updater(section.blocks) } : section
+      ),
+    }));
+    markStepUnsaved("content");
+  };
+
+  const updateBlock = (
+    sectionKey: string,
+    blockId: string,
+    updater: (block: LessonContentBlockForm) => LessonContentBlockForm
+  ) => {
+    updateSectionBlocks(sectionKey, (blocks) =>
+      blocks.map((block) => (block.id === blockId ? updater(block) : block))
+    );
+  };
+
+  const moveBlock = (sectionKey: string, blockId: string, direction: -1 | 1) => {
+    updateSectionBlocks(sectionKey, (blocks) => {
+      const index = blocks.findIndex((block) => block.id === blockId);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= blocks.length) {
+        return blocks;
+      }
+      const next = [...blocks];
+      const [block] = next.splice(index, 1);
+      next.splice(nextIndex, 0, block);
+      return next;
+    });
+  };
+
+  const addContentBlock = (sectionKey: string, blockType: LessonSectionBlockType) => {
+    updateSectionBlocks(sectionKey, (blocks) => [...blocks, createEmptyBlock(blockType)]);
+  };
+
+  const removeContentBlock = (sectionKey: string, blockId: string) => {
+    updateSectionBlocks(sectionKey, (blocks) => blocks.filter((block) => block.id !== blockId));
+  };
+
+  const pollLessonMedia = async (sectionKey: string, blockId: string, assetId: string) => {
+    if (!lessonId) return;
+    for (let attempt = 0; attempt < 45; attempt += 1) {
+      try {
+        const status = await fetchLessonMediaStatus(lessonId, assetId);
+        updateBlock(sectionKey, blockId, (block) => ({
+          ...block,
+          media: {
+            ...(block.media ?? {
+              id: status.assetId,
+              source_type: "upload",
+              media_kind: status.mediaKind,
+            }),
+            id: status.assetId,
+            media_kind: status.mediaKind,
+            status: status.status,
+            playback_url: status.playbackUrl ?? null,
+            thumbnail_url: status.thumbnailUrl ?? null,
+            error_message: status.errorMessage ?? null,
+          },
+          mediaAssetId: assetId,
+          isUploading: status.status === "processing",
+          error: status.status === "failed" ? status.errorMessage ?? "Media processing failed." : null,
+        }));
+        if (status.status !== "processing") {
+          return;
+        }
+      } catch (error) {
+        updateBlock(sectionKey, blockId, (block) => ({
+          ...block,
+          isUploading: false,
+          error: error instanceof Error ? error.message : "Failed to fetch media status.",
+        }));
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+    }
+  };
+
+  const handleUploadBlockMedia = async (sectionKey: string, blockId: string, file: File | null) => {
+    if (!lessonId || !file) return;
+    updateBlock(sectionKey, blockId, (block) => ({ ...block, isUploading: true, error: null }));
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await startLessonMediaUpload(lessonId, formData);
+      updateBlock(sectionKey, blockId, (block) => ({
+        ...block,
+        mediaAssetId: response.assetId,
+        media: {
+          id: response.assetId,
+          source_type: "upload",
+          media_kind: block.blockType === "text" ? "image" : block.blockType,
+          status: "processing",
+        },
+        isUploading: true,
+        error: null,
+      }));
+      void pollLessonMedia(sectionKey, blockId, response.assetId);
+    } catch (error) {
+      updateBlock(sectionKey, blockId, (block) => ({
+        ...block,
+        isUploading: false,
+        error: error instanceof Error ? error.message : "Upload failed.",
+      }));
+    }
+  };
+
+  const handleAttachBlockLink = async (sectionKey: string, blockId: string) => {
+    if (!lessonId) return;
+    const section = lessonForm.content_sections.find((item) => item.sectionKey === sectionKey);
+    const block = section?.blocks.find((item) => item.id === blockId);
+    if (!block || !block.linkUrl.trim()) {
+      updateBlock(sectionKey, blockId, (current) => ({ ...current, error: "Enter a media URL first." }));
+      return;
+    }
+
+    updateBlock(sectionKey, blockId, (current) => ({ ...current, isUploading: true, error: null }));
+    try {
+      const response = await startLessonMediaLink(lessonId, {
+        sourceUrl: block.linkUrl.trim(),
+        mediaKind: block.blockType === "text" ? "image" : block.blockType,
+      });
+      updateBlock(sectionKey, blockId, (current) => ({
+        ...current,
+        mediaAssetId: response.assetId,
+        media: {
+          id: response.assetId,
+          source_type: "link",
+          media_kind: current.blockType === "text" ? "image" : current.blockType,
+          status: "processing",
+          source_url: current.linkUrl.trim(),
+        },
+        isUploading: true,
+        error: null,
+      }));
+      void pollLessonMedia(sectionKey, blockId, response.assetId);
+    } catch (error) {
+      updateBlock(sectionKey, blockId, (current) => ({
+        ...current,
+        isUploading: false,
+        error: error instanceof Error ? error.message : "Failed to attach media URL.",
+      }));
+    }
+  };
+
+  const resolveBlockMediaUrl = (block: LessonContentBlockForm) =>
+    block.media?.playback_url ?? block.media?.source_url ?? "";
+
+  const mediaAcceptForBlock = (blockType: LessonSectionBlockType) => {
+    if (blockType === "text") {
+      return "image/*,image/gif,video/*";
+    }
+    return "image/*,image/gif,video/*";
+  };
+
+  const previewSections = lessonForm.content_sections;
+  const previewCurrentIndex = Math.max(
+    0,
+    previewSections.findIndex((section) => section.sectionKey === previewSectionKey)
+  );
+  const previewCurrentSection = previewSections[previewCurrentIndex] ?? previewSections[0] ?? null;
+  const previewCompletedSections = previewCurrentIndex;
+  const previewHasPrevious = previewCurrentIndex > 0;
+  const previewHasNext = previewCurrentIndex >= 0 && previewCurrentIndex < previewSections.length - 1;
+
+  const previewRailOffsetX = (index: number) =>
+    index % 2 === 0 ? -PREVIEW_STEP_HORIZONTAL_OFFSET : PREVIEW_STEP_HORIZONTAL_OFFSET;
+
+  const setPreviewSectionByIndex = (index: number) => {
+    const target = previewSections[index];
+    if (!target) {
+      return;
+    }
+    setPreviewSectionKey(target.sectionKey);
+  };
+
+  const animatePreviewAdvance = (direction: -1 | 1) => {
+    const nextIndex = previewCurrentIndex + direction;
+    if (nextIndex < 0 || nextIndex >= previewSections.length) {
+      return;
+    }
+    if (direction > 0) {
+      setPreviewAnimatingIndex(previewCurrentIndex);
+      setPreviewNextPulseIndex(nextIndex);
+      window.setTimeout(() => {
+        setPreviewAnimatingIndex(null);
+        setPreviewNextPulseIndex(null);
+      }, 650);
+    }
+    setPreviewSectionByIndex(nextIndex);
+  };
+
+  const renderContentBlockPreview = (block: LessonContentBlockForm) => {
+    const mediaUrl = resolveBlockMediaUrl(block);
+    const isReady = block.media?.status === "ready" && mediaUrl;
+
+    if (block.blockType === "text") {
+      const paragraphs = block.textContent
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      if (paragraphs.length === 0) {
+        return <p className="text-sm text-muted-foreground">Add text to preview this block.</p>;
+      }
+
+      return (
+        <div className="space-y-3 text-base leading-7 text-mainAccent/95 dark:text-white/95">
+          {paragraphs.map((paragraph, index) => (
+            <p key={`${block.id}-preview-text-${index}`}>{paragraph}</p>
+          ))}
+        </div>
+      );
+    }
+
+    if (!isReady) {
+      return (
+        <div className="rounded-xl border border-dashed bg-muted/30 px-4 py-8 text-sm text-muted-foreground">
+          {block.isUploading
+            ? "Processing media..."
+            : "Upload a file or attach a URL to preview this media block."}
+        </div>
+      );
+    }
+
+    if (block.blockType === "video") {
+      return (
+        <div className="space-y-2">
+          <FeedVideoPlayer
+            sourceUrl={mediaUrl}
+            poster={block.media?.thumbnail_url ?? null}
+            showPoster
+            className="w-full overflow-hidden rounded-xl bg-black"
+            controls
+            loop={false}
+            isActive
+            isPaused={false}
+            shouldAutoplay={false}
+          />
+          {block.caption.trim() ? <p className="text-sm text-muted-foreground">{block.caption.trim()}</p> : null}
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        <img
+          src={mediaUrl}
+          alt={block.altText.trim() || block.caption.trim() || "Lesson media preview"}
+          className="max-h-80 w-full rounded-xl border object-cover"
+        />
+        {block.caption.trim() ? <p className="text-sm text-muted-foreground">{block.caption.trim()}</p> : null}
+      </div>
+    );
+  };
+
+  const renderFullLessonPreview = () => {
+    const previewTitle = lessonForm.title.trim() || "Untitled Lesson";
+    const previewSummary = lessonForm.summary.trim() || "Your lesson summary will appear here.";
+
+    return (
+      <div className="h-full xl:sticky xl:top-6">
+        <div className="overflow-hidden rounded-[2rem] border bg-card shadow-xl xl:flex xl:h-full xl:flex-col">
+          <div className="border-b bg-gradient-to-br from-mainAccent/10 via-background to-background px-6 py-5">
+            <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">Full Lesson Preview</p>
+            <div className="mt-3 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="inline-flex items-center text-sm text-mainAccent dark:text-white">
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Lesson Details
+                </div>
+                <h3 className="mt-3 text-2xl font-bold text-mainAccent dark:text-white">{previewTitle}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{previewSummary}</p>
+              </div>
+              <Badge variant="outline" className="shrink-0">
+                {previewCurrentIndex + 1}/{Math.max(previewSections.length, 1)}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="grid min-h-[720px] grid-cols-[132px_minmax(0,1fr)] gap-0 bg-background xl:min-h-0 xl:flex-1">
+            <aside className="relative border-r bg-muted/20 px-3 py-6">
+              <button
+                type="button"
+                aria-label="Previous preview section"
+                onClick={() => animatePreviewAdvance(-1)}
+                disabled={!previewHasPrevious}
+                className="mx-auto mb-4 flex h-9 w-9 items-center justify-center rounded-full border border-mainAlt bg-main text-mainAccent disabled:opacity-40"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+
+              <div className="relative mx-auto h-[460px] w-[108px] overflow-hidden">
+                {previewSections.map((section, index) => {
+                  const relative = index - previewCurrentIndex;
+                  const distance = Math.abs(relative);
+                  const isVisible = distance <= PREVIEW_MAX_VISIBLE_DISTANCE;
+                  const opacity = distance === 0 ? 1 : distance === 1 ? 0.72 : distance === 2 ? 0.42 : 0.2;
+                  const scale = distance === 0 ? 1 : distance === 1 ? 0.86 : distance === 2 ? 0.72 : 0.62;
+                  const y = relative * PREVIEW_STEP_GAP;
+                  const x = previewRailOffsetX(index);
+                  const isCompleted = index < previewCompletedSections;
+                  const isCurrent = index === previewCurrentIndex;
+                  const baseClasses = isCompleted
+                    ? "bg-duoGreen border-[#b51f3d] text-white shadow-mainCircleShadow"
+                    : isCurrent
+                      ? "bg-mainAccent border-mainAccent text-main shadow-mainCircleShadow"
+                      : "bg-main border-mainAlt text-mainAccent/85 dark:text-white/85 shadow-mainCircleShadow";
+
+                  return (
+                    <div
+                      key={`preview-stop-${section.sectionKey}`}
+                      className={cn("absolute left-1/2 top-1/2 transition-all duration-500", !isVisible && "pointer-events-none")}
+                      style={{
+                        transform: `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${scale})`,
+                        opacity: isVisible ? opacity : 0,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setPreviewSectionKey(section.sectionKey)}
+                        className={cn(
+                          "relative flex h-16 w-[68px] items-center justify-center rounded-full border-2 transition-transform duration-200",
+                          baseClasses,
+                          isCurrent && "animate-stop-current ring-4 ring-mainAccent/25",
+                          previewAnimatingIndex === index && "animate-stop-fill",
+                          previewNextPulseIndex === index && "animate-stop-next"
+                        )}
+                      >
+                        {isCompleted ? (
+                          <Check className="h-6 w-6" />
+                        ) : isCurrent ? (
+                          <Star className="h-6 w-6 fill-current" />
+                        ) : (
+                          <span className="text-lg">{index + 1}</span>
+                        )}
+                      </button>
+                      <p
+                        className="pointer-events-none absolute left-1/2 top-[72px] h-8 w-[120px] -translate-x-1/2 overflow-hidden text-center text-[11px] leading-4 text-mainAccent/90 dark:text-white/90 break-words"
+                        title={section.title}
+                      >
+                        {section.title}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                aria-label="Next preview section"
+                onClick={() => animatePreviewAdvance(1)}
+                disabled={!previewHasNext}
+                className="mx-auto mt-4 flex h-9 w-9 items-center justify-center rounded-full border border-mainAlt bg-main text-mainAccent disabled:opacity-40"
+              >
+                <ArrowDown className="h-4 w-4" />
+              </button>
+            </aside>
+
+            <div className="flex min-h-[720px] flex-col">
+              <div className="border-b px-6 py-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Section Page</p>
+                    <h4 className="mt-2 text-4xl font-semibold text-mainAccent dark:text-white">
+                      {previewCurrentSection?.title ?? "Section Preview"}
+                    </h4>
+                  </div>
+                  <Badge variant="outline">
+                    {previewCurrentSection?.blocks.length ?? 0} block
+                    {(previewCurrentSection?.blocks.length ?? 0) === 1 ? "" : "s"}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-6">
+                {previewCurrentSection && previewCurrentSection.blocks.length > 0 ? (
+                  <div className="space-y-5 text-lg leading-9 text-mainAccent/95 dark:text-white/95">
+                    {previewCurrentSection.blocks.map((block) => (
+                      <div key={`${previewCurrentSection.sectionKey}-${block.id}`} className="rounded-2xl bg-card p-4 shadow-sm">
+                        {renderContentBlockPreview(block)}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed bg-muted/20 px-5 py-12 text-base text-muted-foreground">
+                    This section preview is empty. Add text or media blocks on the left and they will render here in the learner layout.
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t bg-background/95 px-6 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!previewHasPrevious}
+                    onClick={() => animatePreviewAdvance(-1)}
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back
+                  </Button>
+                  {previewHasNext ? (
+                    <Button type="button" className="duo-button-primary" onClick={() => animatePreviewAdvance(1)}>
+                      Next
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Button type="button" className="duo-button-primary">
+                      Take Quiz
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const saveStep = async (
@@ -741,6 +1304,165 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
 
   const handleQuestionDraftUpdate = (nextQuestion: AdminQuizQuestionDraft) => {
     setDraftQuestion(nextQuestion);
+  };
+
+  const pollQuestionMedia = async (assetId: string) => {
+    if (!lessonId) return;
+    for (let attempt = 0; attempt < 45; attempt += 1) {
+      try {
+        const status = await fetchLessonMediaStatus(lessonId, assetId);
+        setDraftQuestion((current) => {
+          if (!current || current.media_asset_id !== assetId) {
+            return current;
+          }
+          return {
+            ...current,
+            media_asset_id: assetId,
+            media_kind: status.mediaKind,
+            media_status: status.status,
+            media_thumbnail_url: status.thumbnailUrl ?? null,
+            media_url: status.status === "ready" ? status.playbackUrl ?? current.media_url : null,
+            media_error: status.status === "failed" ? status.errorMessage ?? "Media processing failed." : null,
+          };
+        });
+        if (status.status !== "processing") {
+          return;
+        }
+      } catch (error) {
+        setDraftQuestion((current) =>
+          current && current.media_asset_id === assetId
+            ? {
+                ...current,
+                media_status: "failed",
+                media_error: error instanceof Error ? error.message : "Failed to fetch media status.",
+              }
+            : current
+        );
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 2000));
+    }
+  };
+
+  const handleUploadQuestionMedia = async (kind: LessonMediaKind, file: File | null) => {
+    if (!lessonId || !file || !draftQuestion) return;
+    setDraftQuestion((current) =>
+      current
+        ? {
+            ...current,
+            media_kind: kind,
+            media_url: null,
+            media_thumbnail_url: null,
+            media_status: "processing",
+            media_error: null,
+          }
+        : current
+    );
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await startLessonMediaUpload(lessonId, formData);
+      setDraftQuestion((current) =>
+        current
+          ? {
+              ...current,
+              media_asset_id: response.assetId,
+              media_kind: kind,
+              media_status: "processing",
+              media_url: null,
+              media_thumbnail_url: null,
+              media_error: null,
+            }
+          : current
+      );
+      void pollQuestionMedia(response.assetId);
+    } catch (error) {
+      setDraftQuestion((current) =>
+        current
+          ? {
+              ...current,
+              media_status: "failed",
+              media_error: error instanceof Error ? error.message : "Upload failed.",
+            }
+          : current
+      );
+    }
+  };
+
+  const handleAttachQuestionMediaLink = async (kind: LessonMediaKind) => {
+    if (!lessonId || !draftQuestion) return;
+    const sourceUrl = draftQuestion.media_link_url?.trim();
+    if (!sourceUrl) {
+      setDraftQuestion((current) =>
+        current
+          ? {
+              ...current,
+              media_error: "Enter a media URL first.",
+            }
+          : current
+      );
+      return;
+    }
+
+    setDraftQuestion((current) =>
+      current
+        ? {
+            ...current,
+            media_kind: kind,
+            media_url: null,
+            media_thumbnail_url: null,
+            media_status: "processing",
+            media_error: null,
+          }
+        : current
+    );
+    try {
+      const response = await startLessonMediaLink(lessonId, {
+        sourceUrl,
+        mediaKind: kind,
+      });
+      setDraftQuestion((current) =>
+        current
+          ? {
+              ...current,
+              media_asset_id: response.assetId,
+              media_kind: kind,
+              media_status: "processing",
+              media_url: null,
+              media_thumbnail_url: null,
+              media_error: null,
+            }
+          : current
+      );
+      void pollQuestionMedia(response.assetId);
+    } catch (error) {
+      setDraftQuestion((current) =>
+        current
+          ? {
+              ...current,
+              media_status: "failed",
+              media_error: error instanceof Error ? error.message : "Failed to attach media URL.",
+            }
+          : current
+      );
+    }
+  };
+
+  const handleRemoveQuestionMedia = () => {
+    setDraftQuestion((current) =>
+      current
+        ? {
+            ...current,
+            media_url: null,
+            media_kind: null,
+            media_asset_id: null,
+            media_thumbnail_url: null,
+            media_status: "idle",
+            media_link_url: "",
+            media_error: null,
+          }
+        : current
+    );
   };
 
   const handlePublish = async (options?: { skip_embedding?: boolean }) => {
@@ -931,148 +1653,299 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
   );
 
   const renderContentStep = () => (
-    <Card>
+    <Card className="overflow-hidden">
       <CardHeader>
         <CardTitle>Lesson Content</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label>Learning Objectives</Label>
-          {lessonForm.learning_objectives.map((objective, index) => (
-            <div key={`objective-${index}`} className="grid grid-cols-[1fr_auto] gap-2">
-              <Input
-                value={objective}
-                onChange={(event) => {
-                  const next = [...lessonForm.learning_objectives];
-                  next[index] = event.target.value;
-                  setLessonForm((prev) => ({ ...prev, learning_objectives: next }));
-                  markStepUnsaved("content");
-                }}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  const next = lessonForm.learning_objectives.filter((_, objectiveIndex) => objectiveIndex !== index);
-                  setLessonForm((prev) => ({ ...prev, learning_objectives: next.length ? next : [""] }));
-                  markStepUnsaved("content");
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+      <CardContent className="p-0">
+        <div className="grid gap-0 xl:h-[calc(100vh-14rem)] xl:grid-cols-2">
+          <div className="space-y-6 border-b p-5 xl:h-full xl:overflow-y-auto xl:border-b-0 xl:border-r xl:p-6">
+            <div className="rounded-2xl border bg-muted/10 p-4 md:p-5">
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Lesson Content Editor</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Build the six fixed learner sections on the left. The full learner page preview stays live on the right.
+                  </p>
+                </div>
+                <Badge variant="outline">{lessonForm.content_sections.length} sections</Badge>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Learning Objectives</Label>
+                {lessonForm.learning_objectives.map((objective, index) => (
+                  <div key={`objective-${index}`} className="grid grid-cols-[1fr_auto] gap-2">
+                    <Input
+                      value={objective}
+                      onChange={(event) => {
+                        const next = [...lessonForm.learning_objectives];
+                        next[index] = event.target.value;
+                        setLessonForm((prev) => ({ ...prev, learning_objectives: next }));
+                        markStepUnsaved("content");
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const next = lessonForm.learning_objectives.filter((_, objectiveIndex) => objectiveIndex !== index);
+                        setLessonForm((prev) => ({ ...prev, learning_objectives: next.length ? next : [""] }));
+                        markStepUnsaved("content");
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setLessonForm((prev) => ({
+                      ...prev,
+                      learning_objectives: [...prev.learning_objectives, ""],
+                    }));
+                    markStepUnsaved("content");
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Objective
+                </Button>
+              </div>
             </div>
-          ))}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setLessonForm((prev) => ({
-                ...prev,
-                learning_objectives: [...prev.learning_objectives, ""],
-              }));
-              markStepUnsaved("content");
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Objective
-          </Button>
-        </div>
-        <div className="space-y-2">
-          <Label>Origin</Label>
-          <Textarea
-            value={lessonForm.origin_content}
-            onChange={(event) => {
-              setLessonForm((prev) => ({ ...prev, origin_content: event.target.value }));
-              markStepUnsaved("content");
-            }}
-            rows={3}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Definition</Label>
-          <Textarea
-            value={lessonForm.definition_content}
-            onChange={(event) => {
-              setLessonForm((prev) => ({ ...prev, definition_content: event.target.value }));
-              markStepUnsaved("content");
-            }}
-            rows={3}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Usage Examples</Label>
-          {lessonForm.usage_examples.map((example, index) => (
-            <div key={`example-${index}`} className="grid grid-cols-[1fr_auto] gap-2">
-              <Input
-                value={example}
-                onChange={(event) => {
-                  const next = [...lessonForm.usage_examples];
-                  next[index] = event.target.value;
-                  setLessonForm((prev) => ({ ...prev, usage_examples: next }));
-                  markStepUnsaved("content");
-                }}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  const next = lessonForm.usage_examples.filter((_, exampleIndex) => exampleIndex !== index);
-                  setLessonForm((prev) => ({ ...prev, usage_examples: next.length ? next : [""] }));
-                  markStepUnsaved("content");
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+
+            <div className="space-y-5">
+              {lessonForm.content_sections.map((section) => (
+                <div
+                  key={section.sectionKey}
+                  className={cn(
+                    "rounded-2xl border p-4 transition-colors md:p-5",
+                    previewSectionKey === section.sectionKey
+                      ? "border-mainAccent/50 bg-mainAccent/5"
+                      : "bg-card"
+                  )}
+                  onClick={() => setPreviewSectionKey(section.sectionKey)}
+                >
+                  <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold">{section.title}</h3>
+                        {previewSectionKey === section.sectionKey ? <Badge variant="secondary">Previewing</Badge> : null}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Build this section with ordered text, image, GIF, and video blocks.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addContentBlock(section.sectionKey, "text")}
+                      >
+                        <Type className="mr-2 h-4 w-4" />
+                        Add Text
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addContentBlock(section.sectionKey, "image")}
+                      >
+                        <ImageIcon className="mr-2 h-4 w-4" />
+                        Add Image
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addContentBlock(section.sectionKey, "gif")}
+                      >
+                        <ImageIcon className="mr-2 h-4 w-4" />
+                        Add GIF
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addContentBlock(section.sectionKey, "video")}
+                      >
+                        <Video className="mr-2 h-4 w-4" />
+                        Add Video
+                      </Button>
+                    </div>
+                  </div>
+
+                  {section.blocks.length === 0 ? (
+                    <div className="rounded-xl border border-dashed bg-muted/30 px-4 py-8 text-sm text-muted-foreground">
+                      This section is empty. Add at least one block before publishing.
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-3">
+                    {section.blocks.map((block, index) => (
+                      <div key={block.id} className="rounded-xl border bg-card p-4">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">#{index + 1}</Badge>
+                            <Badge variant="outline" className="capitalize">
+                              {block.blockType}
+                            </Badge>
+                            {block.media?.status ? (
+                              <Badge variant={block.media.status === "failed" ? "destructive" : "outline"}>
+                                {block.media.status}
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              disabled={index === 0}
+                              onClick={() => moveBlock(section.sectionKey, block.id, -1)}
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              disabled={index === section.blocks.length - 1}
+                              onClick={() => moveBlock(section.sectionKey, block.id, 1)}
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => removeContentBlock(section.sectionKey, block.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {block.blockType === "text" ? (
+                          <div className="space-y-2">
+                            <Label>Text</Label>
+                            <Textarea
+                              value={block.textContent}
+                              onChange={(event) => {
+                                updateBlock(section.sectionKey, block.id, (current) => ({
+                                  ...current,
+                                  textContent: event.target.value,
+                                }));
+                              }}
+                              rows={5}
+                              placeholder="Write the lesson text for this section block."
+                            />
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  <ImageIcon className="h-4 w-4" />
+                                  Upload File
+                                </Label>
+                                <Input
+                                  type="file"
+                                  accept={mediaAcceptForBlock(block.blockType)}
+                                  onChange={(event) => {
+                                    const file = event.target.files?.[0] ?? null;
+                                    void handleUploadBlockMedia(section.sectionKey, block.id, file);
+                                    event.currentTarget.value = "";
+                                  }}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  <Link2 className="h-4 w-4" />
+                                  Media URL
+                                </Label>
+                                <div className="flex gap-2">
+                                  <Input
+                                    value={block.linkUrl}
+                                    onChange={(event) => {
+                                      updateBlock(section.sectionKey, block.id, (current) => ({
+                                        ...current,
+                                        linkUrl: event.target.value,
+                                      }));
+                                    }}
+                                    placeholder="https://..."
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                      void handleAttachBlockLink(section.sectionKey, block.id);
+                                    }}
+                                    disabled={block.isUploading}
+                                  >
+                                    Attach
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>Caption</Label>
+                                <Input
+                                  value={block.caption}
+                                  onChange={(event) => {
+                                    updateBlock(section.sectionKey, block.id, (current) => ({
+                                      ...current,
+                                      caption: event.target.value,
+                                    }));
+                                  }}
+                                  placeholder="Optional caption"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Alt Text</Label>
+                                <Input
+                                  value={block.altText}
+                                  onChange={(event) => {
+                                    updateBlock(section.sectionKey, block.id, (current) => ({
+                                      ...current,
+                                      altText: event.target.value,
+                                    }));
+                                  }}
+                                  placeholder="Describe the media"
+                                />
+                              </div>
+                            </div>
+
+                            {block.isUploading ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Media is processing. Video may take longer than images or GIFs.
+                              </div>
+                            ) : null}
+
+                            {block.error ? (
+                              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                                {block.error}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setLessonForm((prev) => ({ ...prev, usage_examples: [...prev.usage_examples, ""] }));
-              markStepUnsaved("content");
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Example
-          </Button>
-        </div>
-        <div className="space-y-2">
-          <Label>Lore</Label>
-          <Textarea
-            value={lessonForm.lore_content}
-            onChange={(event) => {
-              setLessonForm((prev) => ({ ...prev, lore_content: event.target.value }));
-              markStepUnsaved("content");
-            }}
-            rows={3}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Evolution</Label>
-          <Textarea
-            value={lessonForm.evolution_content}
-            onChange={(event) => {
-              setLessonForm((prev) => ({ ...prev, evolution_content: event.target.value }));
-              markStepUnsaved("content");
-            }}
-            rows={3}
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Comparison</Label>
-          <Textarea
-            value={lessonForm.comparison_content}
-            onChange={(event) => {
-              setLessonForm((prev) => ({ ...prev, comparison_content: event.target.value }));
-              markStepUnsaved("content");
-            }}
-            rows={2}
-          />
+          </div>
+
+          <div className="bg-muted/10 p-4 xl:h-full xl:overflow-hidden xl:p-6">
+            {renderFullLessonPreview()}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -1237,6 +2110,10 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
                 question={draftQuestion}
                 onChange={handleQuestionDraftUpdate}
                 errorMessage={draftErrors[0] ?? null}
+                mediaEnabled={Boolean(lessonId)}
+                onUploadMedia={handleUploadQuestionMedia}
+                onAttachMediaLink={handleAttachQuestionMediaLink}
+                onRemoveMedia={handleRemoveQuestionMedia}
               />
 
               {draftErrors.length > 0 ? (

@@ -22,7 +22,7 @@ const parseAuthParams = () => {
   };
 };
 
-const AuthCallbackPage = () => {
+const AuthFinishPage = () => {
   const navigate = useNavigate();
   const { checkAuth } = useAuthContext();
   const authParams = useMemo(() => parseAuthParams(), []);
@@ -51,13 +51,13 @@ const AuthCallbackPage = () => {
     }
 
     if (type === 'recovery') {
-      window.history.replaceState({}, document.title, '/auth/callback');
+      window.history.replaceState({}, document.title, '/auth/finish');
       navigate(`/reset-password#access_token=${encodeURIComponent(accessToken)}`, { replace: true });
       return;
     }
 
     setTokens(accessToken, refreshToken, tokenType);
-    window.history.replaceState({}, document.title, '/auth/callback');
+    window.history.replaceState({}, document.title, '/auth/finish');
 
     const completeSignIn = async () => {
       try {
@@ -108,4 +108,4 @@ const AuthCallbackPage = () => {
   );
 };
 
-export default AuthCallbackPage;
+export default AuthFinishPage;

@@ -13,9 +13,7 @@ import com.rotiprata.api.dto.RegisterRequest;
 import com.rotiprata.api.dto.ResetPasswordRequest;
 import com.rotiprata.security.SecurityUtils;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -26,7 +24,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -34,18 +31,15 @@ public class AuthController {
     private final AuthService authService;
     private final LoginStreakService loginStreakService;
     private final UserService userService;
-    private final String frontendUrl;
 
     public AuthController(
         AuthService authService,
         LoginStreakService loginStreakService,
-        UserService userService,
-        @Value("${app.frontend-url:http://localhost:5173}") String frontendUrl
+        UserService userService
     ) {
         this.authService = authService;
         this.loginStreakService = loginStreakService;
         this.userService = userService;
-        this.frontendUrl = frontendUrl;
     }
 
     @PostMapping("/login")
@@ -89,20 +83,6 @@ public class AuthController {
             SecurityUtils.getAccessToken(),
             request == null ? null : request.timezone()
         );
-    }
-
-    @GetMapping("/login/google")
-    public ResponseEntity<Void> loginGoogle(@RequestParam(value = "redirectTo", required = false) String redirectTo) {
-        String callback = (redirectTo != null && !redirectTo.isBlank())
-            ? redirectTo
-            : UriComponentsBuilder.fromHttpUrl(frontendUrl)
-                .path("/auth/callback")
-                .build()
-                .toUriString();
-        String url = authService.buildOAuthUrl("google", callback);
-        return ResponseEntity.status(HttpStatus.FOUND)
-            .header(HttpHeaders.LOCATION, url)
-            .build();
     }
 
     @GetMapping("/username-available")

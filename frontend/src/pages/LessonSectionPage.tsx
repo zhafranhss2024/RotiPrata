@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
+import { LessonMediaDisplay } from "@/components/lesson/LessonMediaDisplay";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Star } from "lucide-react";
-import type { Lesson, LessonProgressDetail, LessonSection } from "@/types";
+import type { Lesson, LessonProgressDetail, LessonSection, LessonSectionBlock } from "@/types";
 import {
   completeLessonSection,
   fetchLessonById,
@@ -28,6 +29,44 @@ const resolveSectionLabel = (title: string | null | undefined, index: number) =>
     return normalized;
   }
   return `Topic ${index + 1}`;
+};
+
+const renderSectionBlock = (sectionId: string, block: LessonSectionBlock, index: number) => {
+  if (block.block_type === "text") {
+    const paragraphs = String(block.text_content ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (paragraphs.length === 0) {
+      return null;
+    }
+
+    return (
+      <div key={`${sectionId}-text-${index}`} className="space-y-4">
+        {paragraphs.map((paragraph, paragraphIndex) => (
+          <p key={`${sectionId}-text-${index}-${paragraphIndex}`}>{paragraph}</p>
+        ))}
+      </div>
+    );
+  }
+
+  const mediaUrl = block.media?.playback_url ?? block.media?.source_url ?? "";
+  if (!mediaUrl) {
+    return null;
+  }
+
+  return (
+    <LessonMediaDisplay
+      key={`${sectionId}-media-${index}`}
+      mediaUrl={mediaUrl}
+      mediaKind={block.block_type === "text" ? null : block.block_type}
+      thumbnailUrl={block.media?.thumbnail_url ?? null}
+      alt={block.alt_text ?? null}
+      caption={block.caption ?? null}
+      mediaClassName="max-h-[32rem]"
+    />
+  );
 };
 
 const LessonSectionPage = () => {
@@ -397,12 +436,12 @@ const LessonSectionPage = () => {
           <section className="min-w-0 max-w-4xl w-full justify-self-center pt-6 lg:h-full lg:flex lg:flex-col overflow-hidden">
             <h2 className="text-4xl text-mainAccent dark:text-white mb-7 flex-none">{currentSection.title}</h2>
             <div className="space-y-4 text-lg leading-9 text-mainAccent/95 dark:text-white/95 min-h-[48dvh] lg:min-h-0 lg:flex-1 lg:pr-2">
-              {currentSection.content
-                .split("\n")
-                .filter((line) => line.trim().length > 0)
-                .map((line, index) => (
-                  <p key={`${currentSection.id}-${index}`}>{line}</p>
-                ))}
+              {currentSection.blocks.length > 0
+                ? currentSection.blocks.map((block, index) => renderSectionBlock(currentSection.id, block, index))
+                : currentSection.content
+                    .split("\n")
+                    .filter((line) => line.trim().length > 0)
+                    .map((line, index) => <p key={`${currentSection.id}-${index}`}>{line}</p>)}
             </div>
           </section>
         </div>

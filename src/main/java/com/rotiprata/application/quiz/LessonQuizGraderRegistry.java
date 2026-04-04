@@ -14,9 +14,6 @@ public class LessonQuizGraderRegistry {
     private static final Set<String> SUPPORTED_TYPES = Set.of(
         "multiple_choice",
         "true_false",
-        "cloze",
-        "word_bank",
-        "conversation",
         "match_pairs",
         "short_text"
     );

@@ -1,32 +1,34 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import React from "react";
+import { Image as ImageIcon, Link2, Loader2, Plus, Trash2, Video } from "lucide-react";
 import type { AdminQuizQuestionDraft } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MatchPairsBoard } from "@/components/quiz/MatchPairsBoard";
-import { ConversationBoard } from "@/components/quiz/ConversationBoard";
+import { LessonMediaDisplay, inferLessonMediaKind, type LessonMediaKind } from "@/components/lesson/LessonMediaDisplay";
+import { cn } from "@/lib/utils";
 
 type Props = {
   question: AdminQuizQuestionDraft;
   onChange: (next: AdminQuizQuestionDraft) => void;
   errorMessage?: string | null;
+  mediaEnabled?: boolean;
+  onUploadMedia: (kind: LessonMediaKind, file: File | null) => void;
+  onAttachMediaLink: (kind: LessonMediaKind) => void;
+  onRemoveMedia: () => void;
 };
 
 type ChoiceMap = Record<string, string>;
-type BlankOptions = Record<string, ChoiceMap>;
-type StringMap = Record<string, string>;
-type ClozeTemplatePart = { kind: "text"; value: string } | { kind: "blank"; blankId: string };
-
-const CLOZE_TOKEN_REGEX = /\{\{([a-zA-Z0-9_-]+)\}\}/g;
-const LEGACY_CLOZE_TOKEN_REGEX = /\{\{blank_(\d+)\}\}/gi;
+type MatchPairRow = {
+  leftText: string;
+  rightText: string;
+};
 
 const safeJsonParse = <T,>(value: string | null | undefined, fallback: T): T => {
   if (!value) return fallback;
   try {
-    const parsed = JSON.parse(value);
-    return parsed as T;
+    return JSON.parse(value) as T;
   } catch {
     return fallback;
   }
@@ -36,303 +38,13 @@ const normalizeChoiceMap = (value: unknown): ChoiceMap => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return { A: "", B: "", C: "", D: "" };
   }
-  const source = value as Record<string, unknown>;
-  const entries = Object.entries(source)
-    .map(([key, text]) => [key, String(text ?? "")] as const)
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, text]) => [String(key), String(text ?? "")] as const)
     .filter(([key]) => key.trim().length > 0);
   if (entries.length === 0) {
     return { A: "", B: "", C: "", D: "" };
   }
   return Object.fromEntries(entries);
-};
-
-const normalizeClozeChoiceMap = (value: unknown): ChoiceMap => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return { A: "", B: "" };
-  }
-  const source = value as Record<string, unknown>;
-  const entries = Object.entries(source)
-    .map(([key, text]) => [key, String(text ?? "")] as const)
-    .filter(([key]) => key.trim().length > 0);
-  if (entries.length === 0) {
-    return { A: "", B: "" };
-  }
-  return Object.fromEntries(entries);
-};
-
-const normalizeBlankId = (rawId: string) => {
-  const value = String(rawId ?? "").trim();
-  const match = /^blank[_\s-]?(\d+)$/i.exec(value);
-  if (match) {
-    return `blank${Number(match[1])}`;
-  }
-  return value;
-};
-
-const normalizeBlankOptions = (value: unknown): BlankOptions => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-  const source = value as Record<string, unknown>;
-  const normalized: BlankOptions = {};
-  Object.entries(source).forEach(([rawBlankId, choices]) => {
-    const blankId = normalizeBlankId(rawBlankId);
-    if (!blankId) {
-      return;
-    }
-    const parsedChoices = normalizeClozeChoiceMap(choices);
-    normalized[blankId] = normalized[blankId]
-      ? { ...normalized[blankId], ...parsedChoices }
-      : parsedChoices;
-  });
-  return Object.keys(normalized).length > 0 ? normalized : {};
-};
-
-const clozeTemplateParts = (template: string): ClozeTemplatePart[] => {
-  const parts: ClozeTemplatePart[] = [];
-  let cursor = 0;
-  const regex = new RegExp(CLOZE_TOKEN_REGEX.source, "g");
-  let match = regex.exec(template);
-  while (match) {
-    const tokenStart = match.index;
-    const tokenEnd = regex.lastIndex;
-    if (tokenStart > cursor) {
-      parts.push({ kind: "text", value: template.slice(cursor, tokenStart) });
-    }
-    parts.push({ kind: "blank", blankId: match[1] });
-    cursor = tokenEnd;
-    match = regex.exec(template);
-  }
-  if (cursor < template.length) {
-    parts.push({ kind: "text", value: template.slice(cursor) });
-  }
-  return parts.length > 0 ? parts : [{ kind: "text", value: template }];
-};
-
-const extractBlankIdsFromTemplate = (template: string): string[] => {
-  const ids: string[] = [];
-  const regex = new RegExp(CLOZE_TOKEN_REGEX.source, "g");
-  let match = regex.exec(template);
-  while (match) {
-    ids.push(match[1]);
-    match = regex.exec(template);
-  }
-  return ids;
-};
-
-const nextBlankId = (blankOptions: BlankOptions) => {
-  const max = Object.keys(blankOptions).reduce((acc, blankId) => {
-    const match = /^blank[_\s-]?(\d+)$/i.exec(blankId);
-    if (!match) return acc;
-    return Math.max(acc, Number(match[1]));
-  }, 0);
-  return `blank${max + 1}`;
-};
-
-const nextChoiceId = (choices: ChoiceMap) => {
-  const existing = Object.keys(choices);
-  for (let i = 0; i < 52; i += 1) {
-    const candidate = i < 26 ? String.fromCharCode(65 + i) : `C${i - 25}`;
-    if (!existing.includes(candidate)) {
-      return candidate;
-    }
-  }
-  return `C${existing.length + 1}`;
-};
-
-const formatBlankLabel = (blankId: string) => {
-  const match = /^blank[_\s-]?(\d+)$/i.exec(blankId);
-  if (match) {
-    return `Blank ${match[1]}`;
-  }
-  return blankId.replace(/_/g, " ");
-};
-
-const normalizeLegacyBlankTokensInText = (text: string) =>
-  text.replace(LEGACY_CLOZE_TOKEN_REGEX, (_match, n: string) => `{{blank${n}}}`);
-
-const canonicalizeClozeTemplateIds = (text: string) => {
-  const oldToNew = new Map<string, string>();
-  const orderedBlankIds: string[] = [];
-  const newToOld: Record<string, string> = {};
-  let counter = 1;
-  const canonicalText = text.replace(CLOZE_TOKEN_REGEX, (_full, capturedId: string) => {
-    const sourceId = normalizeBlankId(capturedId);
-    let mapped = oldToNew.get(sourceId);
-    if (!mapped) {
-      mapped = `blank${counter}`;
-      counter += 1;
-      oldToNew.set(sourceId, mapped);
-      orderedBlankIds.push(mapped);
-      newToOld[mapped] = sourceId;
-    }
-    return `{{${mapped}}}`;
-  });
-  return {
-    canonicalText,
-    orderedBlankIds,
-    newToOld,
-  };
-};
-
-const normalizeClozeAnswerMap = (value: unknown): StringMap => {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-  const source = value as Record<string, unknown>;
-  const normalized: StringMap = {};
-  Object.entries(source).forEach(([rawBlankId, answer]) => {
-    const blankId = normalizeBlankId(rawBlankId);
-    if (!blankId) {
-      return;
-    }
-    normalized[blankId] = String(answer ?? "");
-  });
-  return normalized;
-};
-
-const syncClozeQuestionToTemplate = (
-  question: AdminQuizQuestionDraft,
-  nextQuestionText: string
-): AdminQuizQuestionDraft => {
-  if (question.question_type !== "cloze") {
-    return {
-      ...question,
-      question_text: nextQuestionText,
-    };
-  }
-
-  const canonicalQuestionText = normalizeLegacyBlankTokensInText(nextQuestionText);
-  const canonicalized = canonicalizeClozeTemplateIds(canonicalQuestionText);
-  const existingBlankOptions = normalizeBlankOptions(
-    (question.options as Record<string, unknown>)?.blankOptions
-  );
-  const answerMap = normalizeClozeAnswerMap(safeJsonParse<StringMap>(question.correct_answer, {}));
-  const templateBlankIds = canonicalized.orderedBlankIds;
-
-  const nextBlankOptions: BlankOptions = {};
-  const nextAnswers: StringMap = {};
-
-  templateBlankIds.forEach((blankId) => {
-    const sourceBlankId = canonicalized.newToOld[blankId] ?? blankId;
-    const baseChoices = normalizeClozeChoiceMap(
-      existingBlankOptions[sourceBlankId] ?? existingBlankOptions[blankId]
-    );
-    const keys = Object.keys(baseChoices);
-    const orderedKeys = ["A", ...keys.filter((key) => key !== "A")];
-    const uniqueOrderedKeys = orderedKeys.filter((key, index) => orderedKeys.indexOf(key) === index);
-    const limitedKeys = uniqueOrderedKeys.slice(0, 5);
-
-    const limitedChoices: ChoiceMap = {};
-    limitedKeys.forEach((key) => {
-      limitedChoices[key] = String(baseChoices[key] ?? "");
-    });
-    if (!Object.prototype.hasOwnProperty.call(limitedChoices, "A")) {
-      limitedChoices.A = "";
-    }
-    while (Object.keys(limitedChoices).length < 2) {
-      const id = nextChoiceId(limitedChoices);
-      limitedChoices[id] = "";
-    }
-
-    nextBlankOptions[blankId] = limitedChoices;
-    const mapped = answerMap[sourceBlankId] ?? answerMap[blankId];
-    nextAnswers[blankId] =
-      mapped && Object.prototype.hasOwnProperty.call(limitedChoices, mapped) ? mapped : "A";
-  });
-
-  return {
-    ...question,
-    question_text: canonicalized.canonicalText,
-    correct_answer: JSON.stringify(nextAnswers),
-    options: {
-      ...(question.options ?? {}),
-      blankOptions: nextBlankOptions,
-    },
-  };
-};
-
-const autoConvertUnderscoreRunsToClozeBlanks = (
-  question: AdminQuizQuestionDraft,
-  nextQuestionText: string
-): AdminQuizQuestionDraft => {
-  if (question.question_type !== "cloze") {
-    return {
-      ...question,
-      question_text: nextQuestionText,
-    };
-  }
-
-  const normalizedInput = normalizeLegacyBlankTokensInText(nextQuestionText);
-  const existingBlankOptions = normalizeBlankOptions(
-    (question.options as Record<string, unknown>)?.blankOptions
-  );
-  const nextBlankOptions: BlankOptions = { ...existingBlankOptions };
-  const converted = normalizedInput.replace(/_{2,}/g, () => {
-    const blankId = nextBlankId(nextBlankOptions);
-    nextBlankOptions[blankId] = { A: "", B: "" };
-    return `{{${blankId}}}`;
-  });
-
-  return syncClozeQuestionToTemplate(
-    {
-      ...question,
-      options: {
-        ...(question.options ?? {}),
-        blankOptions: nextBlankOptions,
-      },
-    },
-    converted
-  );
-};
-
-const normalizeTokens = (value: unknown) => {
-  if (!Array.isArray(value)) {
-    return [
-      { id: "t1", text: "" },
-      { id: "t2", text: "" },
-    ];
-  }
-  const parsed = value
-    .map((item, index) => {
-      const next = item as Record<string, unknown>;
-      const id = String(next?.id ?? `t${index + 1}`);
-      const text = String(next?.text ?? "");
-      return { id, text };
-    })
-    .filter((item) => item.id.trim().length > 0);
-  return parsed.length > 0 ? parsed : [{ id: "t1", text: "" }];
-};
-
-const normalizeConversationTurns = (value: unknown) => {
-  if (!Array.isArray(value)) {
-    return [
-      {
-        id: "turn_1",
-        prompt: "",
-        replies: [
-          { id: "r1", text: "" },
-          { id: "r2", text: "" },
-        ],
-      },
-    ];
-  }
-  const turns = value
-    .map((item, idx) => {
-      const next = item as Record<string, unknown>;
-      const repliesRaw = Array.isArray(next?.replies) ? (next.replies as Array<Record<string, unknown>>) : [];
-      const replies = repliesRaw.map((reply, replyIdx) => ({
-        id: String(reply.id ?? `r${replyIdx + 1}`),
-        text: String(reply.text ?? ""),
-      }));
-      return {
-        id: String(next?.id ?? `turn_${idx + 1}`),
-        prompt: String(next?.prompt ?? ""),
-        replies: replies.length > 0 ? replies : [{ id: "r1", text: "" }],
-      };
-    })
-    .filter((turn) => turn.id.trim().length > 0);
-  return turns.length > 0 ? turns : [{ id: "turn_1", prompt: "", replies: [{ id: "r1", text: "" }] }];
 };
 
 const normalizePairs = (value: unknown, prefix: "l" | "r") => {
@@ -343,33 +55,27 @@ const normalizePairs = (value: unknown, prefix: "l" | "r") => {
     ];
   }
   const parsed = value
-    .map((item, idx) => {
-      const next = item as Record<string, unknown>;
+    .map((item, index) => {
+      const typed = item as Record<string, unknown>;
       return {
-        id: String(next?.id ?? `${prefix}${idx + 1}`),
-        text: String(next?.text ?? ""),
+        id: String(typed.id ?? `${prefix}${index + 1}`),
+        text: String(typed.text ?? ""),
       };
     })
     .filter((item) => item.id.trim().length > 0);
-  return parsed.length > 0 ? parsed : [{ id: `${prefix}1`, text: "" }];
-};
-
-type MatchPairRow = {
-  leftText: string;
-  rightText: string;
+  return parsed.length > 0 ? parsed : [{ id: `${prefix}1`, text: "" }, { id: `${prefix}2`, text: "" }];
 };
 
 const normalizeMatchPairRows = (question: AdminQuizQuestionDraft): MatchPairRow[] => {
   const left = normalizePairs((question.options as Record<string, unknown>)?.left, "l");
   const right = normalizePairs((question.options as Record<string, unknown>)?.right, "r");
-  const answerMap = safeJsonParse<StringMap>(question.correct_answer, {});
+  const answerMap = safeJsonParse<Record<string, string>>(question.correct_answer, {});
   const rowCount = Math.max(left.length, right.length, 2);
 
   const rows: MatchPairRow[] = [];
   for (let index = 0; index < rowCount; index += 1) {
     const leftItem = left[index] ?? { id: `l${index + 1}`, text: "" };
-    const mappedRightId = answerMap[leftItem.id];
-    const mappedRight = mappedRightId ? right.find((item) => item.id === mappedRightId) : undefined;
+    const mappedRight = right.find((item) => item.id === answerMap[leftItem.id]);
     const rightItem = mappedRight ?? right[index] ?? { id: `r${index + 1}`, text: "" };
     rows.push({
       leftText: String(leftItem.text ?? ""),
@@ -379,21 +85,13 @@ const normalizeMatchPairRows = (question: AdminQuizQuestionDraft): MatchPairRow[
   return rows;
 };
 
-const applyMatchPairRows = (
-  question: AdminQuizQuestionDraft,
-  rows: MatchPairRow[]
-): AdminQuizQuestionDraft => {
-  const normalizedRows = rows.map((row) => ({
-    leftText: String(row.leftText ?? ""),
-    rightText: String(row.rightText ?? ""),
-  }));
-
+const applyMatchPairRows = (question: AdminQuizQuestionDraft, rows: MatchPairRow[]): AdminQuizQuestionDraft => {
   const safeRows =
-    normalizedRows.length >= 2
-      ? normalizedRows
+    rows.length >= 2
+      ? rows
       : [
-          ...normalizedRows,
-          ...Array.from({ length: Math.max(0, 2 - normalizedRows.length) }, () => ({
+          ...rows,
+          ...Array.from({ length: Math.max(0, 2 - rows.length) }, () => ({
             leftText: "",
             rightText: "",
           })),
@@ -401,7 +99,9 @@ const applyMatchPairRows = (
 
   const left = safeRows.map((row, index) => ({ id: `l${index + 1}`, text: row.leftText }));
   const right = safeRows.map((row, index) => ({ id: `r${index + 1}`, text: row.rightText }));
-  const answerMap = Object.fromEntries(left.map((item, index) => [item.id, right[index]?.id ?? `r${index + 1}`]));
+  const correctAnswer = JSON.stringify(
+    Object.fromEntries(left.map((item, index) => [item.id, right[index]?.id ?? `r${index + 1}`]))
+  );
 
   return {
     ...question,
@@ -410,78 +110,93 @@ const applyMatchPairRows = (
       left,
       right,
     },
-    correct_answer: JSON.stringify(answerMap),
+    correct_answer: correctAnswer,
   };
 };
 
-const updateOptions = (
-  question: AdminQuizQuestionDraft,
-  patch: Record<string, unknown>
-): AdminQuizQuestionDraft => ({
-  ...question,
-  options: {
-    ...(question.options ?? {}),
-    ...patch,
-  },
-});
+const normalizeAcceptedAnswers = (question: AdminQuizQuestionDraft) => {
+  const trimmed = question.correct_answer.trim();
+  if (!trimmed) {
+    return [""];
+  }
+  if (trimmed.startsWith("{")) {
+    const parsed = safeJsonParse<{ accepted?: unknown[] }>(trimmed, {});
+    const accepted = Array.isArray(parsed.accepted) ? parsed.accepted : [];
+    const values = accepted.map((item) => String(item ?? ""));
+    return values.length > 0 ? values : [""];
+  }
+  if (trimmed.startsWith("[")) {
+    const parsed = safeJsonParse<unknown[]>(trimmed, []);
+    const values = parsed.map((item) => String(item ?? ""));
+    return values.length > 0 ? values : [""];
+  }
+  return [trimmed];
+};
 
-export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props) => {
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [matchPreviewPairs, setMatchPreviewPairs] = useState<Record<string, string>>({});
-  const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+const serializeAcceptedAnswers = (answers: string[]) =>
+  JSON.stringify({
+    accepted: answers.map((answer) => answer.trim()),
+  });
 
-  const optionError = errorMessage ?? null;
+const mediaAcceptForKind = (kind: LessonMediaKind) => {
+  if (kind === "video") {
+    return "video/*";
+  }
+  if (kind === "gif") {
+    return "image/gif";
+  }
+  return "image/*";
+};
+
+export const AdminQuestionEditor = ({
+  question,
+  onChange,
+  errorMessage,
+  mediaEnabled = true,
+  onUploadMedia,
+  onAttachMediaLink,
+  onRemoveMedia,
+}: Props) => {
   const points = Number.isFinite(question.points) ? question.points : 10;
-  const livePrompt = question.question_text.trim() || "Your question prompt will appear here";
-  const previewQuestionNumber =
-    Number.isFinite(question.order_index) && question.order_index >= 0
-      ? question.order_index + 1
-      : 1;
+  const acceptedAnswers = normalizeAcceptedAnswers(question);
+  const selectedMediaKind =
+    question.media_kind ?? inferLessonMediaKind(question.media_url, null) ?? "image";
+  const hasMedia = Boolean(question.media_url);
+  const isProcessingMedia = question.media_status === "processing";
+  const hasMediaDraftState = Boolean(
+    question.media_asset_id || question.media_link_url?.trim() || question.media_error
+  );
 
-  useEffect(() => {
-    if (question.question_type !== "cloze") {
-      return;
-    }
-    const normalized = autoConvertUnderscoreRunsToClozeBlanks(question, question.question_text ?? "");
-    const changed =
-      normalized.question_text !== question.question_text ||
-      normalized.correct_answer !== question.correct_answer ||
-      JSON.stringify(normalized.options ?? {}) !== JSON.stringify(question.options ?? {});
-    if (changed) {
-      onChange(normalized);
-    }
-  }, [question, onChange]);
+  const updateOptions = (patch: Record<string, unknown>) =>
+    onChange({
+      ...question,
+      options: {
+        ...(question.options ?? {}),
+        ...patch,
+      },
+    });
 
-  useEffect(() => {
-    if (question.question_type !== "match_pairs") {
-      return;
-    }
-    setMatchPreviewPairs({});
-  }, [question.clientId, question.question_type, question.options]);
+  const setMediaKind = (kind: LessonMediaKind) =>
+    onChange({
+      ...question,
+      media_kind: kind,
+      media_error: null,
+    });
 
   const renderTypeEditor = () => {
     if (question.question_type === "multiple_choice") {
       const rawChoices = (question.options?.choices as Record<string, unknown> | undefined) ?? question.options;
       const choices = normalizeChoiceMap(rawChoices);
-      const choiceEntries = Object.entries(choices);
+      const entries = Object.entries(choices);
 
       return (
-        <div className="space-y-3 rounded-xl border bg-card/30 p-3">
-          {choiceEntries.map(([choiceId, text]) => (
-            <div
-              key={choiceId}
-              className={`grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-xl border-2 px-3 py-2 transition ${
-                question.correct_answer === choiceId
-                  ? "border-primary bg-primary/10 dark:bg-emerald-950/30"
-                  : "border-border"
-              }`}
-            >
+        <div className="space-y-3 rounded-xl border bg-card/30 p-4">
+          {entries.map(([choiceId, text]) => (
+            <div key={choiceId} className="grid grid-cols-[auto_1fr_auto] items-center gap-2">
               <button
                 type="button"
                 className={`h-5 w-5 rounded-full border-2 transition ${
-                  question.correct_answer === choiceId
-                    ? "border-primary bg-primary"
-                    : "border-muted-foreground/40"
+                  question.correct_answer === choiceId ? "border-primary bg-primary" : "border-muted-foreground/40"
                 }`}
                 aria-label={`Set ${choiceId} as correct answer`}
                 onClick={() => onChange({ ...question, correct_answer: choiceId })}
@@ -489,14 +204,12 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
               <Input
                 value={text}
                 onChange={(event) =>
-                  onChange(
-                    updateOptions(question, {
-                      choices: {
-                        ...choices,
-                        [choiceId]: event.target.value,
-                      },
-                    })
-                  )
+                  updateOptions({
+                    choices: {
+                      ...choices,
+                      [choiceId]: event.target.value,
+                    },
+                  })
                 }
                 placeholder={`Option ${choiceId}`}
               />
@@ -504,10 +217,9 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
                 type="button"
                 size="sm"
                 variant={question.correct_answer === choiceId ? "default" : "outline"}
-                className={question.correct_answer === choiceId ? "bg-primary hover:bg-primary/90" : ""}
                 onClick={() => onChange({ ...question, correct_answer: choiceId })}
               >
-                {question.correct_answer === choiceId ? "Correct" : "Set Correct"}
+                {question.correct_answer === choiceId ? "Correct" : "Set"}
               </Button>
             </div>
           ))}
@@ -516,15 +228,13 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
             variant="outline"
             size="sm"
             onClick={() => {
-              const nextId = String.fromCharCode(65 + choiceEntries.length);
-              onChange(
-                updateOptions(question, {
-                  choices: {
-                    ...choices,
-                    [nextId]: "",
-                  },
-                })
-              );
+              const nextId = String.fromCharCode(65 + entries.length);
+              updateOptions({
+                choices: {
+                  ...choices,
+                  [nextId]: "",
+                },
+              });
             }}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -543,9 +253,7 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
               key={value}
               type="button"
               className={`rounded-2xl border-2 px-4 py-4 text-left font-semibold transition ${
-                selected === value
-                  ? "border-primary bg-primary/10 dark:bg-emerald-950/30"
-                  : "border-border hover:border-primary/50"
+                selected === value ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"
               }`}
               onClick={() => onChange({ ...question, correct_answer: value })}
             >
@@ -556,407 +264,28 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
       );
     }
 
-    if (question.question_type === "cloze") {
-      const normalizedBlankOptions = normalizeBlankOptions(
-        (question.options as Record<string, unknown>)?.blankOptions
-      );
-      const answerMap = normalizeClozeAnswerMap(safeJsonParse<StringMap>(question.correct_answer, {}));
-      const canonicalTemplate = canonicalizeClozeTemplateIds(
-        normalizeLegacyBlankTokensInText(question.question_text ?? "")
-      );
-      const blankIds =
-        canonicalTemplate.orderedBlankIds.length > 0
-          ? canonicalTemplate.orderedBlankIds
-          : Object.keys(normalizedBlankOptions);
-      const orderedBlankIds = blankIds;
-
-      const correctByBlank: Record<string, string> = {};
-      orderedBlankIds.forEach((blankId) => {
-        const choices = normalizeClozeChoiceMap(normalizedBlankOptions[blankId]);
-        const keys = Object.keys(choices);
-        const mapped = answerMap[blankId];
-        const correctKey =
-          mapped && Object.prototype.hasOwnProperty.call(choices, mapped)
-            ? mapped
-            : (Object.prototype.hasOwnProperty.call(choices, "A") ? "A" : (keys[0] ?? "A"));
-        correctByBlank[blankId] = String(choices[correctKey] ?? "");
-      });
-
-      const firstBlankId = orderedBlankIds[0];
-      const firstChoices = normalizeClozeChoiceMap(normalizedBlankOptions[firstBlankId]);
-      const firstMapped = (() => {
-        const mapped = answerMap[firstBlankId];
-        if (mapped && Object.prototype.hasOwnProperty.call(firstChoices, mapped)) {
-          return mapped;
-        }
-        if (Object.prototype.hasOwnProperty.call(firstChoices, "A")) {
-          return "A";
-        }
-        return Object.keys(firstChoices)[0] ?? "A";
-      })();
-      const sharedOtherOptionsBase = Object.entries(firstChoices)
-        .filter(([choiceId]) => choiceId !== firstMapped)
-        .map(([, text]) => String(text ?? ""))
-        .slice(0, 4);
-      const sharedOtherOptions =
-        orderedBlankIds.length === 0
-          ? []
-          : (sharedOtherOptionsBase.length > 0 ? sharedOtherOptionsBase : [""]);
-
-      const applyClozeModel = (
-        nextCorrectByBlank: Record<string, string>,
-        nextSharedOthers: string[],
-        nextQuestionText: string = question.question_text
-      ) => {
-        const effectiveBlankIds = Array.from(
-          new Set(extractBlankIdsFromTemplate(normalizeLegacyBlankTokensInText(nextQuestionText)))
-        );
-        const blankIdsForModel =
-          effectiveBlankIds.length > 0 ? effectiveBlankIds : Object.keys(nextCorrectByBlank);
-        const limitedShared = nextSharedOthers.slice(0, 4);
-        const nextBlankOptions: BlankOptions = {};
-        const nextAnswerMap: StringMap = {};
-        blankIdsForModel.forEach((blankId) => {
-          const choices: ChoiceMap = { A: nextCorrectByBlank[blankId] ?? "" };
-          limitedShared.forEach((text, idx) => {
-            const choiceId = String.fromCharCode(66 + idx); // B, C, D, E
-            choices[choiceId] = text;
-          });
-          if (Object.keys(choices).length < 2) {
-            choices.B = "";
-          }
-          nextBlankOptions[blankId] = choices;
-          nextAnswerMap[blankId] = "A";
-        });
-        onChange(
-          syncClozeQuestionToTemplate(
-            {
-              ...question,
-              correct_answer: JSON.stringify(nextAnswerMap),
-              options: {
-                ...(question.options ?? {}),
-                blankOptions: nextBlankOptions,
-              },
-            },
-            nextQuestionText
-          )
-        );
-      };
-
-      return (
-        <div className="space-y-4">
-          <div className="rounded-xl border bg-card/30 p-3 space-y-3">
-            <p className="text-sm font-medium">Sentence blank placement</p>
-            <p className="text-xs text-muted-foreground">
-              Select text in the sentence field above, then click "Turn Selection Into Blank".
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const sentence = question.question_text ?? "";
-                  const input = promptInputRef.current;
-                  const selectionStart = input?.selectionStart ?? sentence.length;
-                  const selectionEnd = input?.selectionEnd ?? sentence.length;
-                  const selectedText = sentence.slice(selectionStart, selectionEnd).trim();
-                  const id = nextBlankId(normalizedBlankOptions);
-                  const token = `{{${id}}}`;
-                  const nextSentence =
-                    selectionStart !== selectionEnd
-                      ? `${sentence.slice(0, selectionStart)}${token}${sentence.slice(selectionEnd)}`
-                      : `${sentence}${sentence.endsWith(" ") || sentence.length === 0 ? "" : " "}${token}`;
-                  applyClozeModel(
-                    {
-                      ...correctByBlank,
-                      [id]: selectedText,
-                    },
-                    sharedOtherOptions,
-                    nextSentence
-                  );
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Turn Selection Into Blank
-              </Button>
-            </div>
-          </div>
-
-          {orderedBlankIds.map((blankId) => (
-            <div key={blankId} className="rounded-xl border p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="font-medium">{formatBlankLabel(blankId)}</p>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const nextCorrectByBlank = { ...correctByBlank };
-                    delete nextCorrectByBlank[blankId];
-                    const nextText = (question.question_text ?? "").split(`{{${blankId}}}`).join("_____");
-                    applyClozeModel(nextCorrectByBlank, sharedOtherOptions, nextText);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Correct Answer</Label>
-                <Input
-                  value={correctByBlank[blankId] ?? ""}
-                  onChange={(event) =>
-                    applyClozeModel(
-                      {
-                        ...correctByBlank,
-                        [blankId]: event.target.value,
-                      },
-                      sharedOtherOptions
-                    )
-                  }
-                  placeholder={`${formatBlankLabel(blankId)} correct answer`}
-                />
-              </div>
-            </div>
-          ))}
-          <div className="rounded-xl border p-3 space-y-2">
-            <Label className="text-xs text-muted-foreground">Other Options (Shared Across Blanks)</Label>
-            {sharedOtherOptions.map((choiceText, idx) => (
-              <div key={`shared-option-${idx}`} className="grid grid-cols-[1fr_auto] gap-2 items-center">
-                <Input
-                  value={choiceText}
-                  onChange={(event) => {
-                    const next = [...sharedOtherOptions];
-                    next[idx] = event.target.value;
-                    applyClozeModel(correctByBlank, next);
-                  }}
-                  placeholder={`Other option ${idx + 1}`}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={sharedOtherOptions.length <= 1}
-                  onClick={() => {
-                    if (sharedOtherOptions.length <= 1) {
-                      return;
-                    }
-                    const next = sharedOtherOptions.filter((_, optionIdx) => optionIdx !== idx);
-                    applyClozeModel(correctByBlank, next);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={sharedOtherOptions.length >= 4}
-              onClick={() => applyClozeModel(correctByBlank, [...sharedOtherOptions, ""])}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Other Option
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Each blank has 1 correct answer + shared other options (max 5 total options per blank).
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const id = nextBlankId(normalizedBlankOptions);
-              const nextText = `${question.question_text}${question.question_text.endsWith(" ") || question.question_text.length === 0 ? "" : " "}{{${id}}}`.trim();
-              applyClozeModel(
-                {
-                  ...correctByBlank,
-                  [id]: "",
-                },
-                sharedOtherOptions,
-                nextText
-              );
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Blank
-          </Button>
-        </div>
-      );
-    }
-
-    if (question.question_type === "word_bank") {
-      const tokens = normalizeTokens((question.options as Record<string, unknown>)?.tokens);
-      const correctOrder = safeJsonParse<string[]>(question.correct_answer, []);
-      const selected = new Set(correctOrder);
-
-      return (
-        <div className="space-y-3 rounded-xl border p-3">
-          <p className="text-sm text-muted-foreground">Tap tokens to include them in the correct answer sequence.</p>
-          <div className="flex flex-wrap gap-2">
-            {tokens.map((token) => (
-              <button
-                key={token.id}
-                type="button"
-                className={`rounded-full border px-3 py-1 text-sm ${
-                  selected.has(token.id) ? "border-primary bg-primary/10 dark:bg-rose-950/30" : "hover:border-primary/50"
-                }`}
-                onClick={() => {
-                  const next = selected.has(token.id)
-                    ? correctOrder.filter((id) => id !== token.id)
-                    : [...correctOrder, token.id];
-                  onChange({ ...question, correct_answer: JSON.stringify(next) });
-                }}
-              >
-                {token.text || token.id}
-              </button>
-            ))}
-          </div>
-          <div className="space-y-2">
-            {tokens.map((token, index) => (
-              <Input
-                key={token.id}
-                value={token.text}
-                placeholder={`Token ${index + 1}`}
-                onChange={(event) => {
-                  const next = [...tokens];
-                  next[index] = { ...next[index], text: event.target.value };
-                  onChange(updateOptions(question, { tokens: next }));
-                }}
-              />
-            ))}
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              onChange(
-                updateOptions(question, {
-                  tokens: [...tokens, { id: `t${tokens.length + 1}`, text: "" }],
-                })
-              );
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Token
-          </Button>
-        </div>
-      );
-    }
-
-    if (question.question_type === "conversation") {
-      const turns = normalizeConversationTurns((question.options as Record<string, unknown>)?.turns);
-      const answerMap = safeJsonParse<StringMap>(question.correct_answer, {});
-
-      return (
-        <div className="space-y-4">
-          {turns.map((turn, turnIndex) => (
-            <div key={turn.id} className="rounded-xl border p-3 space-y-3">
-              <Input
-                value={turn.prompt}
-                placeholder={`Turn ${turnIndex + 1} prompt`}
-                onChange={(event) => {
-                  const next = [...turns];
-                  next[turnIndex] = { ...next[turnIndex], prompt: event.target.value };
-                  onChange(updateOptions(question, { turns: next }));
-                }}
-              />
-              {turn.replies.map((reply, replyIndex) => (
-                <div key={reply.id} className="grid grid-cols-[auto_1fr] gap-2 items-center">
-                  <input
-                    type="radio"
-                    name={`conversation-${question.clientId}-${turn.id}`}
-                    checked={answerMap[turn.id] === reply.id}
-                    onChange={() =>
-                      onChange({
-                        ...question,
-                        correct_answer: JSON.stringify({
-                          ...answerMap,
-                          [turn.id]: reply.id,
-                        }),
-                      })
-                    }
-                  />
-                  <Input
-                    value={reply.text}
-                    placeholder={`Reply ${replyIndex + 1}`}
-                    onChange={(event) => {
-                      const next = [...turns];
-                      const replies = [...next[turnIndex].replies];
-                      replies[replyIndex] = { ...replies[replyIndex], text: event.target.value };
-                      next[turnIndex] = { ...next[turnIndex], replies };
-                      onChange(updateOptions(question, { turns: next }));
-                    }}
-                  />
-                </div>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  const next = [...turns];
-                  const replies = [...next[turnIndex].replies, { id: `r${next[turnIndex].replies.length + 1}`, text: "" }];
-                  next[turnIndex] = { ...next[turnIndex], replies };
-                  onChange(updateOptions(question, { turns: next }));
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Reply
-              </Button>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              onChange(
-                updateOptions(question, {
-                  turns: [
-                    ...turns,
-                    { id: `turn_${turns.length + 1}`, prompt: "", replies: [{ id: "r1", text: "" }] },
-                  ],
-                })
-              );
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add Turn
-          </Button>
-        </div>
-      );
-    }
-
     if (question.question_type === "match_pairs") {
       const rows = normalizeMatchPairRows(question);
-
       return (
-        <div className="space-y-3 rounded-xl border p-3">
-          <p className="text-sm text-muted-foreground">
-            Enter exact left-right matches. Learner view will randomize the right column.
-          </p>
+        <div className="space-y-3 rounded-xl border p-4">
           {rows.map((row, index) => (
-            <div key={`pair-row-${index}`} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-center">
+            <div key={`pair-row-${index}`} className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
               <Input
                 value={row.leftText}
-                placeholder={`Left ${index + 1}`}
+                placeholder={`Left item ${index + 1}`}
                 onChange={(event) => {
-                  const nextRows = [...rows];
-                  nextRows[index] = { ...nextRows[index], leftText: event.target.value };
-                  onChange(applyMatchPairRows(question, nextRows));
+                  const next = [...rows];
+                  next[index] = { ...next[index], leftText: event.target.value };
+                  onChange(applyMatchPairRows(question, next));
                 }}
               />
               <Input
                 value={row.rightText}
-                placeholder={`Right ${index + 1}`}
+                placeholder={`Right item ${index + 1}`}
                 onChange={(event) => {
-                  const nextRows = [...rows];
-                  nextRows[index] = { ...nextRows[index], rightText: event.target.value };
-                  onChange(applyMatchPairRows(question, nextRows));
+                  const next = [...rows];
+                  next[index] = { ...next[index], rightText: event.target.value };
+                  onChange(applyMatchPairRows(question, next));
                 }}
               />
               <Button
@@ -965,105 +294,9 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
                 size="icon"
                 disabled={rows.length <= 2}
                 onClick={() => {
-                  const nextRows = rows.filter((_, rowIndex) => rowIndex !== index);
-                  onChange(applyMatchPairRows(question, nextRows));
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ))}
-          <div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                onChange(applyMatchPairRows(question, [...rows, { leftText: "", rightText: "" }]));
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Pair
-            </Button>
-          </div>
-        </div>
-      );
-    }
-
-    const shortTextOptions = question.options ?? {};
-    const accepted = safeJsonParse<{ accepted?: string[] }>(question.correct_answer, {
-      accepted: [],
-    }).accepted ?? [];
-
-    return (
-      <div className="space-y-3 rounded-xl border p-3">
-        <Textarea
-          className="min-h-20"
-          placeholder={String(shortTextOptions.placeholder ?? "Type your answer")}
-          value=""
-          disabled
-        />
-        <Input
-          value={String(shortTextOptions.placeholder ?? "")}
-          placeholder="Placeholder text"
-          onChange={(event) =>
-            onChange(
-              updateOptions(question, {
-                placeholder: event.target.value,
-              })
-            )
-          }
-        />
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            type="number"
-            value={Number(shortTextOptions.minLength ?? 1)}
-            min={1}
-            onChange={(event) =>
-              onChange(
-                updateOptions(question, {
-                  minLength: Number(event.target.value || 1),
-                })
-              )
-            }
-          />
-          <Input
-            type="number"
-            value={Number(shortTextOptions.maxLength ?? 120)}
-            min={1}
-            onChange={(event) =>
-              onChange(
-                updateOptions(question, {
-                  maxLength: Number(event.target.value || 120),
-                })
-              )
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          {accepted.map((value, index) => (
-            <div key={`${value}-${index}`} className="grid grid-cols-[1fr_auto] gap-2">
-              <Input
-                value={value}
-                onChange={(event) => {
-                  const next = [...accepted];
-                  next[index] = event.target.value;
-                  onChange({
-                    ...question,
-                    correct_answer: JSON.stringify({ accepted: next }),
-                  });
-                }}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  const next = accepted.filter((_, acceptedIndex) => acceptedIndex !== index);
-                  onChange({
-                    ...question,
-                    correct_answer: JSON.stringify({ accepted: next }),
-                  });
+                  if (rows.length <= 2) return;
+                  const next = rows.filter((_, rowIndex) => rowIndex !== index);
+                  onChange(applyMatchPairRows(question, next));
                 }}
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
@@ -1074,279 +307,328 @@ export const AdminQuestionEditor = ({ question, onChange, errorMessage }: Props)
             type="button"
             variant="outline"
             size="sm"
-            onClick={() =>
-              onChange({
-                ...question,
-                correct_answer: JSON.stringify({ accepted: [...accepted, ""] }),
-              })
-            }
+            onClick={() => onChange(applyMatchPairRows(question, [...rows, { leftText: "", rightText: "" }]))}
           >
             <Plus className="mr-2 h-4 w-4" />
-            Add Accepted Answer
+            Add Pair
           </Button>
         </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 rounded-xl border p-4">
+        {acceptedAnswers.map((answer, index) => (
+          <div key={`accepted-answer-${index}`} className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <Input
+              value={answer}
+              placeholder={`Accepted answer ${index + 1}`}
+              onChange={(event) => {
+                const next = [...acceptedAnswers];
+                next[index] = event.target.value;
+                onChange({
+                  ...question,
+                  correct_answer: serializeAcceptedAnswers(next),
+                });
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={acceptedAnswers.length <= 1}
+              onClick={() => {
+                if (acceptedAnswers.length <= 1) return;
+                const next = acceptedAnswers.filter((_, answerIndex) => answerIndex !== index);
+                onChange({
+                  ...question,
+                  correct_answer: serializeAcceptedAnswers(next),
+                });
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        ))}
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="space-y-2 md:col-span-2">
+            <Label>Placeholder</Label>
+            <Input
+              value={String((question.options as Record<string, unknown>)?.placeholder ?? "")}
+              onChange={(event) => updateOptions({ placeholder: event.target.value })}
+              placeholder="Type your answer"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Min Length</Label>
+            <Input
+              type="number"
+              min={1}
+              value={String((question.options as Record<string, unknown>)?.minLength ?? 1)}
+              onChange={(event) => updateOptions({ minLength: Number(event.target.value || 1) })}
+            />
+          </div>
+        </div>
+        <div className="space-y-2 md:max-w-[220px]">
+          <Label>Max Length</Label>
+          <Input
+            type="number"
+            min={1}
+            value={String((question.options as Record<string, unknown>)?.maxLength ?? 120)}
+            onChange={(event) => updateOptions({ maxLength: Number(event.target.value || 120) })}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            onChange({
+              ...question,
+              correct_answer: serializeAcceptedAnswers([...acceptedAnswers, ""]),
+            })
+          }
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          Add Accepted Answer
+        </Button>
       </div>
     );
   };
 
-  const renderLearnerPreview = () => {
-    if (question.question_type === "multiple_choice" || question.question_type === "true_false") {
-      const previewChoices: Array<[string, string]> =
-        question.question_type === "true_false"
-          ? [
-              ["true", "True"],
-              ["false", "False"],
-            ]
-          : Object.entries(
-              normalizeChoiceMap(
-                (question.options?.choices as Record<string, unknown> | undefined) ?? question.options
-              )
-            );
+  const renderMediaEditor = () => (
+    <div className="space-y-4 rounded-xl border bg-card/30 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <Label>Question Media</Label>
+          <p className="text-sm text-muted-foreground">
+            Optional image, GIF, or video shown under the question prompt.
+          </p>
+        </div>
+        {hasMedia || hasMediaDraftState ? (
+          <Button type="button" variant="ghost" size="sm" onClick={onRemoveMedia}>
+            <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+            Remove Media
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {[
+          { kind: "image" as const, label: "Add Image", icon: ImageIcon },
+          { kind: "gif" as const, label: "Add GIF", icon: ImageIcon },
+          { kind: "video" as const, label: "Add Video", icon: Video },
+        ].map(({ kind, label, icon: Icon }) => (
+          <Button
+            key={kind}
+            type="button"
+            variant={selectedMediaKind === kind ? "default" : "outline"}
+            size="sm"
+            className={cn(selectedMediaKind === kind ? "" : "bg-background")}
+            onClick={() => setMediaKind(kind)}
+          >
+            <Icon className="mr-2 h-4 w-4" />
+            {label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" />
+            Upload File
+          </Label>
+          <Input
+            type="file"
+            accept={mediaAcceptForKind(selectedMediaKind)}
+            disabled={!mediaEnabled || isProcessingMedia}
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              onUploadMedia(selectedMediaKind, file);
+              event.currentTarget.value = "";
+            }}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="flex items-center gap-2">
+            <Link2 className="h-4 w-4" />
+            Media URL
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              value={question.media_link_url ?? ""}
+              onChange={(event) =>
+                onChange({
+                  ...question,
+                  media_link_url: event.target.value,
+                  media_kind: selectedMediaKind,
+                  media_error: null,
+                })
+              }
+              placeholder="https://..."
+              disabled={!mediaEnabled || isProcessingMedia}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!mediaEnabled || isProcessingMedia}
+              onClick={() => onAttachMediaLink(selectedMediaKind)}
+            >
+              Attach
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {!mediaEnabled ? (
+        <div className="rounded-lg border border-dashed bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+          Save the lesson draft first before uploading quiz media.
+        </div>
+      ) : null}
+
+      {isProcessingMedia ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Media is processing. Videos may take longer than images or GIFs.
+        </div>
+      ) : null}
+
+      {question.media_error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          {question.media_error}
+        </div>
+      ) : null}
+
+      {question.media_url ? (
+        <LessonMediaDisplay
+          mediaUrl={question.media_url}
+          mediaKind={selectedMediaKind}
+          thumbnailUrl={question.media_thumbnail_url ?? null}
+          alt={question.question_text || "Question media"}
+          mediaClassName="max-h-80"
+        />
+      ) : (
+        <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-8 text-sm text-muted-foreground">
+          {isProcessingMedia
+            ? "Processing media..."
+            : "Upload a file or attach a URL to add media to this question."}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderPreview = () => {
+    if (question.question_type === "multiple_choice") {
+      const rawChoices = (question.options?.choices as Record<string, unknown> | undefined) ?? question.options;
       return (
         <div className="space-y-2">
-          {previewChoices.map(([choiceId, text]) => {
-            const isCorrect =
-              question.question_type === "true_false"
-                ? question.correct_answer.toLowerCase() === String(choiceId).toLowerCase()
-                : question.correct_answer === choiceId;
-            return (
-              <div
-                key={`preview-${choiceId}`}
-                className={`w-full rounded-2xl border-2 px-4 py-3 text-left ${
-                  isCorrect
-                    ? "border-primary bg-primary/10 dark:bg-emerald-950/30"
-                    : ""
-                }`}
-              >
-                {question.question_type === "multiple_choice" ? (
-                  <span className="mr-2 font-semibold">{choiceId}.</span>
-                ) : null}
-                <span>{String(text).trim() || `Option ${choiceId}`}</span>
-              </div>
-            );
-          })}
+          {Object.entries(normalizeChoiceMap(rawChoices)).map(([choiceId, text]) => (
+            <div key={`preview-${choiceId}`} className="rounded-xl border px-3 py-2 text-sm">
+              <span className="mr-2 font-semibold">{choiceId}.</span>
+              <span>{text || "Option text"}</span>
+            </div>
+          ))}
         </div>
       );
     }
 
-    if (question.question_type === "cloze") {
-      const blanks = normalizeBlankOptions((question.options as Record<string, unknown>)?.blankOptions);
-      const previewOptionBank = (() => {
-        const byText = new Map<string, { key: string; text: string }>();
-        Object.entries(blanks).forEach(([blankId, choices]) => {
-          Object.entries(choices).forEach(([choiceId, choiceText]) => {
-            const text = String(choiceText ?? "").trim();
-            if (!text) return;
-            const normalized = text.toLowerCase();
-            if (!byText.has(normalized)) {
-              byText.set(normalized, {
-                key: `${blankId}-${choiceId}`,
-                text,
-              });
-            }
-          });
-        });
-        return Array.from(byText.values());
-      })();
-      const canonicalPreviewText = canonicalizeClozeTemplateIds(
-        normalizeLegacyBlankTokensInText(question.question_text || "Complete this sentence: {{blank1}}")
-      ).canonicalText;
-      const parts = clozeTemplateParts(canonicalPreviewText);
-      const hasTemplateBlank = parts.some((part) => part.kind === "blank");
+    if (question.question_type === "true_false") {
       return (
-        <div className="space-y-3">
-          <div className="rounded-xl border p-3 text-base leading-8">
-            {hasTemplateBlank ? (
-              parts.map((part, index) =>
-                part.kind === "text" ? (
-                  <span key={`preview-text-${index}`}>{part.value}</span>
-                ) : (
-                  <span
-                    key={`preview-blank-${part.blankId}-${index}`}
-                    className="mx-1 inline-flex min-w-24 items-center justify-center rounded-lg border-2 border-dashed px-3 py-1 align-middle text-sm font-semibold"
-                  >
-                    {formatBlankLabel(part.blankId)}
-                  </span>
-                )
-              )
-            ) : (
-              <span>{question.question_text.trim() || "Type a sentence and add blank tokens."}</span>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {previewOptionBank.map((option) => (
-              <div key={`preview-${option.key}`} className="rounded-full border px-3 py-1 text-sm">
-                {option.text}
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl border px-3 py-3 text-center text-sm">True</div>
+          <div className="rounded-xl border px-3 py-3 text-center text-sm">False</div>
         </div>
-      );
-    }
-
-    if (question.question_type === "conversation") {
-      const turns = normalizeConversationTurns((question.options as Record<string, unknown>)?.turns);
-      const answerMap = safeJsonParse<StringMap>(question.correct_answer, {});
-      return (
-        <ConversationBoard turns={turns} answers={answerMap} compact />
       );
     }
 
     if (question.question_type === "match_pairs") {
       const left = normalizePairs((question.options as Record<string, unknown>)?.left, "l");
       const right = normalizePairs((question.options as Record<string, unknown>)?.right, "r");
+      const pairs = safeJsonParse<Record<string, string>>(question.correct_answer, {});
       return (
         <MatchPairsBoard
           leftItems={left}
           rightItems={right}
-          pairs={matchPreviewPairs}
-          onChange={setMatchPreviewPairs}
+          pairs={pairs}
+          onChange={() => undefined}
+          disabled
           compact
-          seed={`preview-${question.clientId}`}
+          seed={question.clientId}
         />
       );
     }
 
-    if (question.question_type === "word_bank") {
-      const tokens = normalizeTokens((question.options as Record<string, unknown>)?.tokens);
-      return (
-        <div className="space-y-3">
-          <div className="min-h-14 rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
-            Selected words preview
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {tokens.map((token, index) => (
-              <div key={`preview-${token.id}`} className="rounded-full border px-3 py-1 text-sm">
-                {token.text.trim() || `Token ${index + 1}`}
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
-
-    const shortTextOptions = question.options ?? {};
     return (
-      <Textarea
-        className="min-h-20"
-        placeholder={String(shortTextOptions.placeholder ?? "Type your answer")}
-        disabled
-        value=""
-      />
+      <div className="rounded-xl border px-4 py-3 text-sm text-muted-foreground">
+        {String((question.options as Record<string, unknown>)?.placeholder ?? "Type your answer")}
+      </div>
     );
   };
 
-  const prettyOptions = useMemo(
-    () => JSON.stringify(question.options ?? {}, null, 2),
-    [question.options]
-  );
-
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        <Label>Live Learner Preview</Label>
-        <div className="rounded-2xl border bg-muted/20 p-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Q{previewQuestionNumber}
-          </p>
-          {question.question_type !== "cloze" ? (
-            <p className="text-base font-semibold">{livePrompt}</p>
-          ) : null}
-          {renderLearnerPreview()}
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="space-y-2 md:col-span-2">
+          <Label>{question.question_type === "match_pairs" ? "Question Prompt" : "Question Prompt"}</Label>
+          <Textarea
+            value={question.question_text}
+            onChange={(event) => onChange({ ...question, question_text: event.target.value })}
+            rows={4}
+            placeholder="Write the question prompt."
+          />
         </div>
-      </div>
-      <div className="space-y-2">
-        <Label>{question.question_type === "cloze" ? "Sentence Template" : "Question Prompt"}</Label>
-        <Textarea
-          ref={promptInputRef}
-          value={question.question_text}
-          onChange={(event) => {
-            const nextValue = event.target.value;
-            if (question.question_type === "cloze") {
-              onChange(autoConvertUnderscoreRunsToClozeBlanks(question, nextValue));
-              return;
-            }
-            onChange({ ...question, question_text: nextValue });
-          }}
-          placeholder={
-            question.question_type === "cloze"
-              ? "Type a sentence, then use {{blank1}} style tokens for blanks"
-              : "Type the question the learner will see"
-          }
-          rows={3}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>Learner Preview Editor</Label>
-        {renderTypeEditor()}
-      </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="space-y-2">
           <Label>Points</Label>
           <Input
             type="number"
-            value={points}
             min={1}
             max={100}
-            onChange={(event) =>
-              onChange({
-                ...question,
-                points: Number(event.target.value || 10),
-              })
-            }
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Explanation</Label>
-          <Input
-            value={question.explanation}
-            onChange={(event) =>
-              onChange({
-                ...question,
-                explanation: event.target.value,
-              })
-            }
-            placeholder="Shown to learners after they answer"
+            value={points}
+            onChange={(event) => onChange({ ...question, points: Number(event.target.value || 10) })}
           />
         </div>
       </div>
-      {optionError ? <p className="text-sm text-destructive">{optionError}</p> : null}
-      <div className="rounded-xl border p-3">
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-8 px-2 text-sm"
-          onClick={() => setShowAdvanced((prev) => !prev)}
-        >
-          {showAdvanced ? "Hide Advanced JSON" : "Advanced JSON"}
-        </Button>
-        {showAdvanced ? (
-          <div className="mt-3 space-y-3">
-            <div className="space-y-2">
-              <Label>Options JSON</Label>
-              <Textarea
-                value={prettyOptions}
-                rows={8}
-                onChange={(event) => {
-                  try {
-                    const parsed = JSON.parse(event.target.value);
-                    onChange({ ...question, options: parsed });
-                  } catch {
-                    // Keep current value until valid JSON.
-                  }
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Correct Answer Raw</Label>
-              <Textarea
-                value={question.correct_answer}
-                rows={3}
-                onChange={(event) => onChange({ ...question, correct_answer: event.target.value })}
-              />
-            </div>
-          </div>
-        ) : null}
+
+      {renderMediaEditor()}
+
+      <div className="space-y-2">
+        <Label>Answer Builder</Label>
+        {renderTypeEditor()}
+      </div>
+
+      <div className="space-y-2">
+        <Label>Explanation</Label>
+        <Textarea
+          value={question.explanation}
+          onChange={(event) => onChange({ ...question, explanation: event.target.value })}
+          rows={3}
+          placeholder="Explain why the answer is correct."
+        />
+      </div>
+
+      {errorMessage ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      <div className="space-y-2 rounded-xl border bg-card/30 p-4">
+        <Label>Preview</Label>
+        <div className="space-y-3">
+          <p className="text-base font-semibold">{question.question_text || "Your question prompt will appear here"}</p>
+          {question.media_url ? (
+            <LessonMediaDisplay
+              mediaUrl={question.media_url}
+              mediaKind={selectedMediaKind}
+              thumbnailUrl={question.media_thumbnail_url ?? null}
+              alt={question.question_text || "Question media"}
+              mediaClassName="max-h-80"
+            />
+          ) : null}
+          {renderPreview()}
+        </div>
       </div>
     </div>
   );

@@ -1,13 +1,11 @@
 package com.rotiprata.infrastructure.supabase;
 
 import com.rotiprata.config.SupabaseProperties;
-import java.net.URI;
 import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Component
 public class SupabaseAuthClient {
@@ -82,14 +80,5 @@ public class SupabaseAuthClient {
             .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
             .retrieve()
             .toBodilessEntity();
-    }
-
-    public URI buildOAuthUrl(String provider, String redirectTo) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(authBaseUrl + "/authorize")
-            .queryParam("provider", provider);
-        if (redirectTo != null && !redirectTo.isBlank()) {
-            builder.queryParam("redirect_to", redirectTo);
-        }
-        return builder.build().toUri();
     }
 }

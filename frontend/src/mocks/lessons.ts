@@ -5,6 +5,43 @@
  */
 const now = new Date().toISOString();
 
+const mockContentSections = [
+  {
+    sectionKey: "intro",
+    title: "Origin",
+    blocks: [{ id: "intro-text", block_type: "text" as const, text_content: "Gen Alpha slang emerged from TikTok clips, stream chat culture, and short-form remix trends." }],
+  },
+  {
+    sectionKey: "definition",
+    title: "Definition",
+    blocks: [{ id: "definition-text", block_type: "text" as const, text_content: "Terms like rizz, gyatt, and no cap signal social fluency, tone, and in-group context more than literal meaning." }],
+  },
+  {
+    sectionKey: "usage",
+    title: "Usage Examples",
+    blocks: [
+      { id: "usage-1", block_type: "text" as const, text_content: "That streamer has rizz." },
+      { id: "usage-2", block_type: "text" as const, text_content: "No cap, that clip is wild." },
+      { id: "usage-3", block_type: "text" as const, text_content: "Only in Ohio would this happen." },
+    ],
+  },
+  {
+    sectionKey: "lore",
+    title: "Lore",
+    blocks: [{ id: "lore-text", block_type: "text" as const, text_content: "Many phrases are born in niche communities, then mainstream creators simplify and spread them." }],
+  },
+  {
+    sectionKey: "evolution",
+    title: "Evolution",
+    blocks: [{ id: "evolution-text", block_type: "text" as const, text_content: "Slang shifts fast. Meanings broaden and references fade as terms cross platforms and age groups." }],
+  },
+  {
+    sectionKey: "comparison",
+    title: "Comparison",
+    blocks: [{ id: "comparison-text", block_type: "text" as const, text_content: "Rizz roughly maps to having game, while no cap maps to for real in earlier generations." }],
+  },
+];
+
 export const mockLessons: Lesson[] = [
   {
     id: "1",
@@ -28,6 +65,7 @@ export const mockLessons: Lesson[] = [
     lore_content: null,
     evolution_content: null,
     comparison_content: null,
+    content_sections: mockContentSections,
     created_at: now,
     updated_at: now,
   },
@@ -53,6 +91,7 @@ export const mockLessons: Lesson[] = [
     lore_content: null,
     evolution_content: null,
     comparison_content: null,
+    content_sections: mockContentSections,
     created_at: now,
     updated_at: now,
   },
@@ -78,6 +117,7 @@ export const mockLessons: Lesson[] = [
     lore_content: null,
     evolution_content: null,
     comparison_content: null,
+    content_sections: mockContentSections,
     created_at: now,
     updated_at: now,
   },
@@ -120,6 +160,7 @@ export const mockLessonDetail: Lesson = {
     "Slang evolves quickly. Rizz started as niche Twitch slang before becoming mainstream.",
   comparison_content:
     "Rizz = Having game (Millennial) | Gyatt = Damn! (Gen X) | No cap = For real (Earlier Gen Z)",
+  content_sections: mockContentSections,
   created_at: now,
   updated_at: now,
 };
@@ -130,6 +171,7 @@ export const mockLessonSections = [
     title: "Origin",
     content:
       "Gen Alpha slang emerged from TikTok clips, stream chat culture, and short-form remix trends.",
+    blocks: mockContentSections[0].blocks,
     order_index: 1,
     duration_minutes: 3,
     completed: false,
@@ -139,6 +181,7 @@ export const mockLessonSections = [
     title: "Definition",
     content:
       "Terms like rizz, gyatt, and no cap signal social fluency, tone, and in-group context more than literal meaning.",
+    blocks: mockContentSections[1].blocks,
     order_index: 2,
     duration_minutes: 3,
     completed: false,
@@ -148,6 +191,7 @@ export const mockLessonSections = [
     title: "Usage Examples",
     content:
       "That streamer has rizz. No cap, that clip is wild. Only in Ohio would this happen.",
+    blocks: mockContentSections[2].blocks,
     order_index: 3,
     duration_minutes: 3,
     completed: false,
@@ -157,6 +201,7 @@ export const mockLessonSections = [
     title: "Lore",
     content:
       "Many phrases are born in niche communities, then mainstream creators simplify and spread them.",
+    blocks: mockContentSections[3].blocks,
     order_index: 4,
     duration_minutes: 3,
     completed: false,
@@ -166,6 +211,7 @@ export const mockLessonSections = [
     title: "Evolution",
     content:
       "Slang shifts fast. Meanings broaden and references fade as terms cross platforms and age groups.",
+    blocks: mockContentSections[4].blocks,
     order_index: 5,
     duration_minutes: 3,
     completed: false,
@@ -175,6 +221,7 @@ export const mockLessonSections = [
     title: "Comparison",
     content:
       "Rizz roughly maps to having game, while no cap maps to for real in earlier generations.",
+    blocks: mockContentSections[5].blocks,
     order_index: 6,
     duration_minutes: 3,
     completed: false,
