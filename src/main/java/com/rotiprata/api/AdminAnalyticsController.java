@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import com.rotiprata.application.AnalyticsService;
+import com.rotiprata.application.AdminAnalyticsService;
 
 import java.util.Map;
 import java.time.LocalDate;
@@ -21,9 +21,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 @RequestMapping("/api/admin/analytics")
 public class AdminAnalyticsController {
 
-    private final AnalyticsService analyticsService;
+    private final AdminAnalyticsService analyticsService;
     
-    public AdminAnalyticsController(AnalyticsService analyticsService) {
+    public AdminAnalyticsController(AdminAnalyticsService analyticsService) {
         this.analyticsService = analyticsService;
     }
     

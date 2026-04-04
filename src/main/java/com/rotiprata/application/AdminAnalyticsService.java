@@ -11,13 +11,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 
 @Service
-public class AnalyticsService {
+public class AdminAnalyticsService {
 
     private final ContentService contentService;
     private final SupabaseRestClient supabaseRestClient;
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
 
-    public AnalyticsService(ContentService contentService, SupabaseRestClient supabaseRestClient) {
+    public AdminAnalyticsService(ContentService contentService, SupabaseRestClient supabaseRestClient) {
         this.contentService = contentService;
         this.supabaseRestClient = supabaseRestClient;
     }
