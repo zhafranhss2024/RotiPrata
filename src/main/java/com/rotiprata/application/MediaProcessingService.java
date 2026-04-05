@@ -2,9 +2,9 @@ package com.rotiprata.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rotiprata.api.content.domain.ContentType;
 import com.rotiprata.config.MediaProcessingProperties;
 import com.rotiprata.config.SupabaseProperties;
-import com.rotiprata.domain.ContentType;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseStorageClient;
 import java.io.BufferedReader;
