@@ -42,7 +42,7 @@ class AdminLoggingServiceImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void logAdminAction_shouldCallSupabaseSuccessfully_whenCalledWithValidArguments() {
+    void logAdminAction_ShouldCallSupabaseSuccessfully_WhenCalledWithValidArguments() {
         // Act
         service.logAdminAction(
                 adminId,
@@ -58,7 +58,7 @@ class AdminLoggingServiceImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void logAdminAction_shouldNotThrow_whenSupabaseThrowsException() {
+    void logAdminAction_ShouldNotThrow_WhenSupabaseThrowsException() {
         // Arrange
         doThrow(new RuntimeException("Supabase error"))
                 .when(supabaseAdminRestClient)

@@ -92,8 +92,13 @@ public class AdminAnalyticsController {
     // Private Helpers
 
     private void validateMonthYear(String month, String year) {
-        int m = Integer.parseInt(month);
-        int y = Integer.parseInt(year);
+        int m, y;
+        try {
+            m = Integer.parseInt(month);
+            y = Integer.parseInt(year);
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid month or year", e);
+        }
 
         LocalDate today = LocalDate.now();
         if (y > today.getYear() || (y == today.getYear() && m > today.getMonthValue())) {
