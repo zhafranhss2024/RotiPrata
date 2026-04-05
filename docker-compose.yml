@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  backend:
+    build: 
+      dockerfile: Dockerfile.backend
+    container_name: backend
+    env_file:
+      - .env
+    ports:
+      - "${PORT}:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: ${BACKEND_URL:-http://backend:8080}  
+    container_name: frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
