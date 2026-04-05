@@ -17,6 +17,7 @@ import com.rotiprata.api.content.domain.Content;
 import com.rotiprata.api.content.domain.ContentTag;
 import com.rotiprata.api.content.service.ContentCreatorEnrichmentService;
 import com.rotiprata.api.content.service.ContentService;
+import com.rotiprata.api.feed.service.ContentLessonLinkService;
 import com.rotiprata.api.user.domain.Profile;
 import com.rotiprata.api.user.domain.UserRole;
 import com.rotiprata.api.user.service.UserService;
@@ -37,6 +38,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -65,9 +67,11 @@ public class AdminService {
     private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final ContentCreatorEnrichmentService contentCreatorEnrichmentService;
     private final ContentService contentService;
+    private final ContentLessonLinkService contentLessonLinkService;
     private final UserService userService;
     private final AdminLoggingService adminLoggingService;
 
+    @Autowired
     public AdminService(
         SupabaseAdminClient supabaseAdminClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
@@ -76,10 +80,31 @@ public class AdminService {
         UserService userService,
         AdminLoggingService adminLoggingService
     ) {
+        this(
+            supabaseAdminClient,
+            supabaseAdminRestClient,
+            contentCreatorEnrichmentService,
+            contentService,
+            new ContentLessonLinkService(supabaseAdminRestClient),
+            userService,
+            adminLoggingService
+        );
+    }
+
+    public AdminService(
+        SupabaseAdminClient supabaseAdminClient,
+        SupabaseAdminRestClient supabaseAdminRestClient,
+        ContentCreatorEnrichmentService contentCreatorEnrichmentService,
+        ContentService contentService,
+        ContentLessonLinkService contentLessonLinkService,
+        UserService userService,
+        AdminLoggingService adminLoggingService
+    ) {
         this.supabaseAdminClient = supabaseAdminClient;
         this.supabaseAdminRestClient = supabaseAdminRestClient;
         this.contentCreatorEnrichmentService = contentCreatorEnrichmentService;
         this.contentService = contentService;
+        this.contentLessonLinkService = contentLessonLinkService;
         this.userService = userService;
         this.adminLoggingService = adminLoggingService;
     }
@@ -161,6 +186,7 @@ public class AdminService {
         }
 
         replaceTags(contentId, request.tags());
+        contentLessonLinkService.replaceContentLessonLinks(contentId, request.lessonIds());
         adminLoggingService.logAdminAction(adminUserId, AdminAction.UPDATE_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, "Updated content metadata");
 
         return updated.get(0);

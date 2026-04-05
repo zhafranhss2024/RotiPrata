@@ -55,7 +55,6 @@ import {
 import { buildMockLeaderboardResponse, mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
 import { mockAdminAnalytics, mockAdminStats, mockAdminUserDetails, mockAdminUsers, mockFlags, mockModerationQueue } from "@/mocks/admin";
 import {
-  mockAiSuggestions,
   mockBrowsingHistory,
   mockSearchResults,
   mockTrendingContent,
@@ -77,6 +76,10 @@ export type FeedResponse = {
   items: Content[];
   hasMore: boolean;
   nextCursor?: string | null;
+};
+
+export type RecommendationResponse = {
+  items: Content[];
 };
 
 export type ContentQuizSubmitResult = {
@@ -430,8 +433,12 @@ export const saveBrowsingHistory = (query: string) => {
   apiPost<void>(`/users/me/history`, body);
 };
 
-export const fetchRecommendations = () =>
-  withMockFallback("recommendations", () => mockAiSuggestions, () => apiGet(`/recommendations`));
+export const fetchRecommendations = (limit = 24) =>
+  withMockFallback(
+    "recommendations",
+    () => ({ items: mockContents.slice(0, Math.min(limit, mockContents.length)) }),
+    () => apiGet<RecommendationResponse>(`/recommendations?limit=${limit}`)
+  );
 
 export const fetchBrowsingHistory = () =>
   apiGet<GetHistoryDTO[]>(`/users/me/history`);

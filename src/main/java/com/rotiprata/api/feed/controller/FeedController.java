@@ -1,7 +1,9 @@
 package com.rotiprata.api.feed.controller;
 
 import com.rotiprata.api.feed.service.FeedService;
+import com.rotiprata.api.feed.service.RecommendationService;
 import com.rotiprata.api.zdto.FeedResponse;
+import com.rotiprata.api.zdto.RecommendationResponse;
 import com.rotiprata.security.SecurityUtils;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -14,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class FeedController {
     private final FeedService feedService;
+    private final RecommendationService recommendationService;
 
-    public FeedController(FeedService feedService) {
+    public FeedController(FeedService feedService, RecommendationService recommendationService) {
         this.feedService = feedService;
+        this.recommendationService = recommendationService;
     }
 
     @GetMapping("/feed")
@@ -29,5 +33,16 @@ public class FeedController {
             return new FeedResponse(java.util.List.of(), false, null);
         }
         return feedService.getFeed(SecurityUtils.getUserId(jwt), SecurityUtils.getAccessToken(), cursor, limit);
+    }
+
+    @GetMapping("/recommendations")
+    public RecommendationResponse recommendations(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestParam(value = "limit", required = false) Integer limit
+    ) {
+        if (jwt == null) {
+            return new RecommendationResponse(java.util.List.of());
+        }
+        return recommendationService.getRecommendations(SecurityUtils.getUserId(jwt), SecurityUtils.getAccessToken(), limit);
     }
 }

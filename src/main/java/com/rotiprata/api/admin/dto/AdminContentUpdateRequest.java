@@ -16,5 +16,6 @@ public record AdminContentUpdateRequest(
     @NotBlank @Size(max = 500) String definitionUsed,
     @NotBlank @Size(max = 160) String olderVersionReference,
     @NotNull UUID categoryId,
-    @NotEmpty List<@NotBlank @Size(max = 30) String> tags
+    @NotEmpty List<@NotBlank @Size(max = 30) String> tags,
+    List<UUID> lessonIds
 ) {}

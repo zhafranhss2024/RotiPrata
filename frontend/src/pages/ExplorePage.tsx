@@ -9,7 +9,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, BookOpen, Search, Video } from 'lucide-react';
 import type { Content } from '@/types';
-import { clearBrowsingHistory, fetchBrowsingHistory, fetchFeed, saveBrowsingHistory, searchContent } from '@/lib/api';
+import {
+  clearBrowsingHistory,
+  fetchBrowsingHistory,
+  fetchFeed,
+  fetchRecommendations,
+  saveBrowsingHistory,
+  searchContent,
+} from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { CompactVideoTile } from '@/components/feed/CompactVideoTile';
 
@@ -31,7 +38,9 @@ const ExplorePage = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
   const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
-  const [videoViewerStartIndex, setVideoViewerStartIndex] = useState<number | null>(null);
+  const [recommendedContents, setRecommendedContents] = useState<Content[]>([]);
+  const [isRecommendationsLoading, setIsRecommendationsLoading] = useState(true);
+  const [videoViewerState, setVideoViewerState] = useState<{ mode: 'search' | 'recommendations'; index: number } | null>(null);
   const [contentLookup, setContentLookup] = useState<Record<string, Content>>({});
   const [browsingHistory, setBrowsingHistory] = useState<{ id: string; query: string; searched_at: string }[]>([]);
   const searchRequestVersionRef = useRef(0);
@@ -41,6 +50,40 @@ const ExplorePage = () => {
     fetchBrowsingHistory()
       .then(setBrowsingHistory)
       .catch((error) => console.warn('Failed to load browsing history', error));
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setIsRecommendationsLoading(true);
+    fetchRecommendations()
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        setRecommendedContents(response.items ?? []);
+        setContentLookup((prev) => {
+          const next = { ...prev };
+          (response.items ?? []).forEach((item) => {
+            next[item.id] = item;
+          });
+          return next;
+        });
+      })
+      .catch((error) => {
+        if (active) {
+          console.warn('Failed to load recommendations', error);
+          setRecommendedContents([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setIsRecommendationsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -259,27 +302,34 @@ const ExplorePage = () => {
     }
   };
 
-  const openVideoViewer = (index: number) => {
-    setVideoViewerStartIndex(index);
+  const openVideoViewer = (mode: 'search' | 'recommendations', index: number) => {
+    setVideoViewerState({ mode, index });
   };
 
-  if (videoViewerStartIndex !== null) {
+  const viewerContents = videoViewerState?.mode === 'recommendations' ? recommendedContents : searchFeedContents;
+  const viewerLabel = videoViewerState?.mode === 'recommendations' ? 'Back to Explore' : 'Back to Search';
+  const viewerCountLabel =
+    videoViewerState?.mode === 'recommendations'
+      ? `${recommendedContents.length} recommended`
+      : `${videoResults.length} videos`;
+
+  if (videoViewerState !== null) {
     return (
       <MainLayout fullScreen>
         <div className="sticky top-0 z-30 h-12 flex items-center justify-between gap-2 px-4 border-b border-mainAlt bg-main dark:bg-mainDark">
           <Button
             variant="ghost"
-            onClick={() => setVideoViewerStartIndex(null)}
+            onClick={() => setVideoViewerState(null)}
             className="text-mainAccent dark:text-white hover:bg-mainAlt"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Search
+            {viewerLabel}
           </Button>
-          <span className="text-sm text-mainAccent">{videoResults.length} videos</span>
+          <span className="text-sm text-mainAccent">{viewerCountLabel}</span>
         </div>
         <FeedContainer
-          contents={searchFeedContents}
-          initialIndex={videoViewerStartIndex}
+          contents={viewerContents}
+          initialIndex={videoViewerState.index}
           containerClassName="h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom)-3rem)] md:h-[calc(100dvh-4rem-3rem)] md:!mt-0"
         />
       </MainLayout>
@@ -390,7 +440,7 @@ const ExplorePage = () => {
                     {videoResults.map((result, index) => (
                       <CompactVideoTile
                         key={`video-${result.id}`}
-                        onClick={() => openVideoViewer(index)}
+                        onClick={() => openVideoViewer('search', index)}
                         title={result.title}
                         snippet={result.snippet}
                         thumbnailUrl={result.thumbnailUrl}
@@ -434,11 +484,37 @@ const ExplorePage = () => {
             </Tabs>
           </div>
         ) : (
-          <Card className="bg-muted/40">
-            <CardContent className="p-6 text-sm text-muted-foreground text-center">
-              Type to search videos and lessons.
-            </CardContent>
-          </Card>
+          <div className="space-y-4">
+            <div>
+              <h2 className="font-semibold text-muted-foreground text-sm mb-3">Recommended for you</h2>
+              {isRecommendationsLoading ? (
+                <Card className="bg-muted/40">
+                  <CardContent className="p-6 text-sm text-muted-foreground text-center">
+                    Loading recommendations...
+                  </CardContent>
+                </Card>
+              ) : recommendedContents.length === 0 ? (
+                <Card className="bg-muted/40">
+                  <CardContent className="p-6 text-sm text-muted-foreground text-center">
+                    No recommendations available yet. Type to search videos and lessons.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  {recommendedContents.map((content, index) => (
+                    <CompactVideoTile
+                      key={`recommended-${content.id}`}
+                      onClick={() => openVideoViewer('recommendations', index)}
+                      title={content.title}
+                      snippet={content.description ?? undefined}
+                      thumbnailUrl={content.thumbnail_url}
+                      mediaUrl={content.media_url}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </MainLayout>
