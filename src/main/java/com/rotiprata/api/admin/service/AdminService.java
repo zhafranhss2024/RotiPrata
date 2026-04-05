@@ -110,7 +110,7 @@ public class AdminService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
         }
 
-        adminLoggingService.logAdminAction(adminUserId, AdminAction.APPROVE_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, accessToken);
+        adminLoggingService.logAdminAction(adminUserId, AdminAction.APPROVE_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, "Approved content");
     }
 
     public void rejectContent(UUID adminUserId, UUID contentId, String feedback, String accessToken) {
@@ -129,7 +129,7 @@ public class AdminService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
         }
 
-        adminLoggingService.logAdminAction(adminUserId, AdminAction.REJECT_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, accessToken);
+        adminLoggingService.logAdminAction(adminUserId, AdminAction.REJECT_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, "Rejected content");
     }
 
     public Content updateContentMetadata(
@@ -161,7 +161,7 @@ public class AdminService {
         }
 
         replaceTags(contentId, request.tags());
-        adminLoggingService.logAdminAction(adminUserId, AdminAction.UPDATE_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, accessToken);
+        adminLoggingService.logAdminAction(adminUserId, AdminAction.UPDATE_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, "Updated content metadata");
 
         return updated.get(0);
     }
@@ -191,7 +191,7 @@ public class AdminService {
         }
         resolvePendingFlagsForContent(contentId, adminUserId);
 
-        adminLoggingService.logAdminAction(adminUserId, AdminAction.RESOLVE_FLAG, flagId, AdminLoggingService.TargetType.FLAG, accessToken);
+        adminLoggingService.logAdminAction(adminUserId, AdminAction.RESOLVE_FLAG, flagId, AdminLoggingService.TargetType.FLAG, "Resolved pending flag");
     }
 
     public void takeDownFlag(UUID adminUserId, UUID flagId, String feedback, String accessToken) {
@@ -218,7 +218,7 @@ public class AdminService {
         }
 
         resolvePendingFlagsForContent(contentId, adminUserId);
-        adminLoggingService.logAdminAction(adminUserId, AdminAction.TAKE_DOWN_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, accessToken);
+        adminLoggingService.logAdminAction(adminUserId, AdminAction.TAKE_DOWN_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, "Took down flagged content");
     }
 
     public Map<String, Object> getFlagReports(
@@ -278,7 +278,7 @@ public class AdminService {
         }
 
         Map<String, Object> latestScopedRow = scopedRows.get(0);
-        UUID actionableFlagId = findLatestPendingFlagId(allRows);
+        UUID actionableFlagId = findLatestPendingFlagId(scopedRows);
 
         Map<String, Object> review = new LinkedHashMap<>();
         review.put("contentId", contentId);
@@ -509,7 +509,7 @@ public class AdminService {
         insert.put("assigned_by", adminUserId);
         supabaseAdminRestClient.postList("user_roles", insert, USER_ROLE_LIST);
 
-        adminLoggingService.logAdminAction(adminUserId, AdminAction.UPDATE_USER_ROLE, targetUserId, AdminLoggingService.TargetType.USER, accessToken);
+        adminLoggingService.logAdminAction(adminUserId, AdminAction.UPDATE_USER_ROLE, targetUserId, AdminLoggingService.TargetType.USER, "Updated user role to " + role.name());
 
         return loadUserSummary(targetUserId);
     }
@@ -530,7 +530,7 @@ public class AdminService {
         update.put("ban_duration", SUSPENDED_STATUS.equals(normalizedStatus) ? PERMANENT_BAN_DURATION : "none");
         supabaseAdminClient.updateUser(targetUserId, update);
 
-        adminLoggingService.logAdminAction(adminUserId, AdminAction.UPDATE_USER_STATUS, targetUserId, AdminLoggingService.TargetType.USER, accessToken);
+        adminLoggingService.logAdminAction(adminUserId, AdminAction.UPDATE_USER_STATUS, targetUserId, AdminLoggingService.TargetType.USER, "Updated user status to " + normalizedStatus);
 
         return loadUserSummary(targetUserId);
     }
@@ -653,7 +653,13 @@ public class AdminService {
             );
         }
 
-        adminLoggingService.logAdminAction(adminUserId, AdminAction.RESET_USER_LESSON_PROGRESS, targetUserId, AdminLoggingService.TargetType.USER, accessToken);
+        adminLoggingService.logAdminAction(
+            adminUserId,
+            AdminAction.RESET_USER_LESSON_PROGRESS,
+            targetUserId,
+            AdminLoggingService.TargetType.USER,
+            "Reset lesson progress for lesson " + lessonId
+        );
     }
 
     // Private Helps 

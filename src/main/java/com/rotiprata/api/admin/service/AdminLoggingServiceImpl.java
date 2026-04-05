@@ -1,6 +1,7 @@
 package com.rotiprata.api.admin.service;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,14 +56,13 @@ public class AdminLoggingServiceImpl implements AdminLoggingService {
             TargetType targetType,
             String description
     ) {
-        Map<String, Object> logEntry = Map.of(
-            ADMIN_ID, adminId,
-            ACTION, action.name(),
-            TARGET_ID, targetId,
-            TARGET_TYPE, targetType.name(),
-            DESCRIPTION, description,
-            CREATED_AT, OffsetDateTime.now()
-        );
+        Map<String, Object> logEntry = new LinkedHashMap<>();
+        logEntry.put(ADMIN_ID, adminId);
+        logEntry.put(ACTION, action.name());
+        logEntry.put(TARGET_ID, targetId);
+        logEntry.put(TARGET_TYPE, targetType.name());
+        logEntry.put(DESCRIPTION, sanitizeDescription(description));
+        logEntry.put(CREATED_AT, OffsetDateTime.now());
 
         List<Map<String, Object>> rows = List.of(logEntry);
 
@@ -72,5 +72,28 @@ public class AdminLoggingServiceImpl implements AdminLoggingService {
             log.error("Failed to log admin action: {} - {}", action.name(), e.getMessage(), e);
         }
         
+    }
+
+    private String sanitizeDescription(String description) {
+        if (description == null) {
+            return null;
+        }
+
+        String normalized = description.replaceAll("\\s+", " ").trim();
+        if (normalized.isBlank()) {
+            return null;
+        }
+
+        String lower = normalized.toLowerCase();
+        if (lower.startsWith("bearer ")
+            || lower.contains("authorization:")
+            || lower.contains("access token")
+            || lower.contains("refresh token")
+            || normalized.matches("(?i).*\\beyJ[A-Za-z0-9_\\-]+=*\\.[A-Za-z0-9_\\-]+=*\\.[A-Za-z0-9_\\-+/=]*.*")
+            || normalized.matches("(?i).*\\bsk-[A-Za-z0-9]{10,}.*")) {
+            return null;
+        }
+
+        return normalized.length() > 500 ? normalized.substring(0, 500) : normalized;
     }
 }

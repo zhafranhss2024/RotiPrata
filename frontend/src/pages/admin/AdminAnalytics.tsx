@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { AdminFlagReviewDialog } from "@/components/admin/AdminFlagReviewDialog";
 import { AdminUserManagementDialog } from "@/components/admin/AdminUserManagementDialog";
@@ -450,11 +450,11 @@ const AdminAnalytics = () => {
 
   const reviewStatus =
     avgReviewTime > 20
-      ? "⚠ High — needs attention"
+      ? "High - needs attention"
       : avgReviewTime > 10
-      ? "△ Moderate"
+      ? "Moderate"
       : avgReviewTime > 0
-      ? "✓ Within target"
+      ? "Within target"
       : "";
 
   const gridColor   = isDark ? "rgba(255,255,255,0.05)" : "#f3f4f6";
@@ -691,8 +691,8 @@ const AdminAnalytics = () => {
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-white/[0.06] flex items-center justify-center text-sm">
-                        📄
+                      <div className="w-8 h-8 rounded-xl bg-gray-100 dark:bg-white/[0.06] flex items-center justify-center text-[10px] font-semibold">
+                        DOC
                       </div>
                       <span className="max-w-[160px] truncate text-sm font-medium text-gray-800 dark:text-neutral-200">
                         {c.name}
@@ -825,3 +825,5 @@ const AdminAnalytics = () => {
 };
 
 export default AdminAnalytics;
+
+

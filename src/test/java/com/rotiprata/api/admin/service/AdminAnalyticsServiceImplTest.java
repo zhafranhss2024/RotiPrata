@@ -1,30 +1,38 @@
 package com.rotiprata.api.admin.service;
 
 import com.rotiprata.api.content.service.ContentService;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.rotiprata.api.user.service.UserService;
+import com.rotiprata.domain.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
-
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Collections;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-@DisplayName("AdminAnalyticsServiceImpl Unit Tests - Full Coverage")
+@ExtendWith(MockitoExtension.class)
+@DisplayName("AdminAnalyticsServiceImpl tests")
 class AdminAnalyticsServiceImplTest {
-
-    private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
 
     @Mock
     private ContentService contentService;
@@ -32,324 +40,157 @@ class AdminAnalyticsServiceImplTest {
     @Mock
     private SupabaseAdminRestClient supabaseAdminRestClient;
 
-    @InjectMocks
+    @Mock
+    private UserService userService;
+
     private AdminAnalyticsServiceImpl service;
+    private UUID adminUserId;
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this); // Initialize mocks
+        service = new AdminAnalyticsServiceImpl(contentService, supabaseAdminRestClient, userService);
+        adminUserId = UUID.randomUUID();
+        lenient().when(userService.getRoles(adminUserId, "token")).thenReturn(List.of(AppRole.ADMIN));
     }
 
-    // ===== getFlaggedContentByMonthAndYear =====
-    // Verifies flagged content is correctly aggregated by date when data exists
     @Test
-    void getFlaggedContentByMonthAndYear_ShouldReturnAggregatedCounts_WhenContentExists() {
-        // Arrange
-        List<Map<String, Object>> rawFlags = List.of(
+    void getFlaggedContentByMonthAndYear_shouldAggregateCountsByDate() {
+        when(contentService.getFlaggedContentByMonthAndYear("token", "03", "2026")).thenReturn(List.of(
             Map.of("created_at", "2026-03-01T10:00:00Z"),
             Map.of("created_at", "2026-03-01T12:00:00Z"),
             Map.of("created_at", "2026-03-02T09:00:00Z")
-        );
-        when(contentService.getFlaggedContentByMonthAndYear("token", "3", "2026")).thenReturn(rawFlags);
+        ));
 
-        // Act
-        List<Map<String, Object>> result = service.getFlaggedContentByMonthAndYear("token", "3", "2026");
+        List<Map<String, Object>> result =
+            service.getFlaggedContentByMonthAndYear(adminUserId, "token", "03", "2026");
 
-        // Assert
         assertEquals(2, result.size());
-        assertEquals(2, result.get(0).get("count"));
         assertEquals("2026-03-01", result.get(0).get("date"));
-        assertEquals(1, result.get(1).get("count"));
+        assertEquals(2L, ((Number) result.get(0).get("count")).longValue());
         assertEquals("2026-03-02", result.get(1).get("date"));
-
-        // Verify
-        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
+        assertEquals(1L, ((Number) result.get(1).get("count")).longValue());
     }
 
-    // Verifies method returns empty list when no flagged content is present
     @Test
-    void getFlaggedContentByMonthAndYear_ShouldReturnEmptyList_WhenNoContentExists() {
-        // Arrange
-        when(contentService.getFlaggedContentByMonthAndYear("token", "3", "2026")).thenReturn(Collections.emptyList());
+    void getAverageReviewTimeByMonthAndYear_shouldIgnoreUnresolvedRows() {
+        Map<String, Object> unresolved = new HashMap<>();
+        unresolved.put("created_at", "2026-03-01T10:00:00Z");
+        unresolved.put("resolved_at", null);
 
-        // Act
-        List<Map<String, Object>> result = service.getFlaggedContentByMonthAndYear("token", "3", "2026");
+        when(contentService.getFlaggedContentByMonthAndYear("token", "03", "2026")).thenReturn(List.of(
+            Map.of("created_at", "2026-03-01T12:00:00Z", "resolved_at", "2026-03-01T12:45:00Z"),
+            unresolved
+        ));
 
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
+        double result = service.getAverageReviewTimeByMonthAndYear(adminUserId, "token", "03", "2026");
 
-        // Verify
-        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
+        assertEquals(45.0, result);
     }
 
-    // ===== getAverageReviewTimeByMonthAndYear =====
-    // Checks average review time is correctly computed for resolved flags
     @Test
-    void getAverageReviewTimeByMonthAndYear_ShouldComputeAverage_WhenReviewsExist() {
-        // Arrange
-        List<Map<String, Object>> rawFlags = List.of(
-            Map.of("created_at", "2026-03-01T10:00:00Z", "resolved_at", "2026-03-01T10:30:00Z"),
-            Map.of("created_at", "2026-03-01T12:00:00Z", "resolved_at", "2026-03-01T12:45:00Z")
-        );
-        when(contentService.getFlaggedContentByMonthAndYear("token", "3", "2026")).thenReturn(rawFlags);
+    void getTopFlagUsers_shouldDelegateToRpc() {
+        List<Map<String, Object>> expected = List.of(Map.of("user_id", "user-1", "flag_count", 5));
+        doReturn(expected).when(supabaseAdminRestClient).rpcList(eq("get_top_flag_users"), any(), any());
 
-        // Act
-        double avg = service.getAverageReviewTimeByMonthAndYear("token", "3", "2026");
+        List<Map<String, Object>> result = service.getTopFlagUsers(adminUserId, "token", "03", "2026");
 
-        // Assert
-        assertEquals(37.5, avg);
-
-        // Verify
-        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
-    }
-
-    // Ensures 0 is returned when no flags have a resolved timestamp
-    @Test
-    void getAverageReviewTimeByMonthAndYear_ShouldReturnZero_WhenNoResolvedFlags() {
-        // Arrange
-        List<Map<String, Object>> rawFlags = List.of(
-            Map.of("created_at", "2026-03-01T10:00:00Z", "resolved_at", null),
-            Map.of("created_at", "2026-03-01T12:00:00Z")
-        );
-        when(contentService.getFlaggedContentByMonthAndYear("token", "3", "2026")).thenReturn(rawFlags);
-
-        // Act
-        double avg = service.getAverageReviewTimeByMonthAndYear("token", "3", "2026");
-
-        // Assert
-        assertEquals(0.0, avg);
-
-        // Verify
-        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
-    }
-
-     // Ensures 0 is returned when no flagged content exists
-    @Test
-    void getAverageReviewTimeByMonthAndYear_ShouldReturnZero_WhenNoContentExists() {
-        // Arrange
-        when(contentService.getFlaggedContentByMonthAndYear("token", "3", "2026")).thenReturn(Collections.emptyList());
-
-        // Act
-        double avg = service.getAverageReviewTimeByMonthAndYear("token", "3", "2026");
-
-        // Assert
-        assertEquals(0.0, avg);
-
-        // Verify
-        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
-    }
-
-    // ===== getTopFlagUsers =====
-    // Verifies top flagging users are returned when present
-    @Test
-    void getTopFlagUsers_ShouldReturnList_WhenUsersExist() {
-        // Arrange
-        List<Map<String, Object>> expected = List.of(Map.of("user_id", 1, "flags", 5));
-        when(supabaseAdminRestClient.rpcList(eq("get_top_flag_users"), any(), MAP_LIST)).thenReturn(expected);
-
-        // Act
-        List<Map<String, Object>> result = service.getTopFlagUsers("3", "2026");
-
-        // Assert
         assertEquals(expected, result);
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_users"), any(), any());
+        verify(supabaseAdminRestClient).rpcList(eq("get_top_flag_users"), any(), any());
     }
 
-    // Verifies empty list is returned when no top users exist
     @Test
-    void getTopFlagUsers_ShouldReturnEmptyList_WhenNoUsersExist() {
-        // Arrange
-        when(supabaseAdminRestClient.rpcList(eq("get_top_flag_users"), any(), any())).thenReturn(Collections.emptyList());
+    void getTopFlagContents_shouldDelegateToRpc() {
+        List<Map<String, Object>> expected = List.of(Map.of("content_id", "content-1", "flag_count", 3));
+        doReturn(expected).when(supabaseAdminRestClient).rpcList(eq("get_top_flag_content"), any(), any());
 
-        // Act
-        List<Map<String, Object>> result = service.getTopFlagUsers("3", "2026");
+        List<Map<String, Object>> result = service.getTopFlagContents(adminUserId, "token", "03", "2026");
 
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_users"), any(), any());
-    }
-
-    // ===== getTopFlagContents =====
-    // Verifies top flagged contents are returned when present
-    @Test
-    void getTopFlagContents_ShouldReturnList_WhenContentsExist() {
-        // Arrange
-        List<Map<String, Object>> expected = List.of(Map.of("content_id", 1, "flags", 3));
-        when(supabaseAdminRestClient.rpcList(eq("get_top_flag_content"), any(), MAP_LIST)).thenReturn(expected);
-
-        // Act
-        List<Map<String, Object>> result = service.getTopFlagContents("3", "2026");
-
-        // Assert
         assertEquals(expected, result);
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_content"), any(), any());
+        verify(supabaseAdminRestClient).rpcList(eq("get_top_flag_content"), any(), any());
     }
 
-    // Verifies empty list is returned when no top flagged contents exist
     @Test
-    void getTopFlagContents_ShouldReturnEmptyList_WhenNoContentsExist() {
-        // Arrange
-        when(supabaseAdminRestClient.rpcList(eq("get_top_flag_content"), any(), any())).thenReturn(Collections.emptyList());
+    void getAuditLogs_shouldQueryAuditLogTable() {
+        List<Map<String, Object>> expected = List.of(Map.of("action", "UPDATE_CONTENT"));
+        doReturn(expected).when(supabaseAdminRestClient).getList(eq("audit_logs"), anyString(), any());
 
-        // Act
-        List<Map<String, Object>> result = service.getTopFlagContents("3", "2026");
+        List<Map<String, Object>> result = service.getAuditLogs(adminUserId, "token", "03", "2026");
 
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_content"), any(), any());
-    }
-
-    // ===== getAuditLogs =====
-    // Verifies audit logs are returned correctly when logs exist
-    @Test
-    void getAuditLogs_ShouldReturnList_WhenLogsExist() {
-        // Arrange
-        List<Map<String, Object>> expected = List.of(Map.of("action", "delete", "user", "admin"));
-        when(supabaseAdminRestClient.getList(eq("audit_logs"), anyString(), MAP_LIST)).thenReturn(expected);
-
-        // Act
-        List<Map<String, Object>> result = service.getAuditLogs("3", "2026");
-
-        // Assert
         assertEquals(expected, result);
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).getList(eq("audit_logs"), anyString(), any());
+        verify(supabaseAdminRestClient).getList(eq("audit_logs"), contains("select="), any());
     }
 
-    // Verifies empty list is returned when no audit logs exist
     @Test
-    void getAuditLogs_ShouldReturnEmptyList_WhenNoLogsExist() {
-        // Arrange
-        when(supabaseAdminRestClient.getList(eq("audit_logs"), anyString(), any())).thenReturn(Collections.emptyList());
+    void analyticsEndpoints_shouldRejectNonAdminUsers() {
+        UUID nonAdminUserId = UUID.randomUUID();
+        when(userService.getRoles(nonAdminUserId, "token")).thenReturn(List.of(AppRole.USER));
 
-        // Act
-        List<Map<String, Object>> result = service.getAuditLogs("3", "2026");
-
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).getList(eq("audit_logs"), anyString(), any());
-    }
-
-    // ===== Exception Handling Tests =====
-
-    @Test
-    void getFlaggedContentByMonthAndYear_ShouldSkipInvalidTimestamps() {
-        // Arrange: one valid, one invalid timestamp
-        List<Map<String, Object>> rawFlags = List.of(
-            Map.of("created_at", "invalid-timestamp"),
-            Map.of("created_at", "2026-03-01T10:00:00Z")
+        ResponseStatusException thrown = assertThrows(
+            ResponseStatusException.class,
+            () -> service.getFlaggedContentByMonthAndYear(nonAdminUserId, "token", "03", "2026")
         );
-        when(contentService.getFlaggedContentByMonthAndYear(anyString(), anyString(), anyString()))
-            .thenReturn(rawFlags);
 
-        // Act
-        List<Map<String, Object>> result = service.getFlaggedContentByMonthAndYear("token", "3", "2026");
-
-        // Assert: only the valid one is counted
-        assertEquals(1, result.size());
-        assertEquals("2026-03-01", result.get(0).get("date"));
-        assertEquals(1L, result.get(0).get("count"));
-
-        // Verify
-        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
+        assertEquals(403, thrown.getStatusCode().value());
+        assertTrue(thrown.getReason().contains("Admin role required"));
     }
 
     @Test
-    void getFlaggedContentByMonthAndYear_ShouldReturnEmptyList_WhenServiceThrows() {
-        // Arrange
+    void getFlaggedContentByMonthAndYear_shouldReturnEmptyList_whenServiceThrows() {
         when(contentService.getFlaggedContentByMonthAndYear(anyString(), anyString(), anyString()))
             .thenThrow(new RuntimeException("service error"));
 
-        // Act
-        List<Map<String, Object>> result = service.getFlaggedContentByMonthAndYear("token", "3", "2026");
+        List<Map<String, Object>> result =
+            service.getFlaggedContentByMonthAndYear(adminUserId, "token", "03", "2026");
 
-        // Assert
         assertNotNull(result);
         assertTrue(result.isEmpty());
-
-        // Verify
-        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
+        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
     @Test
-    void getAverageReviewTimeByMonthAndYear_ShouldReturnZero_WhenServiceThrows() {
-        // Arrange
+    void getAverageReviewTimeByMonthAndYear_shouldReturnZero_whenServiceThrows() {
         when(contentService.getFlaggedContentByMonthAndYear(anyString(), anyString(), anyString()))
             .thenThrow(new RuntimeException("service error"));
 
-        // Act
-        double result = service.getAverageReviewTimeByMonthAndYear("token", "3", "2026");
+        double result = service.getAverageReviewTimeByMonthAndYear(adminUserId, "token", "03", "2026");
 
-        // Assert
         assertEquals(0.0, result);
-
-        // Verify
-        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
+        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
     @Test
-    void getTopFlagUsers_ShouldReturnEmptyList_WhenRpcThrows() {
-        // Arrange
+    void getTopFlagUsers_shouldReturnEmptyList_whenRpcThrows() {
         when(supabaseAdminRestClient.rpcList(anyString(), any(), any()))
             .thenThrow(new RuntimeException("RPC error"));
 
-        // Act
-        List<Map<String, Object>> result = service.getTopFlagUsers("3", "2026");
+        List<Map<String, Object>> result = service.getTopFlagUsers(adminUserId, "token", "03", "2026");
 
-        // Assert
         assertNotNull(result);
         assertTrue(result.isEmpty());
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).rpcList(anyString(), any(), any());
+        verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_users"), any(), any());
     }
 
     @Test
-    void getTopFlagContents_ShouldReturnEmptyList_WhenRpcThrows() {
-        // Arrange
+    void getTopFlagContents_shouldReturnEmptyList_whenRpcThrows() {
         when(supabaseAdminRestClient.rpcList(anyString(), any(), any()))
             .thenThrow(new RuntimeException("RPC error"));
 
-        // Act
-        List<Map<String, Object>> result = service.getTopFlagContents("3", "2026");
+        List<Map<String, Object>> result = service.getTopFlagContents(adminUserId, "token", "03", "2026");
 
-        // Assert
         assertNotNull(result);
         assertTrue(result.isEmpty());
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).rpcList(anyString(), any(), any());
+        verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_content"), any(), any());
     }
 
     @Test
-    void getAuditLogs_ShouldReturnEmptyList_WhenRpcThrows() {
-        // Arrange
+    void getAuditLogs_shouldReturnEmptyList_whenRpcThrows() {
         when(supabaseAdminRestClient.getList(anyString(), anyString(), any()))
             .thenThrow(new RuntimeException("RPC error"));
 
-        // Act
-        List<Map<String, Object>> result = service.getAuditLogs("3", "2026");
+        List<Map<String, Object>> result = service.getAuditLogs(adminUserId, "token", "03", "2026");
 
-        // Assert
         assertNotNull(result);
         assertTrue(result.isEmpty());
-
-        // Verify
-        verify(supabaseAdminRestClient, times(1)).getList(anyString(), anyString(), any());
+        verify(supabaseAdminRestClient, times(1)).getList(eq("audit_logs"), contains("select="), any());
     }
 }

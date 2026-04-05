@@ -1,5 +1,6 @@
 package com.rotiprata.api.admin.controller;
 
+import com.rotiprata.security.SecurityUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,8 +38,9 @@ public class AdminAnalyticsController {
     ) {
         validateMonthYear(month, year);
 
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
         String accessToken = jwt.getTokenValue();
-        return analyticsService.getFlaggedContentByMonthAndYear(accessToken, month, year);
+        return analyticsService.getFlaggedContentByMonthAndYear(adminUserId, accessToken, month, year);
     }
 
     @GetMapping("/avg-review-time")
@@ -48,8 +51,9 @@ public class AdminAnalyticsController {
     ) {
         validateMonthYear(month, year);
 
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
         String accessToken = jwt.getTokenValue();
-        double avgMinutes = analyticsService.getAverageReviewTimeByMonthAndYear(accessToken, month, year);
+        double avgMinutes = analyticsService.getAverageReviewTimeByMonthAndYear(adminUserId, accessToken, month, year);
 
         Map<String, Object> result = new HashMap<>();
         result.put("avgReviewTime", avgMinutes);
@@ -64,7 +68,9 @@ public class AdminAnalyticsController {
         @RequestParam String year
     ) {
         validateMonthYear(month, year);
-        return analyticsService.getTopFlagUsers(month, year);
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        String accessToken = jwt.getTokenValue();
+        return analyticsService.getTopFlagUsers(adminUserId, accessToken, month, year);
     }
 
     @GetMapping("/top-flag-contents")
@@ -75,7 +81,9 @@ public class AdminAnalyticsController {
         @RequestParam String year
     ) {
         validateMonthYear(month, year);
-        return analyticsService.getTopFlagContents(month, year);
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        String accessToken = jwt.getTokenValue();
+        return analyticsService.getTopFlagContents(adminUserId, accessToken, month, year);
     }
 
     @GetMapping("/audit-logs")
@@ -86,7 +94,9 @@ public class AdminAnalyticsController {
         @RequestParam String year
     ) {
         validateMonthYear(month, year);
-        return analyticsService.getAuditLogs(month, year);
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        String accessToken = jwt.getTokenValue();
+        return analyticsService.getAuditLogs(adminUserId, accessToken, month, year);
     }
 
     // Private Helpers
@@ -98,6 +108,12 @@ public class AdminAnalyticsController {
             y = Integer.parseInt(year);
         } catch (NumberFormatException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid month or year", e);
+        }
+        if (m < 1 || m > 12) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Month must be between 1 and 12");
+        }
+        if (y < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Year must be positive");
         }
 
         LocalDate today = LocalDate.now();

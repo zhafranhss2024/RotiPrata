@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -74,5 +75,24 @@ class AdminLoggingServiceImplTest {
         ));
 
         verify(supabaseAdminRestClient, times(1)).postList(eq("audit_logs"), anyList(), any(TypeReference.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void logAdminAction_ShouldDropBearerLikeDescriptions() {
+        ArgumentCaptor<List<Map<String, Object>>> rowsCaptor = ArgumentCaptor.forClass(List.class);
+
+        service.logAdminAction(
+                adminId,
+                AdminLoggingService.AdminAction.UPDATE_CONTENT,
+                targetId,
+                AdminLoggingService.TargetType.CONTENT,
+                "Bearer mocked-jwt-token"
+        );
+
+        verify(supabaseAdminRestClient).postList(eq("audit_logs"), rowsCaptor.capture(), any(TypeReference.class));
+        List<Map<String, Object>> rows = rowsCaptor.getValue();
+        assertEquals(1, rows.size());
+        assertNull(rows.get(0).get("description"));
     }
 }
