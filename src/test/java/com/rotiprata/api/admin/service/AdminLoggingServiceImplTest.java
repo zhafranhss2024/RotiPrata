@@ -42,22 +42,29 @@ class AdminLoggingServiceImplTest {
     }
 
     @Test
+    // Should call Supabase postList successfully with valid arguments
     @SuppressWarnings("unchecked")
     void logAdminAction_ShouldCallSupabaseSuccessfully_WhenCalledWithValidArguments() {
+        // Arrange
+        UUID admin = adminId;
+        UUID target = targetId;
+
         // Act
         service.logAdminAction(
-                adminId,
+                admin,
                 AdminLoggingService.AdminAction.DELETE_CONTENT,
-                targetId,
+                target,
                 AdminLoggingService.TargetType.CONTENT,
                 "Deleted test content"
         );
 
-        // Assert
-        verify(supabaseAdminRestClient, times(1)).postList(eq("audit_logs"), anyList(), any(TypeReference.class));
+        // Assert & Verify
+        verify(supabaseAdminRestClient, times(1))
+                .postList(eq("audit_logs"), anyList(), any(TypeReference.class));
     }
 
     @Test
+    // Should not throw exception even if Supabase fails
     @SuppressWarnings("unchecked")
     void logAdminAction_ShouldNotThrow_WhenSupabaseThrowsException() {
         // Arrange
@@ -74,14 +81,19 @@ class AdminLoggingServiceImplTest {
                 "Rejected test content"
         ));
 
-        verify(supabaseAdminRestClient, times(1)).postList(eq("audit_logs"), anyList(), any(TypeReference.class));
+        // Verify
+        verify(supabaseAdminRestClient, times(1))
+                .postList(eq("audit_logs"), anyList(), any(TypeReference.class));
     }
 
     @Test
+    // Should drop description when it contains Bearer-like token
     @SuppressWarnings("unchecked")
-    void logAdminAction_ShouldDropBearerLikeDescriptions() {
+    void logAdminAction_ShouldDropDescription_WhenDescriptionContainsBearerToken() {
+        // Arrange
         ArgumentCaptor<List<Map<String, Object>>> rowsCaptor = ArgumentCaptor.forClass(List.class);
 
+        // Act
         service.logAdminAction(
                 adminId,
                 AdminLoggingService.AdminAction.UPDATE_CONTENT,
@@ -90,7 +102,11 @@ class AdminLoggingServiceImplTest {
                 "Bearer mocked-jwt-token"
         );
 
-        verify(supabaseAdminRestClient).postList(eq("audit_logs"), rowsCaptor.capture(), any(TypeReference.class));
+        // Verify
+        verify(supabaseAdminRestClient)
+                .postList(eq("audit_logs"), rowsCaptor.capture(), any(TypeReference.class));
+
+        // Assert
         List<Map<String, Object>> rows = rowsCaptor.getValue();
         assertEquals(1, rows.size());
         assertNull(rows.get(0).get("description"));
