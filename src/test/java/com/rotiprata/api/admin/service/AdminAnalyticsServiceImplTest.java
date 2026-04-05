@@ -13,6 +13,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -243,5 +244,93 @@ class AdminAnalyticsServiceImplTest {
 
         // Verify
         verify(supabaseAdminRestClient, times(1)).getList(eq("audit_logs"), anyString(), any());
+    }
+
+    // ===== Exception Handling Tests =====
+
+    @Test
+    void getFlaggedContentByMonthAndYear_ShouldSkipInvalidTimestamps() {
+        // Arrange: one valid, one invalid timestamp
+        List<Map<String, Object>> rawFlags = List.of(
+            Map.of("created_at", "invalid-timestamp"),
+            Map.of("created_at", "2026-03-01T10:00:00Z")
+        );
+        when(contentService.getFlaggedContentByMonthAndYear(anyString(), anyString(), anyString()))
+            .thenReturn(rawFlags);
+
+        // Act
+        List<Map<String, Object>> result = service.getFlaggedContentByMonthAndYear("token", "3", "2026");
+
+        // Assert: only the valid one is counted
+        assertEquals(1, result.size());
+        assertEquals("2026-03-01", result.get(0).get("date"));
+        assertEquals(1L, result.get(0).get("count"));
+
+        // Verify
+        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
+    }
+
+    @Test
+    void getFlaggedContentByMonthAndYear_ShouldReturnEmptyList_WhenServiceThrows() {
+        when(contentService.getFlaggedContentByMonthAndYear(anyString(), anyString(), anyString()))
+            .thenThrow(new RuntimeException("service error"));
+
+        List<Map<String, Object>> result = service.getFlaggedContentByMonthAndYear("token", "3", "2026");
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
+    }
+
+    @Test
+    void getAverageReviewTimeByMonthAndYear_ShouldReturnZero_WhenServiceThrows() {
+        when(contentService.getFlaggedContentByMonthAndYear(anyString(), anyString(), anyString()))
+            .thenThrow(new RuntimeException("service error"));
+
+        double result = service.getAverageReviewTimeByMonthAndYear("token", "3", "2026");
+
+        assertEquals(0.0, result);
+
+        verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
+    }
+
+    @Test
+    void getTopFlagUsers_ShouldReturnEmptyList_WhenRpcThrows() {
+        when(supabaseAdminRestClient.rpcList(anyString(), any(), any()))
+            .thenThrow(new RuntimeException("RPC error"));
+
+        List<Map<String, Object>> result = service.getTopFlagUsers("3", "2026");
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+        verify(supabaseAdminRestClient, times(1)).rpcList(anyString(), any(), any());
+    }
+
+    @Test
+    void getTopFlagContents_ShouldReturnEmptyList_WhenRpcThrows() {
+        when(supabaseAdminRestClient.rpcList(anyString(), any(), any()))
+            .thenThrow(new RuntimeException("RPC error"));
+
+        List<Map<String, Object>> result = service.getTopFlagContents("3", "2026");
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+        verify(supabaseAdminRestClient, times(1)).rpcList(anyString(), any(), any());
+    }
+
+    @Test
+    void getAuditLogs_ShouldReturnEmptyList_WhenRpcThrows() {
+        when(supabaseAdminRestClient.getList(anyString(), anyString(), any()))
+            .thenThrow(new RuntimeException("RPC error"));
+
+        List<Map<String, Object>> result = service.getAuditLogs("3", "2026");
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+
+        verify(supabaseAdminRestClient, times(1)).getList(anyString(), anyString(), any());
     }
 }

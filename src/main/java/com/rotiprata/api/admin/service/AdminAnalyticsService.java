@@ -7,11 +7,16 @@ import java.util.Map;
  * Service interface for admin analytics operations.
  * Defines methods to retrieve flagged content, compute review times,
  * get top flagged users/contents, and fetch audit logs.
+ *
+ * <p>All methods are best-effort: in case of an internal error,
+ * they return empty lists or 0 rather than throwing exceptions.
  */
 public interface AdminAnalyticsService {
 
     /**
      * Retrieves flagged content aggregated by day for a given month and year.
+     * Best-effort: returns an empty list if an error occurs.
+     *
      * @param accessToken the user access token
      * @param month the month in "MM" format
      * @param year the year in "YYYY" format
@@ -22,15 +27,19 @@ public interface AdminAnalyticsService {
     /**
      * Computes the average review time (in minutes) for flagged content in a given month and year.
      * Only considers resolved flags.
+     * Best-effort: returns 0 if no resolved flags exist or an error occurs.
+     *
      * @param accessToken the user access token
      * @param month the month in "MM" format
      * @param year the year in "YYYY" format
-     * @return average review time in minutes, or 0 if no resolved flags exist
+     * @return average review time in minutes, or 0 on failure
      */
     double getAverageReviewTimeByMonthAndYear(String accessToken, String month, String year);
 
     /**
      * Retrieves the top users who flagged content in a given month and year.
+     * Best-effort: returns an empty list if an error occurs.
+     *
      * @param month the month in "MM" format
      * @param year the year in "YYYY" format
      * @return a list of maps representing top users and their flag counts
@@ -39,6 +48,8 @@ public interface AdminAnalyticsService {
 
     /**
      * Retrieves the top flagged contents for a given month and year.
+     * Best-effort: returns an empty list if an error occurs.
+     *
      * @param month the month in "MM" format
      * @param year the year in "YYYY" format
      * @return a list of maps representing top flagged contents
@@ -47,6 +58,8 @@ public interface AdminAnalyticsService {
 
     /**
      * Fetches audit logs for a given month and year, including user display names.
+     * Best-effort: returns an empty list if an error occurs.
+     *
      * @param month the month in "MM" format
      * @param year the year in "YYYY" format
      * @return a list of audit log entries
