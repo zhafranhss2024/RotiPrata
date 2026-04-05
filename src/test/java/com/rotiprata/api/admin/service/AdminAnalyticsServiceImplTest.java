@@ -41,6 +41,7 @@ class AdminAnalyticsServiceImplTest {
     }
 
     // ===== getFlaggedContentByMonthAndYear =====
+    // Verifies flagged content is correctly aggregated by date when data exists
     @Test
     void getFlaggedContentByMonthAndYear_ShouldReturnAggregatedCounts_WhenContentExists() {
         // Arrange
@@ -65,6 +66,7 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
     }
 
+    // Verifies method returns empty list when no flagged content is present
     @Test
     void getFlaggedContentByMonthAndYear_ShouldReturnEmptyList_WhenNoContentExists() {
         // Arrange
@@ -82,6 +84,7 @@ class AdminAnalyticsServiceImplTest {
     }
 
     // ===== getAverageReviewTimeByMonthAndYear =====
+    // Checks average review time is correctly computed for resolved flags
     @Test
     void getAverageReviewTimeByMonthAndYear_ShouldComputeAverage_WhenReviewsExist() {
         // Arrange
@@ -101,6 +104,7 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
     }
 
+    // Ensures 0 is returned when no flags have a resolved timestamp
     @Test
     void getAverageReviewTimeByMonthAndYear_ShouldReturnZero_WhenNoResolvedFlags() {
         // Arrange
@@ -120,6 +124,7 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "3", "2026");
     }
 
+     // Ensures 0 is returned when no flagged content exists
     @Test
     void getAverageReviewTimeByMonthAndYear_ShouldReturnZero_WhenNoContentExists() {
         // Arrange
@@ -136,6 +141,7 @@ class AdminAnalyticsServiceImplTest {
     }
 
     // ===== getTopFlagUsers =====
+    // Verifies top flagging users are returned when present
     @Test
     void getTopFlagUsers_ShouldReturnList_WhenUsersExist() {
         // Arrange
@@ -152,6 +158,7 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_users"), any(), any());
     }
 
+    // Verifies empty list is returned when no top users exist
     @Test
     void getTopFlagUsers_ShouldReturnEmptyList_WhenNoUsersExist() {
         // Arrange
@@ -169,6 +176,7 @@ class AdminAnalyticsServiceImplTest {
     }
 
     // ===== getTopFlagContents =====
+    // Verifies top flagged contents are returned when present
     @Test
     void getTopFlagContents_ShouldReturnList_WhenContentsExist() {
         // Arrange
@@ -185,6 +193,7 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_content"), any(), any());
     }
 
+    // Verifies empty list is returned when no top flagged contents exist
     @Test
     void getTopFlagContents_ShouldReturnEmptyList_WhenNoContentsExist() {
         // Arrange
@@ -202,6 +211,7 @@ class AdminAnalyticsServiceImplTest {
     }
 
     // ===== getAuditLogs =====
+    // Verifies audit logs are returned correctly when logs exist
     @Test
     void getAuditLogs_ShouldReturnList_WhenLogsExist() {
         // Arrange
@@ -218,6 +228,7 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient, times(1)).getList(eq("audit_logs"), anyString(), any());
     }
 
+    // Verifies empty list is returned when no audit logs exist
     @Test
     void getAuditLogs_ShouldReturnEmptyList_WhenNoLogsExist() {
         // Arrange
