@@ -39,9 +39,6 @@ public class ChatController {
     }
 
     private String normalizeQuestion(String question) {
-        if (question == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Question is required");
-        }
         String normalized = question.trim();
         if (normalized.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Question is required");
