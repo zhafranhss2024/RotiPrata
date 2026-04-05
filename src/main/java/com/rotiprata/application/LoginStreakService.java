@@ -1,7 +1,7 @@
 package com.rotiprata.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.rotiprata.api.dto.LoginStreakTouchResponse;
+import com.rotiprata.api.zdto.LoginStreakTouchResponse;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.DateTimeException;
 import java.time.LocalDate;

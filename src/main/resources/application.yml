@@ -10,9 +10,16 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
+      base-url: https://api.openai.com
       chat:
         options:
           model: gpt-4o-mini
+      moderation:
+        path: /moderations
+      embeddings:
+        path: /embeddings
+        model: text-embedding-3-small
+        
 server:
   port: ${PORT:8080}
 

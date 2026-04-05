@@ -5,7 +5,8 @@ import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.Refill;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rotiprata.api.dto.ApiErrorResponse;
+import com.rotiprata.api.zdto.ApiErrorResponse;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
