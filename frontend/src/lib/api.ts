@@ -2,6 +2,7 @@ import type {
   AdminAnalytics,
   AdminContentFlagReportPage,
   AdminContentFlagGroup,
+  AdminFlagReview,
   AdminUserDetail,
   AdminLessonDraftResponse,
   AdminPublishLessonResult,
@@ -200,6 +201,42 @@ export type ContentPlaybackEventPayload = {
   autoplayBlockedCount?: number | null;
   networkType?: string | null;
   userAgent?: string | null;
+};
+
+export type FlagByDate = {
+  date: string;
+  count: number;
+}
+
+export type AvgReviewTimeDTO = {
+  avgReviewTime: number;
+}
+
+export type TopFlagUser = {
+  user_id: string;
+  display_name: string | null;
+  flag_count: number;
+};
+
+export type TopFlagContentItem = {
+  content_id: string;
+  content_title: string;
+  flag_count: number;
+};
+
+export type AuditLogItem = {
+  admin_id: string;
+  admin_name: string;
+  action: string;
+  target_id: string;
+  target_type: string;
+  description: string;
+  created_at: string;
+};
+
+export type AdminFlagReviewQueryOptions = {
+  month?: string;
+  year?: string;
 };
 
 const getMockContentById = (contentId: string) =>
@@ -1082,6 +1119,77 @@ const normalizeNestedContentTags = <T extends { content?: Record<string, unknown
     };
   });
 
+const normalizeFlagReview = (review: AdminFlagReview): AdminFlagReview => {
+  if (!review.content) {
+    return review;
+  }
+
+  const [normalized] = normalizeNestedContentTags([{ content: review.content }]);
+  return {
+    ...review,
+    content: normalized.content as Content,
+  };
+};
+
+const buildAdminFlagReviewQuery = (options?: AdminFlagReviewQueryOptions) => {
+  const params = new URLSearchParams();
+  if (options?.month) {
+    params.set("month", options.month);
+  }
+  if (options?.year) {
+    params.set("year", options.year);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+};
+
+const buildMockAdminFlagReview = (
+  contentId: string,
+  options?: AdminFlagReviewQueryOptions
+): AdminFlagReview => {
+  const pendingOnly = !options?.month || !options?.year;
+  const filteredFlags = mockFlags.filter((flag) => {
+    if (flag.content_id !== contentId) {
+      return false;
+    }
+    if (pendingOnly) {
+      return flag.status === "pending";
+    }
+    const createdAt = flag.created_at ? new Date(flag.created_at) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) {
+      return false;
+    }
+    return (
+      createdAt.getUTCFullYear().toString() === options.year &&
+      String(createdAt.getUTCMonth() + 1).padStart(2, "0") === options.month
+    );
+  });
+
+  if (filteredFlags.length === 0) {
+    throw new Error("Flag review not found");
+  }
+
+  const allFlagsForContent = mockFlags.filter((flag) => flag.content_id === contentId);
+  const actionableFlagId =
+    allFlagsForContent.find((flag) => flag.status === "pending")?.id ?? null;
+  const latestFlag = filteredFlags[0];
+
+  return normalizeFlagReview({
+    contentId,
+    content: latestFlag.content,
+    status: actionableFlagId ? "pending" : latestFlag.status ?? null,
+    reportCount: filteredFlags.reduce((sum, flag) => sum + Math.max(flag.report_count ?? 0, 0), 0),
+    notesCount: filteredFlags.reduce((sum, flag) => sum + Math.max(flag.notes_count ?? 0, 0), 0),
+    reasons: Array.from(
+      new Set(filteredFlags.flatMap((flag) => flag.reasons ?? []).map((reason) => String(reason).trim()).filter(Boolean))
+    ),
+    latestReportAt: latestFlag.created_at ?? null,
+    actionableFlagId,
+    canResolve: actionableFlagId !== null,
+    canTakeDown: actionableFlagId !== null,
+  });
+};
+
 export const fetchModerationQueue = () =>
   withMockFallback(
     "admin-moderation",
@@ -1126,6 +1234,78 @@ export const fetchFlagReports = (flagId: string, page = 1, query = "") =>
     () =>
       apiGet<AdminContentFlagReportPage>(
         `/admin/flags/${flagId}/reports?page=${Math.max(1, Math.floor(page))}&query=${encodeURIComponent(query)}`
+      )
+  );
+
+export const fetchAdminFlagReview = (
+  contentId: string,
+  options?: AdminFlagReviewQueryOptions
+) =>
+  withMockFallback(
+    "admin-flag-review",
+    () => buildMockAdminFlagReview(contentId, options),
+    () =>
+      apiGet<AdminFlagReview>(
+        `/admin/flags/content/${contentId}/review${buildAdminFlagReviewQuery(options)}`
+      ).then(normalizeFlagReview)
+  );
+
+export const fetchAdminFlagReviewReports = (
+  contentId: string,
+  page = 1,
+  query = "",
+  options?: AdminFlagReviewQueryOptions
+) =>
+  withMockFallback(
+    "admin-flag-review-reports",
+    () => {
+      const normalizedQuery = query.trim().toLowerCase().replace(/^@/, "");
+      const pendingOnly = !options?.month || !options?.year;
+      const matchingFlags = mockFlags.filter((flag) => {
+        if (flag.content_id !== contentId) {
+          return false;
+        }
+        if (pendingOnly) {
+          return flag.status === "pending";
+        }
+        const createdAt = flag.created_at ? new Date(flag.created_at) : null;
+        if (!createdAt || Number.isNaN(createdAt.getTime())) {
+          return false;
+        }
+        return (
+          createdAt.getUTCFullYear().toString() === options.year &&
+          String(createdAt.getUTCMonth() + 1).padStart(2, "0") === options.month
+        );
+      });
+      const filteredReports = matchingFlags
+        .flatMap((flag) => flag.reports ?? [])
+        .filter((report) => {
+          if (!normalizedQuery) {
+            return true;
+          }
+          const displayName = report.reporter?.display_name?.toLowerCase() ?? "";
+          const reportedBy = report.reported_by?.toLowerCase?.() ?? "";
+          return displayName.includes(normalizedQuery) || reportedBy.includes(normalizedQuery);
+        })
+        .sort((left, right) => {
+          const leftTime = new Date(left.created_at).getTime();
+          const rightTime = new Date(right.created_at).getTime();
+          return rightTime - leftTime;
+        });
+      const pageSize = 5;
+      const start = Math.max(0, page - 1) * pageSize;
+      const items = filteredReports.slice(start, start + pageSize);
+      return {
+        items,
+        page,
+        page_size: pageSize,
+        has_next: start + pageSize < filteredReports.length,
+        query,
+      } satisfies AdminContentFlagReportPage;
+    },
+    () =>
+      apiGet<AdminContentFlagReportPage>(
+        `/admin/flags/content/${contentId}/reports?page=${Math.max(1, Math.floor(page))}&query=${encodeURIComponent(query)}${buildAdminFlagReviewQuery(options).replace("?", "&")}`
       )
   );
 
@@ -1324,3 +1504,19 @@ export const createLessonQuiz = (lessonId: string, questions: Partial<QuizQuesti
 
 export const replaceAdminLessonQuiz = (lessonId: string, questions: Partial<QuizQuestion>[]) =>
   apiPut<QuizQuestion[]>(`/admin/lessons/${lessonId}/quiz`, { questions });
+
+export const getFlaggedContentStats = (month: string, year: string) =>
+  apiGet<FlagByDate[]>(`/admin/analytics/flags?month=${month}&year=${year}`);
+
+export const getAvgReviewTimeStats = (month: string, year: string) =>
+  apiGet<AvgReviewTimeDTO>(`/admin/analytics/avg-review-time?month=${month}&year=${year}`);
+
+export const getTopFlagUsers = (month: string, year: string) =>
+  apiGet<TopFlagUser[]>(`/admin/analytics/top-flag-users?month=${month}&year=${year}`);
+
+export const getTopFlagContent = (month: string, year: string) =>
+  apiGet<TopFlagContentItem[]>(`/admin/analytics/top-flag-contents?month=${month}&year=${year}`);
+
+export const getAuditLogs = (month: string, year: string) =>
+  apiGet<AuditLogItem[]>(`/admin/analytics/audit-logs?month=${month}&year=${year}`);
+
