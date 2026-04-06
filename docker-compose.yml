@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     build: 
@@ -10,13 +8,15 @@ services:
       - .env
     ports:
       - "${PORT}:8080"
+    environment:
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.frontend
       args:
-        VITE_API_URL: ${BACKEND_URL:-http://backend:8080}  
+        VITE_API_URL: ${BACKEND_URL}
     image: cs203/frontend
     container_name: frontend
     ports:

@@ -100,6 +100,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ env.BACKEND_IMAGE_NAME }}
           build-args: |
             SPRING_PROFILES_ACTIVE=prod
+            ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
 
   build-frontend:
     name: Build and Publish Frontend Image
@@ -138,4 +139,4 @@ jobs:
           cache-from: type=gha,scope=${{ env.FRONTEND_IMAGE_NAME }}
           cache-to: type=gha,mode=max,scope=${{ env.FRONTEND_IMAGE_NAME }}
           build-args: |
-            VITE_API_URL=${{ vars.VITE_API_URL }}
+            VITE_API_URL=${{ secrets.BACKEND_URL }}
