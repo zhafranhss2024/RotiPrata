@@ -78,6 +78,16 @@ mvn spring-boot:run
 
 The backend runs on `http://localhost:8080` by default.
 
+## Recommendation coverage
+Run the backend recommendation-only test suite with JaCoCo reporting:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\recommendation-jacoco.ps1
+```
+
+Open `target/site/jacoco/index.html` to inspect the HTML report.
+The script prints a warning below `50%` recommendation coverage and aims for `70%`, but it does not fail the build on coverage alone.
+
 ## Frontend setup
 From the repo root(in another teminal):
 
