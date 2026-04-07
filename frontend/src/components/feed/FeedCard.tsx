@@ -10,8 +10,6 @@ import {
   ShieldOff,
   FilePenLine,
   Play,
-  MoreHorizontal,
-  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -102,7 +100,6 @@ export function FeedCard({
 }: FeedCardProps) {
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
   const [isBuffering, setIsBuffering] = useState(false);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const lastTapRef = useRef(0);
   const singleTapTimerRef = useRef<number | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -115,7 +112,9 @@ export function FeedCard({
   };
 
   useEffect(() => {
-    return () => clearSingleTapTimer();
+    return () => {
+      clearSingleTapTimer();
+    };
   }, []);
 
   useEffect(() => {
@@ -123,10 +122,6 @@ export function FeedCard({
       setIsBuffering(false);
     }
   }, [content.content_type, isActive]);
-
-  useEffect(() => {
-    if (!isActive) setIsSheetOpen(false);
-  }, [isActive]);
 
   const addFloatingHearts = (x: number, y: number) => {
     const hearts = Array.from({ length: 6 }, (_, index) => ({
@@ -137,7 +132,9 @@ export function FeedCard({
       rotate: -25 + Math.random() * 50,
       driftX: -42 + Math.random() * 84,
     }));
+
     setFloatingHearts((prev) => [...prev, ...hearts]);
+
     window.setTimeout(() => {
       setFloatingHearts((prev) =>
         prev.filter((heart) => !hearts.some((created) => created.id === heart.id))
@@ -146,18 +143,29 @@ export function FeedCard({
   };
 
   const handleLike = () => {
-    if (isLikePending) return;
-    onLikeToggle?.(isLiked ? false : true);
+    if (isLikePending) {
+      return;
+    }
+    if (isLiked) {
+      onLikeToggle?.(false);
+      return;
+    }
+    onLikeToggle?.(true);
   };
 
   const handleDoubleTapLike = (x: number, y: number) => {
     addFloatingHearts(x, y);
-    if (isLiked || isLikePending) return;
+
+    if (isLiked || isLikePending) {
+      return;
+    }
     onLikeToggle?.(true);
   };
 
   const scheduleSingleTapPlaybackToggle = () => {
-    if (content.content_type !== 'video') return;
+    if (content.content_type !== 'video') {
+      return;
+    }
     clearSingleTapTimer();
     singleTapTimerRef.current = window.setTimeout(() => {
       onTogglePlayback?.();
@@ -165,7 +173,9 @@ export function FeedCard({
   };
 
   const handleMediaClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.detail !== 1) return;
+    if (event.detail !== 1) {
+      return;
+    }
     onMediaInteraction?.();
     scheduleSingleTapPlaybackToggle();
   };
@@ -181,14 +191,21 @@ export function FeedCard({
       touchStartRef.current = null;
       return;
     }
+
     const touch = event.touches[0];
-    if (!touch) { touchStartRef.current = null; return; }
+    if (!touch) {
+      touchStartRef.current = null;
+      return;
+    }
+
     touchStartRef.current = { x: touch.clientX, y: touch.clientY };
   };
 
   const handleCardTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
     const touch = event.changedTouches[0];
-    if (!touch) return;
+    if (!touch) {
+      return;
+    }
 
     const touchStart = touchStartRef.current;
     touchStartRef.current = null;
@@ -232,7 +249,6 @@ export function FeedCard({
     shouldMountMedia &&
     isActive &&
     (isPaused || isPlaybackBlocked);
-
   const showBufferingOverlay =
     content.content_type === 'video' &&
     shouldMountMedia &&
@@ -285,20 +301,15 @@ export function FeedCard({
     );
   };
 
-  // Closes sheet then fires the action
-  const withSheetClose = (fn?: () => void) => () => {
-    setIsSheetOpen(false);
-    fn?.();
-  };
-
-  return (
+    return (
     <div
       className="relative w-full h-full snap-start"
       onTouchStart={handleCardTouchStart}
       onTouchEnd={handleCardTouchEnd}
-      onTouchCancel={() => { touchStartRef.current = null; }}
+      onTouchCancel={() => {
+        touchStartRef.current = null;
+      }}
     >
-      {/* Background media */}
       <div
         className="absolute inset-0 bg-black flex items-center justify-center overflow-hidden"
         onClick={handleMediaClick}
@@ -307,7 +318,6 @@ export function FeedCard({
         {renderBackgroundMedia()}
       </div>
 
-      {/* Floating hearts */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {floatingHearts.map((heart) => (
           <Heart
@@ -325,7 +335,6 @@ export function FeedCard({
         ))}
       </div>
 
-      {/* Paused overlay */}
       {showPausedOverlay && (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
           <div className="h-16 w-16 rounded-full bg-black/45 backdrop-blur-sm shadow-xl flex items-center justify-center">
@@ -334,7 +343,6 @@ export function FeedCard({
         </div>
       )}
 
-      {/* Buffering overlay */}
       {showBufferingOverlay && (
         <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
           <div className="h-8 w-8 rounded-full border-2 border-white/25 border-t-white/90 animate-spin" />
@@ -343,21 +351,20 @@ export function FeedCard({
 
       <style>{`
         @keyframes feed-heart-float {
-          0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.45); }
-          20%  { opacity: 1; }
-          100% { opacity: 0; transform: translate(calc(-50% + var(--heart-drift-x, 0px)), -180%) scale(1.1); }
-        }
-        @keyframes sheet-slide-up {
-          from { transform: translateY(100%); }
-          to   { transform: translateY(0%); }
-        }
-        @keyframes sheet-fade-in {
-          from { opacity: 0; }
-          to   { opacity: 1; }
+          0% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.45);
+          }
+          20% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+            transform: translate(calc(-50% + var(--heart-drift-x, 0px)), -180%) scale(1.1);
+          }
         }
       `}</style>
 
-      {/* Learn more — desktop only */}
       <button
         onClick={onLearnMoreClick}
         className="absolute right-4 top-8 hidden items-center gap-2 text-white/80 transition-colors hover:text-white md:flex lg:top-10 xl:top-12 touch-target"
@@ -366,17 +373,19 @@ export function FeedCard({
         <ChevronLeft className="h-5 w-5 rotate-180" />
       </button>
 
-      {/* Bottom-left: category / title / description / creator */}
       <div className="absolute bottom-0 left-0 right-16 p-4 pb-8 pointer-events-none">
         {content.category && (
           <Badge className="mb-3 bg-black/35 text-white/80">
             {content.category.name}
           </Badge>
         )}
+
         <h2 className="text-xl font-bold text-white/80 mb-2 line-clamp-2">{content.title}</h2>
+
         {content.description && (
           <p className="text-white/80 text-sm line-clamp-2 mb-3">{content.description}</p>
         )}
+
         <div className="flex items-center">
           <span className="text-white/80 text-sm font-medium">
             @{content.creator?.display_name || 'anonymous'}
@@ -384,51 +393,11 @@ export function FeedCard({
         </div>
       </div>
 
-      {/* ── MOBILE only: like + comment + more ── */}
-      <div className="md:hidden absolute right-3 bottom-20 flex flex-col items-center gap-3">
-        <button
-          onClick={handleLike}
-          disabled={isLikePending}
-          className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <div className={cn(
-            'w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors',
-            isLiked ? 'bg-red-500/20' : 'bg-black/35'
-          )}>
-            <Heart className={cn('h-5 w-5 transition-colors', isLiked ? 'fill-red-500 text-red-500' : 'text-white/80')} />
-          </div>
-          <span className="text-xs font-medium">{likeCount}</span>
-        </button>
-
-        <button
-          onClick={onCommentClick}
-          className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target"
-        >
-          <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
-            <MessageCircle className="h-5 w-5" />
-          </div>
-          <span className="text-xs font-medium">{commentCount}</span>
-        </button>
-
-        {/* Opens the bottom sheet */}
-        <button
-          onClick={() => setIsSheetOpen(true)}
-          className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target"
-          data-feed-gesture-exempt="true"
-        >
-          <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
-            <MoreHorizontal className="h-5 w-5" />
-          </div>
-          <span className="text-xs font-medium">More</span>
-        </button>
-      </div>
-
-      {/* ── DESKTOP (md+): full right-side column ── */}
-      <div className="hidden md:flex absolute right-4 bottom-20 flex-col items-center gap-3">
+      <div className="absolute right-4 bottom-24 flex flex-col items-center gap-4">
         {showEdit && onEdit && (
-          <button onClick={onEdit} className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target">
-            <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
-              <FilePenLine className="h-5 w-5" />
+          <button onClick={onEdit} className="flex flex-col items-center gap-1 text-white/80 hover:text-white/80 touch-target">
+            <div className="w-12 h-12 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
+              <FilePenLine className="h-6 w-6" />
             </div>
             <span className="text-xs font-medium">Edit</span>
           </button>
@@ -438,19 +407,22 @@ export function FeedCard({
           <button
             onClick={onTakeDown}
             disabled={isTakingDown}
-            className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex flex-col items-center gap-1 text-white/80 hover:text-white/80 touch-target disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
-              <ShieldOff className="h-5 w-5" />
+            <div className="w-12 h-12 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
+              <ShieldOff className="h-6 w-6" />
             </div>
             <span className="text-xs font-medium">{isTakingDown ? '...' : 'Take down'}</span>
           </button>
         )}
 
         {onQuizClick && (
-          <button onClick={onQuizClick} className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target">
-            <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
-              <BookOpen className="h-5 w-5" />
+          <button
+            onClick={onQuizClick}
+            className="flex flex-col items-center gap-1 text-white/80 hover:text-white/80 touch-target"
+          >
+            <div className="w-12 h-12 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
+              <BookOpen className="h-6 w-6" />
             </div>
             <span className="text-xs font-medium">Quiz</span>
           </button>
@@ -459,20 +431,30 @@ export function FeedCard({
         <button
           onClick={handleLike}
           disabled={isLikePending}
-          className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex flex-col items-center gap-1 text-white/80 hover:text-white/80 touch-target disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <div className={cn(
-            'w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors',
-            isLiked ? 'bg-red-500/20' : 'bg-black/35'
-          )}>
-            <Heart className={cn('h-5 w-5 transition-colors', isLiked ? 'fill-red-500 text-red-500' : 'text-white/80')} />
+          <div
+            className={cn(
+              'w-12 h-12 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors',
+              isLiked ? 'bg-red-500/20' : 'bg-black/35'
+            )}
+          >
+            <Heart
+              className={cn(
+                'h-6 w-6 transition-colors',
+                isLiked ? 'fill-red-500 text-red-500' : 'text-white/80'
+              )}
+            />
           </div>
           <span className="text-xs font-medium">{likeCount}</span>
         </button>
 
-        <button onClick={onCommentClick} className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target">
-          <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
-            <MessageCircle className="h-5 w-5" />
+        <button
+          onClick={onCommentClick}
+          className="flex flex-col items-center gap-1 text-white/80 hover:text-white/80 touch-target"
+        >
+          <div className="w-12 h-12 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
+            <MessageCircle className="h-6 w-6" />
           </div>
           <span className="text-xs font-medium">{commentCount}</span>
         </button>
@@ -480,129 +462,40 @@ export function FeedCard({
         <button
           onClick={onSave}
           disabled={isSavePending}
-          className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex flex-col items-center gap-1 text-white/80 hover:text-white/80 touch-target disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <div className={cn(
-            'w-10 h-10 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors',
-            isSaved ? 'bg-amber-400/20' : 'bg-black/35'
-          )}>
-            <Bookmark className={cn('h-5 w-5 transition-colors', isSaved ? 'fill-amber-400 text-amber-400' : 'text-white/80')} />
+          <div
+            className={cn(
+              'w-12 h-12 rounded-full backdrop-blur-sm flex items-center justify-center transition-colors',
+              isSaved ? 'bg-amber-400/20' : 'bg-black/35'
+            )}
+          >
+            <Bookmark
+              className={cn(
+                'h-6 w-6 transition-colors',
+                isSaved ? 'fill-amber-400 text-amber-400' : 'text-white/80'
+              )}
+            />
           </div>
           <span className="text-xs font-medium">{isSaved ? 'Saved' : 'Save'}</span>
         </button>
 
-        <button onClick={onShare} className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target">
-          <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
-            <Share2 className="h-5 w-5" />
+        <button onClick={onShare} className="flex flex-col items-center gap-1 text-white/80 hover:text-white/80 touch-target">
+          <div className="w-12 h-12 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
+            <Share2 className="h-6 w-6" />
           </div>
           <span className="text-xs font-medium">Share</span>
         </button>
 
-        <button onClick={onFlag} className="flex flex-col items-center gap-1 text-white/80 hover:text-white touch-target">
+        <button
+          onClick={onFlag}
+          className="flex flex-col items-center gap-1 text-white/80 hover:text-white/80 touch-target"
+        >
           <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-sm flex items-center justify-center transition-colors">
             <Flag className="h-4 w-4" />
           </div>
         </button>
       </div>
-
-      {/* ── MOBILE BOTTOM SHEET ── */}
-      {isSheetOpen && (
-        <div
-          className="md:hidden absolute inset-0 z-50 flex flex-col justify-end"
-          data-feed-gesture-exempt="true"
-        >
-          {/* Scrim — tap to close */}
-          <div
-            className="absolute inset-0 bg-black/50"
-            style={{ animation: 'sheet-fade-in 200ms ease-out forwards' }}
-            onClick={() => setIsSheetOpen(false)}
-          />
-
-          {/* Sheet panel */}
-          <div
-            className="relative bg-zinc-900 rounded-t-2xl pb-8 pt-3 px-4"
-            style={{ animation: 'sheet-slide-up 280ms cubic-bezier(0.32,0.72,0,1) forwards' }}
-          >
-            {/* Drag handle */}
-            <div className="w-10 h-1 rounded-full bg-white/20 mx-auto mb-4" />
-
-            {/* Close button */}
-            <button
-              onClick={() => setIsSheetOpen(false)}
-              className="absolute top-3 right-4 text-white/50 hover:text-white/80 touch-target"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            <p className="text-xs font-medium text-white/40 uppercase tracking-widest mb-3 px-1">
-              Actions
-            </p>
-
-            <div className="flex flex-col gap-1">
-              {onQuizClick && (
-                <button
-                  onClick={withSheetClose(onQuizClick)}
-                  className="flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-white/8 active:bg-white/12 transition-colors text-white/80 hover:text-white w-full text-left"
-                >
-                  <BookOpen className="h-5 w-5 shrink-0" />
-                  <span className="text-sm font-medium">Quiz</span>
-                </button>
-              )}
-
-              <button
-                onClick={withSheetClose(onSave)}
-                disabled={isSavePending}
-                className="flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-white/8 active:bg-white/12 transition-colors w-full text-left disabled:opacity-50"
-              >
-                <Bookmark className={cn('h-5 w-5 shrink-0 transition-colors', isSaved ? 'fill-amber-400 text-amber-400' : 'text-white/80')} />
-                <span className={cn('text-sm font-medium', isSaved ? 'text-amber-400' : 'text-white/80')}>
-                  {isSaved ? 'Saved' : 'Save'}
-                </span>
-              </button>
-
-              <button
-                onClick={withSheetClose(onShare)}
-                className="flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-white/8 active:bg-white/12 transition-colors text-white/80 hover:text-white w-full text-left"
-              >
-                <Share2 className="h-5 w-5 shrink-0" />
-                <span className="text-sm font-medium">Share</span>
-              </button>
-
-              {showEdit && onEdit && (
-                <button
-                  onClick={withSheetClose(onEdit)}
-                  className="flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-white/8 active:bg-white/12 transition-colors text-white/80 hover:text-white w-full text-left"
-                >
-                  <FilePenLine className="h-5 w-5 shrink-0" />
-                  <span className="text-sm font-medium">Edit</span>
-                </button>
-              )}
-
-              {showTakeDown && onTakeDown && (
-                <button
-                  onClick={withSheetClose(onTakeDown)}
-                  disabled={isTakingDown}
-                  className="flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-white/8 active:bg-white/12 transition-colors text-white/80 hover:text-white w-full text-left disabled:opacity-50"
-                >
-                  <ShieldOff className="h-5 w-5 shrink-0" />
-                  <span className="text-sm font-medium">{isTakingDown ? 'Taking down…' : 'Take down'}</span>
-                </button>
-              )}
-
-              {/* Divider before destructive action */}
-              <div className="h-px bg-white/10 my-1" />
-
-              <button
-                onClick={withSheetClose(onFlag)}
-                className="flex items-center gap-4 px-3 py-3 rounded-xl hover:bg-red-500/10 active:bg-red-500/20 transition-colors text-red-400 w-full text-left"
-              >
-                <Flag className="h-5 w-5 shrink-0" />
-                <span className="text-sm font-medium">Report</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -10,7 +10,7 @@ export function MobileTopBar() {
   const isDesktop = useIsDesktop();
 
   return (
-    <header className="xl:hidden sticky top-0 z-40 border-b border-mainAlt bg-main dark:bg-mainDark">
+    <header className="lg:hidden sticky top-0 z-40 border-b border-mainAlt bg-main dark:bg-mainDark">
       <div className="h-[var(--mobile-top-bar-height)] px-4 flex items-center justify-between gap-3">
         <Link to="/" className="inline-flex items-center gap-2">
           <img src="/icon-images/LEADERBOARD_ICON.png" alt="Rotiprata" className="h-7 w-7 rounded-md object-cover" />

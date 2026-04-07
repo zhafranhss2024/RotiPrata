@@ -29,7 +29,7 @@ export function DesktopNav() {
   const isDesktop = useIsDesktop();
 
   return (
-    <header className="hidden xl:flex fixed top-0 left-0 right-0 z-50 border-b border-mainAlt bg-mainDark/95 backdrop-blur">
+    <header className="hidden lg:flex fixed top-0 left-0 right-0 z-50 border-b border-mainAlt bg-mainDark/95 backdrop-blur">
       <div className="relative w-full px-6 h-16 flex items-center justify-between gap-6">
         <Link to="/" className="flex items-center gap-3 min-w-fit">
           <img

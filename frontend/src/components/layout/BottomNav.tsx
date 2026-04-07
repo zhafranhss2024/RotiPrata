@@ -20,7 +20,7 @@ export function BottomNav() {
   const location = useLocation();
 
   return (
-    <nav className="xl:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-mainAlt bg-main dark:bg-mainDark">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-mainAlt bg-main dark:bg-mainDark">
       <div className="relative h-[calc(var(--bottom-nav-height)+var(--safe-area-bottom))] px-6 pb-[var(--safe-area-bottom)]">
         <div className="h-[var(--bottom-nav-height)] grid grid-cols-4 items-center gap-2">
           {baseNavItems.map((item) => {
