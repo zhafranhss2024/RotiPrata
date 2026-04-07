@@ -203,6 +203,7 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         return Duration.between(created, resolved).toMinutes();
     }
 
+    // Ensures the user is an admin; throws 401 if missing info, 403 if not an admin
     private void requireAdmin(UUID adminUserId, String accessToken) {
         if (adminUserId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");

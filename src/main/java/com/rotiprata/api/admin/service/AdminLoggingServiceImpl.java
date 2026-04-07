@@ -74,6 +74,7 @@ public class AdminLoggingServiceImpl implements AdminLoggingService {
         
     }
 
+    // Cleans and truncates a description, returning null if blank or containing sensitive tokens
     private String sanitizeDescription(String description) {
         if (description == null) {
             return null;
