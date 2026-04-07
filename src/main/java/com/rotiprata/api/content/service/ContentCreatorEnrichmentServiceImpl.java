@@ -9,7 +9,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Implementation of {@link ContentCreatorEnrichmentService}.
  * Responsible for enriching content items with creator profile information.
  */
 @Service
