@@ -38,9 +38,15 @@ const Chatbot = ({ mobileBottomOffsetClass = "bottom-24" }: ChatbotProps) => {
   const handleStartNewChat = async () => {
     try {
       await startNewChat();
-      setMessages([]);
+      const greeting: ChatMessage = {
+        role: "assistant",
+        message:
+          "Hi! Your AI tutor is online and full of brainrot. Ask anything about your lessons.",
+        timestamp: new Date().toISOString(),
+      };
+      setMessages([greeting]);
       setInput("");
-      setMessagesLoaded(false);
+      setMessagesLoaded(true);
     } catch (error) {
       console.error("Failed to start new chat:", error);
     }
@@ -222,7 +228,12 @@ const Chatbot = ({ mobileBottomOffsetClass = "bottom-24" }: ChatbotProps) => {
                 setInput(e.target.value);
               }
             }}
-            onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
+            onKeyDown={e => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
             placeholder="Type a message..."
             className="flex-1 resize-none rounded-xl border border-gray-300 dark:border-gray-600
                       px-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-mainAccent
