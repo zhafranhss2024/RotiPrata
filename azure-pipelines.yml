@@ -10,8 +10,11 @@ steps:
 - checkout: self
 
 - script: |
-    echo "$(DOCKERHUB_TOKEN)" | docker login -u "$(DOCKERHUB_USERNAME)" --password-stdin
+    echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
   displayName: Docker Hub login
+  env:
+    DOCKERHUB_USERNAME: $(DOCKERHUB_USERNAME)
+    DOCKERHUB_TOKEN: $(DOCKERHUB_TOKEN)
 
 - script: |
     docker build -t cs203/backend:latest -f Dockerfile.backend .
@@ -25,7 +28,11 @@ steps:
 
 - script: |
     cd /home/RotiPrata
+    echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
     docker compose pull
     docker compose up -d
     docker image prune -f
   displayName: Deploy on VM
+  env:
+    DOCKERHUB_USERNAME: $(DOCKERHUB_USERNAME)
+    DOCKERHUB_TOKEN: $(DOCKERHUB_TOKEN)
