@@ -2,9 +2,9 @@ name: build-and-test
 
 on:
   push:
-    branches: [deployTest]
+    branches: [main]
   pull_request:
-    branches: [deployTest]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
