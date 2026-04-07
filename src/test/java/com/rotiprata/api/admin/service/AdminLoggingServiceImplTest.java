@@ -44,11 +44,13 @@ class AdminLoggingServiceImplTest {
     }
 
     @Test
-    // Should call Supabase postList successfully with valid arguments
+    // Verifies that Supabase postList is called when logging a valid admin action
     void logAdminAction_ShouldCallSupabaseSuccessfully_WhenCalledWithValidArguments() {
+        // arrange
         UUID admin = adminId;
         UUID target = targetId;
 
+        // act
         service.logAdminAction(
                 admin,
                 AdminLoggingService.AdminAction.DELETE_CONTENT,
@@ -57,17 +59,20 @@ class AdminLoggingServiceImplTest {
                 "Deleted test content"
         );
 
+        // assert & verify
         verify(supabaseAdminRestClient, times(1))
                 .postList(eq("audit_logs"), anyList(), any());
     }
 
     @Test
-    // Should not throw exception even if Supabase fails
+    // Ensures exceptions from Supabase do not propagate
     void logAdminAction_ShouldNotThrow_WhenSupabaseThrowsException() {
+        // arrange
         doThrow(new RuntimeException("Supabase error"))
                 .when(supabaseAdminRestClient)
                 .postList(anyString(), anyList(), any());
 
+        // act & assert
         assertDoesNotThrow(() -> service.logAdminAction(
                 adminId,
                 AdminLoggingService.AdminAction.REJECT_CONTENT,
@@ -76,16 +81,19 @@ class AdminLoggingServiceImplTest {
                 "Rejected test content"
         ));
 
+        // verify
         verify(supabaseAdminRestClient, times(1))
                 .postList(eq("audit_logs"), anyList(), any());
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    // Should drop description when it contains Bearer-like token
+    // Clears description if it contains a Bearer-like token
     void logAdminAction_ShouldDropDescription_WhenDescriptionContainsBearerToken() {
+        // arrange
         ArgumentCaptor<List<Map<String, Object>>> rowsCaptor = ArgumentCaptor.forClass(List.class);
 
+        // act
         service.logAdminAction(
                 adminId,
                 AdminLoggingService.AdminAction.UPDATE_CONTENT,
@@ -94,9 +102,9 @@ class AdminLoggingServiceImplTest {
                 "Bearer mocked-jwt-token"
         );
 
+        // assert & verify
         verify(supabaseAdminRestClient)
                 .postList(eq("audit_logs"), rowsCaptor.capture(), any());
-
         List<Map<String, Object>> rows = rowsCaptor.getValue();
         assertEquals(1, rows.size());
         assertNull(rows.get(0).get("description"));
@@ -104,11 +112,13 @@ class AdminLoggingServiceImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    // Should truncate long descriptions to 500 characters
+    // Truncates descriptions exceeding 500 characters
     void logAdminAction_ShouldTruncateDescription_WhenDescriptionIsTooLong() {
-        String longDesc = "x".repeat(1000); // 1000 characters
+        // arrange
+        String longDesc = "x".repeat(1000);
         ArgumentCaptor<List<Map<String, Object>>> captor = ArgumentCaptor.forClass(List.class);
 
+        // act
         service.logAdminAction(
                 adminId,
                 AdminLoggingService.AdminAction.UPDATE_CONTENT,
@@ -117,8 +127,8 @@ class AdminLoggingServiceImplTest {
                 longDesc
         );
 
+        // assert & verify
         verify(supabaseAdminRestClient).postList(eq("audit_logs"), captor.capture(), any());
-
         String savedDesc = (String) captor.getValue().get(0).get("description");
         assertNotNull(savedDesc);
         assertEquals(500, savedDesc.length());
@@ -126,10 +136,12 @@ class AdminLoggingServiceImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    // Should allow null descriptions without error
+    // Handles null descriptions gracefully
     void logAdminAction_ShouldNotThrowAndSetDescriptionNull_WhenDescriptionIsNull() {
+        // arrange
         ArgumentCaptor<List<Map<String, Object>>> captor = ArgumentCaptor.forClass(List.class);
 
+        // act
         service.logAdminAction(
                 adminId,
                 AdminLoggingService.AdminAction.UPDATE_CONTENT,
@@ -138,26 +150,29 @@ class AdminLoggingServiceImplTest {
                 null
         );
 
+        // assert & verify
         verify(supabaseAdminRestClient).postList(eq("audit_logs"), captor.capture(), any());
-
         Map<String, Object> row = captor.getValue().get(0);
         assertNull(row.get("description"));
     }
 
     @Test
     @SuppressWarnings("unchecked")
-    // Should set description to null when input is blank or whitespace only
+    // Converts blank or whitespace-only descriptions to null
     void logAdminAction_ShouldSetDescriptionNull_WhenDescriptionIsBlank() {
+        // arrange
         ArgumentCaptor<List<Map<String, Object>>> captor = ArgumentCaptor.forClass(List.class);
 
+        // act
         service.logAdminAction(
                 adminId,
                 AdminLoggingService.AdminAction.UPDATE_CONTENT,
                 targetId,
                 AdminLoggingService.TargetType.CONTENT,
-                "   \n\t   "  // blank/whitespace-only
+                "   \n\t   "
         );
 
+        // assert & verify
         verify(supabaseAdminRestClient).postList(eq("audit_logs"), captor.capture(), any());
         Map<String, Object> row = captor.getValue().get(0);
         assertNull(row.get("description"));
@@ -165,10 +180,12 @@ class AdminLoggingServiceImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    // Should normalize multiple spaces in description to single spaces
-    void logAdminAction_ShouldNormalizeWhitespaceInDescription() {
+    // Normalizes multiple spaces in description
+    void logAdminAction_ShouldNormalizeWhitespaceInDescription_WhenDescriptionHasExtraSpaces() {
+        // arrange
         ArgumentCaptor<List<Map<String, Object>>> captor = ArgumentCaptor.forClass(List.class);
 
+        // act
         service.logAdminAction(
                 adminId,
                 AdminLoggingService.AdminAction.UPDATE_CONTENT,
@@ -177,6 +194,7 @@ class AdminLoggingServiceImplTest {
                 "This   has    multiple   spaces"
         );
 
+        // assert & verify
         verify(supabaseAdminRestClient).postList(eq("audit_logs"), captor.capture(), any());
         Map<String, Object> row = captor.getValue().get(0);
         assertEquals("This has multiple spaces", row.get("description"));
@@ -184,11 +202,13 @@ class AdminLoggingServiceImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    // Should keep short, safe descriptions unchanged
-    void logAdminAction_ShouldKeepSafeShortDescription() {
+    // Keeps short safe descriptions unchanged
+    void logAdminAction_ShouldKeepSafeShortDescription_WhenDescriptionIsValid() {
+        // arrange
         ArgumentCaptor<List<Map<String, Object>>> captor = ArgumentCaptor.forClass(List.class);
-
         String safeDesc = "A safe description under 500 chars.";
+
+        // act
         service.logAdminAction(
                 adminId,
                 AdminLoggingService.AdminAction.UPDATE_CONTENT,
@@ -197,6 +217,7 @@ class AdminLoggingServiceImplTest {
                 safeDesc
         );
 
+        // assert & verify
         verify(supabaseAdminRestClient).postList(eq("audit_logs"), captor.capture(), any());
         Map<String, Object> row = captor.getValue().get(0);
         assertEquals(safeDesc, row.get("description"));
