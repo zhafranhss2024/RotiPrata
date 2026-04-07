@@ -4,7 +4,7 @@ trigger:
       - main
 
 pool:
-  vmImage: ubuntu-latest
+  name: RotiPrataPool
 
 steps:
 - checkout: self
@@ -23,15 +23,9 @@ steps:
     docker push cs203/frontend:latest
   displayName: Build and push frontend
 
-- task: SSH@0
-  inputs:
-    sshEndpoint: 'rotiprata-vm-ssh'
-    runOptions: 'commands'
-    commands: |
-      cd ~/RotiPrata
-      echo "$(DOCKERHUB_TOKEN)" | docker login -u "$(DOCKERHUB_USERNAME)" --password-stdin
-      docker compose pull
-      docker compose up -d
-      docker image prune -f
-    readyTimeout: '20000'
-  displayName: Deploy on Azure VM
+- script: |
+    cd /home/RotiPrata
+    docker compose pull
+    docker compose up -d
+    docker image prune -f
+  displayName: Deploy on VM
