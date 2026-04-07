@@ -14,6 +14,7 @@ $testClasses = @(
     "ContentLessonLinkServiceTest",
     "FeedServiceTest",
     "FeedControllerMockIntegrationTest",
+    "FeedControllerTest",
     "AdminContentLessonLinkTest"
 ) -join ","
 

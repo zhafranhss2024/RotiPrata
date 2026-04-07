@@ -27,16 +27,21 @@ class FeedServiceTest {
         feedService = new FeedService(recommendationService);
     }
 
+    /** Verifies the feed facade delegates directly to the recommendation service. */
     @Test
-    void getFeed_shouldDelegateToRecommendationService() {
+    void getFeed_ShouldDelegateToRecommendationService_WhenFeedIsRequested() {
+        // arrange
         UUID userId = UUID.randomUUID();
         FeedResponse expected = new FeedResponse(List.of(Map.of("id", "video-1")), true, "cursor-1");
-
         when(recommendationService.getFeed(userId, "token", "cursor-0", 10)).thenReturn(expected);
 
+        // act
         FeedResponse actual = feedService.getFeed(userId, "token", "cursor-0", 10);
 
+        // assert
         assertSame(expected, actual);
+
+        // verify
         verify(recommendationService).getFeed(userId, "token", "cursor-0", 10);
     }
 }
