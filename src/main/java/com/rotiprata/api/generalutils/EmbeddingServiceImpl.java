@@ -2,34 +2,38 @@ package com.rotiprata.api.generalutils;
 
 import org.springframework.stereotype.Service;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
-/**
- * Implementation of EmbeddingService.
- * Uses OpenAI embedding model to generate embeddings and formats them for Postgres.
- */
 @Service
 public class EmbeddingServiceImpl implements EmbeddingService {
 
     private final OpenAiEmbeddingModel embeddingModel;
 
-    /**
-     * Constructor for dependency injection.
-     */
     public EmbeddingServiceImpl(OpenAiEmbeddingModel embeddingModel) {
         this.embeddingModel = embeddingModel;
     }
 
-    // ================= GENERATE EMBEDDING =================
-
+    // Generates an embedding vector for the given text
     @Override
     public float[] generateEmbedding(String text) {
-        return embeddingModel.embed(text);
+        if (text == null || text.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Text for embedding is required");
+        }
+        try {
+            return embeddingModel.embed(text);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate embedding", e);
+        }
     }
 
-    // ================= CONVERT TO POSTGRES VECTOR =================
-
+    // Converts a float array to a Postgres-compatible vector string
     @Override
     public String toPgVector(float[] vector) {
+        if (vector == null || vector.length == 0) {
+            throw new IllegalArgumentException("Vector must not be null or empty");
+        }
+
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < vector.length; i++) {
             sb.append(vector[i]);

@@ -18,16 +18,23 @@ import com.rotiprata.security.ChatRateLimiter;
 @RestController
 @RequestMapping("/api")
 public class ChatController {
+
+    // Maximum allowed length for a chat question
     private static final int MAX_QUESTION_LENGTH = 250;
 
+    // Service for processing chat questions
     private final ChatService chatService;
+
+    // Rate limiter to prevent excessive requests per user
     private final ChatRateLimiter chatRateLimiter;
     
+    // Constructor injection of chat service and rate limiter
     public ChatController(ChatService chatService, ChatRateLimiter chatRateLimiter) {
         this.chatService = chatService;
         this.chatRateLimiter = chatRateLimiter;
     }
 
+    // Handles POST /chat requests: validates, rate-limits, and returns AI response
     @PostMapping("/chat")
     public Map<String, String> chat(@AuthenticationPrincipal Jwt jwt , @RequestBody String question) {
         String normalizedQuestion = normalizeQuestion(question);
@@ -38,10 +45,8 @@ public class ChatController {
         return Map.of("reply", answer);
     }
 
+    // Normalizes and validates question length; throws 400 if invalid
     private String normalizeQuestion(String question) {
-        if (question == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Question is required");
-        }
         String normalized = question.trim();
         if (normalized.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Question is required");

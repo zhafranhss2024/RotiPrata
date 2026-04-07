@@ -25,10 +25,12 @@ public class AdminAnalyticsController {
 
     private final AdminAnalyticsService analyticsService;
     
+    // Constructor injection of the analytics service
     public AdminAnalyticsController(AdminAnalyticsService analyticsService) {
         this.analyticsService = analyticsService;
     }
     
+    // Returns flagged content for a given month and year
     @GetMapping("/flags")
     public List<Map<String, Object>> getFlaggedContentByMonthAndYear
     (
@@ -43,6 +45,7 @@ public class AdminAnalyticsController {
         return analyticsService.getFlaggedContentByMonthAndYear(adminUserId, accessToken, month, year);
     }
 
+    // Returns the average review time for flagged content in minutes for a given month/year
     @GetMapping("/avg-review-time")
     public Map<String, Object> getAvgReviewTime(
         @AuthenticationPrincipal Jwt jwt,
@@ -60,6 +63,7 @@ public class AdminAnalyticsController {
         return result;
     }
 
+    // Returns users who submitted the most flags in a given month/year
     @GetMapping("/top-flag-users")
     public List<Map<String, Object>> getTopFlagUsers
     (
@@ -73,6 +77,7 @@ public class AdminAnalyticsController {
         return analyticsService.getTopFlagUsers(adminUserId, accessToken, month, year);
     }
 
+    // Returns content that received the most flags in a given month/year
     @GetMapping("/top-flag-contents")
     public List<Map<String, Object>> getTopFlagContents
     (
@@ -86,6 +91,7 @@ public class AdminAnalyticsController {
         return analyticsService.getTopFlagContents(adminUserId, accessToken, month, year);
     }
 
+    // Returns admin audit logs for a given month/year
     @GetMapping("/audit-logs")
     public List<Map<String, Object>> getAuditLogs
     (
@@ -101,6 +107,7 @@ public class AdminAnalyticsController {
 
     // Private Helpers
 
+    // Validates that month and year are numeric, in range, and not in the future
     private void validateMonthYear(String month, String year) {
         int m, y;
         try {

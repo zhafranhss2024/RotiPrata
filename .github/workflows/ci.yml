@@ -1,0 +1,142 @@
+name: build-and-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  snyk:
+    name: Snyk Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        id: snyk-java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Run Snyk test
+        uses: snyk/actions/maven@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          JAVA_HOME: ${{ steps.snyk-java.outputs.java-home }}
+        with:
+          command: test
+          args: --severity-threshold=medium
+
+  build-backend:
+    name: Build, Test, and Publish Backend Image
+    runs-on: ubuntu-latest
+    needs: snyk
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: docker.io
+      BACKEND_IMAGE_NAME: rotiprata-backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Cache Maven repository
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Ensure mvnw is executable
+        run: chmod +x mvnw
+
+      - name: Run tests
+        run: ./mvnw -B test -Dspring.profiles.active=test
+
+      - name: Log in to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.backend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+          cache-from: type=gha,scope=${{ env.BACKEND_IMAGE_NAME }}
+          cache-to: type=gha,mode=max,scope=${{ env.BACKEND_IMAGE_NAME }}
+          build-args: |
+            SPRING_PROFILES_ACTIVE=prod
+            ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+
+  build-frontend:
+    name: Build and Publish Frontend Image
+    runs-on: ubuntu-latest
+    needs: snyk
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: docker.io
+      FRONTEND_IMAGE_NAME: rotiprata-frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.frontend
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.FRONTEND_IMAGE_NAME }}:latest
+          cache-from: type=gha,scope=${{ env.FRONTEND_IMAGE_NAME }}
+          cache-to: type=gha,mode=max,scope=${{ env.FRONTEND_IMAGE_NAME }}
+          build-args: |
+            VITE_API_URL=${{ secrets.BACKEND_URL }}

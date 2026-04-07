@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: 
+      dockerfile: Dockerfile.backend
+    image: cs203/backend
+    container_name: backend
+    env_file:
+      - .env
+    ports:
+      - "${PORT}:8080"
+    environment:
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: ${BACKEND_URL}
+    image: cs203/frontend
+    container_name: frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend

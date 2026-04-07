@@ -1,0 +1,45 @@
+# 1. Build stage 
+FROM eclipse-temurin:21-jdk AS builder
+WORKDIR /workspace
+
+# Copy Maven wrapper and project definition files
+COPY mvnw mvnw.cmd pom.xml ./
+COPY .mvn .mvn
+RUN chmod +x mvnw
+
+RUN chmod +x mvnw && sed -i 's/\r$//' mvnw
+
+# Download dependencies
+RUN ./mvnw -B -q -DskipTests \
+    org.apache.maven.plugins:maven-dependency-plugin:3.6.1:resolve \
+    org.apache.maven.plugins:maven-dependency-plugin:3.6.1:resolve-plugins
+
+# Copy the rest of the project sources
+COPY src src
+
+# Remove local-only configuration so it isn't baked into the packaged artifact
+RUN rm -f src/main/resources/application.properties
+
+# Build the executable jar (skip tests for faster container builds)
+RUN ./mvnw -B -DskipTests package
+
+# Runtime stage
+FROM eclipse-temurin:21-jre AS runtime
+WORKDIR /app
+
+# Required media tooling
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg yt-dlp \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up application runtime metadata
+ENV SPRING_PROFILES_ACTIVE=prod
+
+# Copy the built jar from the builder stage
+COPY --from=builder /workspace/target/*.jar app.jar
+
+# Expose the default Spring Boot port
+EXPOSE 8080
+
+# Run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]

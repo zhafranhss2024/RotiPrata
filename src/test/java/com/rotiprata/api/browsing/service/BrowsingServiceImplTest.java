@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
-@DisplayName("BrowsingServiceImpl Unit Tests - Full Coverage with Comments")
+@DisplayName("BrowsingServiceImpl tests")
 class BrowsingServiceImplTest {
 
     @Mock

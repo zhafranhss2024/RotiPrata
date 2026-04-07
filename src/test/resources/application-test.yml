@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: rotiprata-test
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  ai:
+    openai:
+      api-key: test-api-key
+      base-url: https://api.openai.com
+      chat:
+        options:
+          model: gpt-4o-mini
+      moderation:
+        path: /moderations
+      embeddings:
+        path: /embeddings
+        model: text-embedding-3-small
+
+server:
+  port: 0 # random port for tests
+
+supabase:
+  url: http://localhost:3000
+  anon-key: test-anon-key
+  rest-url: http://localhost:3000
+  service-role-key: test-service-role-key
+  storage:
+    buckets:
+      content-media: content-media
+      avatars: avatars
+      lesson-media: lesson-media
+      badges: badges
+
+app:
+  frontend-url: http://localhost:5173
+
+media:
+  max-upload-mb: 10
+  max-duration-seconds: 30
+  temp-dir: /tmp
+  ffmpeg-path: ffmpeg
+  ffprobe-path: ffprobe
+  ytdlp-path: yt-dlp
+  auto-update-ytdlp: false
+  check-tooling-on-startup: false
+  ytdlp-verbose: false

@@ -19,10 +19,12 @@ public class BrowsingController {
 
     private final BrowsingService browsingService;
 
+    // Constructor injection of browsing service
     public BrowsingController(BrowsingService browsingService) {
         this.browsingService = browsingService;
     }
 
+    // Searches content with optional query and filter, using the user's access token
     @GetMapping("/search")
     public List<ContentSearchDTO> search(
             @RequestParam(required = false) String query,
