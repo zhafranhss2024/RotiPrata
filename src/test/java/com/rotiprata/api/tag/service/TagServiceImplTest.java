@@ -25,13 +25,11 @@ class TagServiceImplTest {
     @Mock
     private SupabaseAdminRestClient adminRestClient;
 
-    private TagServiceImpl tagService;
-
-    private static final TypeReference<List<Map<String, Object>>> TAG_ROWS = new TypeReference<>() {};
+    private TagService tagService;
 
     @BeforeEach
     void setUp() {
-        tagService = new TagServiceImpl(adminRestClient);
+        tagService = new TagService(adminRestClient);
     }
 
     // Verifies that searchTags returns unique and trimmed tags.
