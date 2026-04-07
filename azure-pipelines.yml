@@ -1,0 +1,37 @@
+trigger:
+  branches:
+    include:
+      - azure-pipelines
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- checkout: self
+
+- script: |
+    echo "$(DOCKERHUB_TOKEN)" | docker login -u "$(DOCKERHUB_USERNAME)" --password-stdin
+  displayName: Docker Hub login
+
+- script: |
+    docker build -t cs203/backend:latest -f Dockerfile.backend .
+    docker push cs203/backend:latest
+  displayName: Build and push backend
+
+- script: |
+    docker build -t cs203/frontend:latest -f frontend/Dockerfile.frontend ./frontend
+    docker push cs203/frontend:latest
+  displayName: Build and push frontend
+
+- task: SSH@0
+  inputs:
+    sshEndpoint: 'rotiprata-vm-ssh'
+    runOptions: 'commands'
+    commands: |
+      cd ~/RotiPrata
+      echo "$(DOCKERHUB_TOKEN)" | docker login -u "$(DOCKERHUB_USERNAME)" --password-stdin
+      docker compose pull
+      docker compose up -d
+      docker image prune -f
+    readyTimeout: '20000'
+  displayName: Deploy on Azure VM
