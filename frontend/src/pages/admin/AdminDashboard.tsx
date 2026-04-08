@@ -68,9 +68,6 @@ import {
   saveAdminContentQuiz,
 } from '@/lib/api';
 
-// Backend: /api/admin/*
-// Dummy data is returned when mocks are enabled.
-
 const MAX_TITLE = 80;
 const MAX_DESCRIPTION = 500;
 const MAX_OBJECTIVE = 160;
@@ -613,12 +610,10 @@ const AdminDashboard = () => {
 
         {/* ── Header ── */}
         <div className="mb-6">
-          {/* Title row — always full width, never truncated */}
           <div className="mb-3">
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             <p className="text-muted-foreground text-sm">Manage content and users</p>
           </div>
-          {/* Button row — wraps gracefully on small screens */}
           <div className="flex flex-wrap gap-2">
             <Link to="/admin/lessons">
               <Button variant="outline" size="sm" className="h-9">
@@ -633,38 +628,46 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* ── Tabs ── */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 grid h-auto w-full grid-cols-4 rounded-2xl bg-muted p-1 md:h-10 md:rounded-md">
-            <TabsTrigger value="overview" className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm">
+          {/* ↓↓ CHANGED: p-1.5 on TabsList, px-1 py-1.5 on triggers for mobile breathing room ↓↓ */}
+          <TabsList className="mb-6 grid h-auto w-full grid-cols-4 rounded-2xl bg-muted p-1.5 md:h-10 md:rounded-md md:p-1">
+            <TabsTrigger
+              value="overview"
+              className="min-h-11 rounded-xl px-1 py-1.5 text-xs md:min-h-0 md:rounded-sm md:px-3 md:text-sm"
+            >
               Overview
             </TabsTrigger>
             <TabsTrigger
               value="moderation"
-              className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm"
+              className="min-h-11 rounded-xl px-1 py-1.5 text-xs md:min-h-0 md:rounded-sm md:px-3 md:text-sm"
             >
               Moderation
               {moderationQueue.length > 0 && (
-                <Badge variant="destructive" className="ml-1.5 px-2 py-0 text-[10px] md:ml-2">
+                <Badge variant="destructive" className="ml-1 px-1.5 py-0 text-[10px] md:ml-2 md:px-2">
                   {moderationQueue.length}
                 </Badge>
               )}
             </TabsTrigger>
             <TabsTrigger
               value="flags"
-              className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm"
+              className="min-h-11 rounded-xl px-1 py-1.5 text-xs md:min-h-0 md:rounded-sm md:px-3 md:text-sm"
             >
               Flags
               {flags.length > 0 && (
-                <Badge variant="destructive" className="ml-1.5 px-2 py-0 text-[10px] md:ml-2">
+                <Badge variant="destructive" className="ml-1 px-1.5 py-0 text-[10px] md:ml-2 md:px-2">
                   {flags.length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="users" className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm">
+            <TabsTrigger
+              value="users"
+              className="min-h-11 rounded-xl px-1 py-1.5 text-xs md:min-h-0 md:rounded-sm md:px-3 md:text-sm"
+            >
               Users
             </TabsTrigger>
           </TabsList>
+          {/* ↑↑ END CHANGE ↑↑ */}
 
           {/* Overview Tab */}
           <TabsContent value="overview">
@@ -755,7 +758,6 @@ const AdminDashboard = () => {
               </Card>
             </div>
 
-            {/* Quick Actions */}
             <Card>
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
@@ -955,7 +957,6 @@ const AdminDashboard = () => {
           <TabsContent value="users">
             <Card>
               <CardHeader>
-                {/* Stack title + search on mobile, side-by-side on md+ */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <CardTitle>User Management</CardTitle>
                   <div className="relative w-full sm:w-64">
