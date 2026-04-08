@@ -396,7 +396,7 @@ const AdminAnalytics = () => {
         setFlagTrend(formatFlagDataForMonth(flagData, year, month));
 
         const avgReview = await getAvgReviewTimeStats(monthStr, yearStr);
-        setAvgReviewTime(avgReview.avgReviewTime);
+        setAvgReviewTime(Math.round(avgReview.avgReviewTime));
 
         const topUsersData = await getTopFlagUsers(monthStr, yearStr);
         setTopUsers(

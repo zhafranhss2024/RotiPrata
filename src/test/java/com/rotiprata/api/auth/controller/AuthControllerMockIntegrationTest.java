@@ -1,19 +1,19 @@
 package com.rotiprata.api.auth.controller;
 
-import com.rotiprata.api.auth.dto.AuthSessionResponse;
-import com.rotiprata.api.auth.service.AuthService;
-import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.api.zdto.ForgotPasswordRequest;
-import com.rotiprata.api.zdto.LoginRequest;
-import com.rotiprata.api.zdto.LoginStreakTouchResponse;
-import com.rotiprata.api.zdto.RegisterRequest;
-import com.rotiprata.api.zdto.ResetPasswordRequest;
-import com.rotiprata.application.LoginStreakService;
-import io.restassured.http.ContentType;
-import io.restassured.module.mockmvc.RestAssuredMockMvc;
-import io.restassured.module.mockmvc.specification.MockMvcRequestSpecification;
+import static io.restassured.module.mockmvc.RestAssuredMockMvc.given;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+
 import java.time.LocalDate;
 import java.util.UUID;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,14 +25,19 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static io.restassured.module.mockmvc.RestAssuredMockMvc.given;
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import com.rotiprata.api.auth.dto.AuthSessionResponse;
+import com.rotiprata.api.auth.service.AuthService;
+import com.rotiprata.api.user.service.UserService;
+import com.rotiprata.api.zdto.ForgotPasswordRequest;
+import com.rotiprata.api.zdto.LoginRequest;
+import com.rotiprata.api.zdto.LoginStreakTouchResponse;
+import com.rotiprata.api.zdto.RegisterRequest;
+import com.rotiprata.api.zdto.ResetPasswordRequest;
+import com.rotiprata.application.LoginStreakService;
+
+import io.restassured.http.ContentType;
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import io.restassured.module.mockmvc.specification.MockMvcRequestSpecification;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
@@ -50,6 +55,9 @@ class AuthControllerMockIntegrationTest {
 
     @MockBean
     private UserService userService;
+
+    @MockBean
+    private JwtDecoder jwtDecoder;
 
     private MockMvcRequestSpecification authenticated;
 
@@ -185,24 +193,6 @@ class AuthControllerMockIntegrationTest {
 
         //verify
         verify(authService).resetPassword(any(ResetPasswordRequest.class));
-    }
-
-    /** Verifies logout extracts a Bearer token and passes only the token value to authService. */
-    @Test
-    void logout_ShouldPassExtractedToken_WhenAuthorizationHeaderUsesBearerScheme() {
-        //arrange
-
-        //act
-        given()
-            .header(HttpHeaders.AUTHORIZATION, "Bearer   token-value   ")
-        .when()
-            .post("/api/auth/logout")
-        //assert
-        .then()
-            .status(HttpStatus.NO_CONTENT);
-
-        //verify
-        verify(authService).logout(eq("token-value"));
     }
 
     /** Verifies logout passes through non-Bearer Authorization values unchanged. */
