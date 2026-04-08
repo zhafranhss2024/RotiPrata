@@ -19,22 +19,19 @@ Rotiprata is a full-stack learning platform inspired by TikTok-style feeds to te
 ## API docs
 See `docs/api.md` for the current backend endpoints and the remaining endpoints expected by the frontend.
 
-## One-step dev start (recommended)
-These scripts install prerequisites (Java 17, Maven, Node.js), install media tooling, then start
-the backend and frontend in separate shells.
+## Run with Docker (recommended)
+Use Docker Compose to start the full application stack.
 
-Windows:
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\dev-start.ps1
-```
+Prerequisites:
+- Docker
+- Docker Compose
+- A repo-root `.env` file copied from `.env.template`
 
-macOS:
+Setup:
 ```bash
-xattr -dr com.apple.quarantine ./scripts/dev-start.sh 2>/dev/null; bash ./scripts/dev-start.sh
+cp .env.template .env
 ```
 
-## Manual setup (advanced / troubleshooting)
-ONLY IF ABOVE ONE STEP DEV START DOES NOT WORK
 ## Environment variables (backend)
 Copy `.env.template` to `.env` and fill in values:
 
@@ -45,10 +42,58 @@ Set `SUPABASE_SERVICE_ROLE_KEY` for admin lookups used to detect duplicate email
 **Do not leak or expose this key** (keep it server-side only and never commit it to the repo).
 Set `ALLOWED_ORIGINS` only when the frontend is on a different origin; same-origin Docker deployments can leave it unset.
 
+Start the app:
+```bash
+docker compose up --build
+```
+
+Run in the background:
+```bash
+docker compose up --build -d
+```
+
+Open the app:
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:8080`
+
+Useful Docker commands:
+```bash
+docker compose ps
+docker compose logs -f
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose down
+```
+
 ## Media tooling (required for video processing)
-The backend requires `ffmpeg`, `ffprobe`, and `yt-dlp`. Startup will fail if they are missing.
+The backend requires `ffmpeg`, `ffprobe`, and `yt-dlp`.
+For Docker on Ubuntu, these are installed in the backend image automatically.
 For native-host development, you can optionally override `FFMPEG_PATH`, `FFPROBE_PATH`, and `YTDLP_PATH` in `.env`.
 Do not set those path overrides for Ubuntu Docker deployments; the container uses Linux-native binaries from `PATH`.
+
+## Docker deployment notes
+`docker-compose.yml` starts both services:
+- `backend` on port `8080`
+- `frontend` on port `5173`
+
+The frontend is served by nginx and proxies API requests to `/api`, so you should normally open the site through the frontend URL instead of hitting the backend directly in the browser.
+
+The backend service explicitly uses Linux-native media tooling (`ffmpeg`, `ffprobe`, `yt-dlp`) so developer `.env` files with Windows paths do not leak into Ubuntu containers.
+
+## Run without Docker (fallback)
+Only use this path if Docker is unavailable on your machine.
+
+These scripts install prerequisites (Java 17, Maven, Node.js), install media tooling, then start the backend and frontend in separate shells.
+
+Windows:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-start.ps1
+```
+
+macOS:
+```bash
+xattr -dr com.apple.quarantine ./scripts/dev-start.sh 2>/dev/null; bash ./scripts/dev-start.sh
+```
 
 Install scripts:
 - macOS / Linux: `scripts/install-media-tools.sh`
@@ -61,6 +106,9 @@ Install scripts:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-media-tools.ps1
 ```
+
+## Native manual setup (advanced / troubleshooting)
+Only use this if Docker is unavailable and the fallback startup scripts do not work.
 
 ## macOS prerequisites (manual)
 ```bash
@@ -80,10 +128,6 @@ mvn spring-boot:run
 ```
 
 The backend runs on `http://localhost:8080` by default.
-
-## Docker deployment
-`docker-compose.yml` assumes the frontend is served by nginx on the same origin and proxies API requests to `/api`.
-The backend service explicitly uses Linux-native media tooling (`ffmpeg`, `ffprobe`, `yt-dlp`) so developer `.env` files with Windows paths do not leak into Ubuntu containers.
 
 ## Recommendation coverage
 Run the backend recommendation-only test suite with JaCoCo reporting:
