@@ -20,7 +20,7 @@ import { AdminFlagReviewDialog } from '@/components/admin/AdminFlagReviewDialog'
 import { AdminUserManagementDialog } from '@/components/admin/AdminUserManagementDialog';
 import { formatAdminFlagContentStatus } from '@/components/admin/adminFlagReviewUtils';
 import { getRoleChangeGuardReason } from '@/components/admin/adminUserManagementUtils';
-import {
+import { 
   Search,
   CheckCircle,
   XCircle,
@@ -610,25 +610,18 @@ const AdminDashboard = () => {
   return (
     <MainLayout>
       <div className="container max-w-6xl mx-auto px-4 py-6 md:py-8 pb-safe">
-
-        {/* ── Header ── */}
-        <div className="mb-6">
-          {/* Title row — always full width, never truncated */}
-          <div className="mb-3">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-            <p className="text-muted-foreground text-sm">Manage content and users</p>
+            <p className="text-muted-foreground">Manage content and users</p>
           </div>
-          {/* Button row — wraps gracefully on small screens */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-2">
             <Link to="/admin/lessons">
-              <Button variant="outline" size="sm" className="h-9">
-                Manage Lessons
-              </Button>
+              <Button variant="outline">Manage Lessons</Button>
             </Link>
             <Link to="/admin/lessons/create">
-              <Button size="sm" className="h-9">
-                Create Lesson
-              </Button>
+              <Button>Create Lesson</Button>
             </Link>
           </div>
         </div>
@@ -869,49 +862,49 @@ const AdminDashboard = () => {
                       className="rounded-lg border border-border/70 p-4"
                     >
                       <div className="flex flex-col gap-4 md:flex-row md:items-start">
-                        {flag.content?.thumbnail_url ? (
-                          <img
-                            src={flag.content.thumbnail_url}
-                            alt={flag.content.title}
-                            className="mx-auto h-24 w-20 rounded-md object-cover bg-muted md:mx-0 md:h-20 md:w-14"
-                          />
-                        ) : (
-                          <div className="mx-auto flex h-24 w-20 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground md:mx-0 md:h-20 md:w-14">
-                            {flag.content?.content_type ?? 'post'}
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="mb-1 flex flex-wrap items-center gap-2">
-                            <Badge variant="destructive" className="max-w-full whitespace-normal break-words leading-4">
-                              {getFlagReasonSummary(flag)}
-                            </Badge>
-                            <Badge variant="secondary">{getFlagReportCount(flag)} reports</Badge>
-                            {flag.content?.content_type ? (
-                              <Badge variant="outline" className="capitalize">
-                                {flag.content.content_type}
-                              </Badge>
-                            ) : null}
-                            {flag.content?.status ? (
-                              <Badge variant="secondary">
-                                {formatAdminFlagContentStatus(flag.content.status)}
-                              </Badge>
-                            ) : null}
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(flag.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <p className="break-words font-medium">{flag.content?.title ?? `Content ${flag.content_id}`}</p>
-                          <p className="break-words text-sm text-muted-foreground">
-                            Creator: @{flag.content?.creator?.display_name ?? 'anonymous'}
-                          </p>
-                          <p className="mt-2 break-words text-sm text-muted-foreground">
-                            Reasons: {getFlagReasons(flag).join(', ') || 'No reason provided.'}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Reporter notes: {getFlagDescriptionCount(flag)} of {getFlagReportCount(flag)} reports
-                          </p>
+                      {flag.content?.thumbnail_url ? (
+                        <img
+                          src={flag.content.thumbnail_url}
+                          alt={flag.content.title}
+                          className="mx-auto h-24 w-20 rounded-md object-cover bg-muted md:mx-0 md:h-20 md:w-14"
+                        />
+                      ) : (
+                        <div className="mx-auto flex h-24 w-20 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground md:mx-0 md:h-20 md:w-14">
+                          {flag.content?.content_type ?? 'post'}
                         </div>
-                        <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:flex-col lg:flex-row">
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <Badge variant="destructive" className="max-w-full whitespace-normal break-words leading-4">
+                            {getFlagReasonSummary(flag)}
+                          </Badge>
+                          <Badge variant="secondary">{getFlagReportCount(flag)} reports</Badge>
+                          {flag.content?.content_type ? (
+                            <Badge variant="outline" className="capitalize">
+                              {flag.content.content_type}
+                            </Badge>
+                          ) : null}
+                          {flag.content?.status ? (
+                            <Badge variant="secondary">
+                              {formatAdminFlagContentStatus(flag.content.status)}
+                            </Badge>
+                          ) : null}
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(flag.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <p className="break-words font-medium">{flag.content?.title ?? `Content ${flag.content_id}`}</p>
+                        <p className="break-words text-sm text-muted-foreground">
+                          Creator: @{flag.content?.creator?.display_name ?? 'anonymous'}
+                        </p>
+                        <p className="mt-2 break-words text-sm text-muted-foreground">
+                          Reasons: {getFlagReasons(flag).join(', ') || 'No reason provided.'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Reporter notes: {getFlagDescriptionCount(flag)} of {getFlagReportCount(flag)} reports
+                        </p>
+                      </div>
+                      <div className="flex w-full flex-col gap-2 sm:flex-row md:w-auto md:flex-col lg:flex-row">
                           <Button
                             size="sm"
                             variant="outline"
@@ -920,29 +913,29 @@ const AdminDashboard = () => {
                               openFlagReview(flag.content_id);
                             }}
                           >
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="w-full md:w-auto"
-                            onClick={() => {
-                              openTakeDownForContent(flag.content_id);
-                            }}
-                          >
-                            Take down
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="w-full md:w-auto"
-                            onClick={() => {
-                              void resolveContent(flag.content_id);
-                            }}
-                          >
-                            Resolve
-                          </Button>
-                        </div>
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="w-full md:w-auto"
+                          onClick={() => {
+                            openTakeDownForContent(flag.content_id);
+                          }}
+                        >
+                          Take down
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="w-full md:w-auto"
+                          onClick={() => {
+                            void resolveContent(flag.content_id);
+                          }}
+                        >
+                          Resolve
+                        </Button>
+                      </div>
                       </div>
                     </div>
                   ))
@@ -955,10 +948,9 @@ const AdminDashboard = () => {
           <TabsContent value="users">
             <Card>
               <CardHeader>
-                {/* Stack title + search on mobile, side-by-side on md+ */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center justify-between">
                   <CardTitle>User Management</CardTitle>
-                  <div className="relative w-full sm:w-64">
+                  <div className="relative w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search users..."
