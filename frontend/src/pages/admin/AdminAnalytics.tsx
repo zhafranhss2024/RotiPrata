@@ -212,7 +212,7 @@ const ExportModal = ({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#1a1a1a] shadow-2xl dark:shadow-black/50 p-5">
+        <div className="mt-3 sm:absolute right-0 top-[calc(100%+8px)] z-50 w-72 rounded-3xl border border-gray-100 dark:border-white/10 bg-white dark:bg-[#1a1a1a] shadow-2xl dark:shadow-black/50 p-5">
           <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-neutral-500 mb-3">
             Choose sections to export
           </p>
@@ -525,17 +525,19 @@ const AdminAnalytics = () => {
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
-
-                <button
-                  onClick={() => {
-                    const t = new Date();
-                    setSelectedMonth(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`);
-                  }}
-                  className="bg-[#ff385c] hover:bg-[#e0304f] text-white text-xs font-semibold px-4 py-2 rounded-full transition-colors"
-                >
-                  This Month
-                </button>
               </div>
+
+              <button
+                onClick={() => {
+                  const t = new Date();
+                  setSelectedMonth(
+                    `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}`
+                  );
+                }}
+                className="bg-[#ff385c] hover:bg-[#e0304f] text-white text-sm font-medium px-5 py-2.5 rounded-full transition-colors shadow-sm"
+              >
+                This Month
+              </button>
 
               <ExportModal
                 flagTrend={flagTrend}
@@ -723,54 +725,56 @@ const AdminAnalytics = () => {
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">Admin Actions</h2>
           </div>
           <Divider />
-          <table className="w-full text-left">
-            <thead>
-              <tr>
-                {["Admin", "Action", "Target ID", "Time"].map((h) => (
-                  <th key={h} className="px-6 py-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-neutral-500">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {auditLogs.map((log, i) => {
-                const meta = actionMeta[log.action] ?? {
-                  light: "text-gray-500 bg-gray-50 border-gray-200",
-                  dark:  "dark:text-neutral-400 dark:bg-white/[0.05] dark:border-white/10",
-                };
-                return (
-                  <tr
-                    key={i}
-                    className="border-t border-gray-50 dark:border-white/[0.04] hover:bg-gray-50/80 dark:hover:bg-white/[0.02] transition-colors"
-                  >
-                    <td className="px-6 py-3.5">
-  <div className="flex items-center gap-3">
-    <div className="w-8 h-8 rounded-full bg-[#ff385c]/10 dark:bg-[#ff385c]/15 flex items-center justify-center text-[#ff385c] text-xs font-bold">
-      {log.admin[0].toUpperCase()}
-    </div>
-    <button
-      className="text-sm font-medium text-gray-800 dark:text-neutral-200 hover:text-[#ff385c] dark:hover:text-[#ff385c] transition-colors"
-      onClick={() => {
-        void openUser(log.adminId); // <-- pass the admin user ID
-      }}
-    >
-      {log.admin}
-    </button>
-  </div>
-</td>
-                    <td className="px-6 py-3.5">
-                      <span className={`inline-block text-[11px] font-semibold tracking-wide border rounded-full px-3 py-1 ${meta.light} ${meta.dark}`}>
-                        {log.action}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-sm text-gray-400 dark:text-neutral-500">#{log.targetId}</td>
-                    <td className="px-6 py-3.5 text-sm text-gray-400 dark:text-neutral-500">{log.time}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left min-w-[600px]">
+              <thead>
+                <tr>
+                  {["Admin", "Action", "Target ID", "Time"].map((h) => (
+                    <th key={h} className="px-6 py-3 text-[10px] font-semibold uppercase tracking-widest text-gray-400 dark:text-neutral-500">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.map((log, i) => {
+                  const meta = actionMeta[log.action] ?? {
+                    light: "text-gray-500 bg-gray-50 border-gray-200",
+                    dark:  "dark:text-neutral-400 dark:bg-white/[0.05] dark:border-white/10",
+                  };
+                  return (
+                    <tr
+                      key={i}
+                      className="border-t border-gray-50 dark:border-white/[0.04] hover:bg-gray-50/80 dark:hover:bg-white/[0.02] transition-colors"
+                    >
+                      <td className="px-6 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#ff385c]/10 dark:bg-[#ff385c]/15 flex items-center justify-center text-[#ff385c] text-xs font-bold">
+                            {log.admin[0].toUpperCase()}
+                          </div>
+                          <button
+                            className="text-sm font-medium text-gray-800 dark:text-neutral-200 hover:text-[#ff385c] dark:hover:text-[#ff385c] transition-colors"
+                            onClick={() => {
+                              void openUser(log.adminId); // <-- pass the admin user ID
+                            }}
+                          >
+                            {log.admin}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-3.5">
+                        <span className={`inline-block text-[11px] font-semibold tracking-wide border rounded-full px-3 py-1 ${meta.light} ${meta.dark}`}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5 text-sm text-gray-400 dark:text-neutral-500">#{log.targetId}</td>
+                      <td className="px-6 py-3.5 text-sm text-gray-400 dark:text-neutral-500">{log.time}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
 
       </div>
