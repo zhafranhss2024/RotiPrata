@@ -611,7 +611,7 @@ const AdminDashboard = () => {
     <MainLayout>
       <div className="container max-w-6xl mx-auto px-4 py-6 md:py-8 pb-safe">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between mb-6 gap-3">
           <div>
             <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             <p className="text-muted-foreground">Manage content and users</p>
@@ -628,7 +628,7 @@ const AdminDashboard = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 grid h-auto w-full grid-cols-4 rounded-2xl bg-muted p-1 md:h-10 md:rounded-md">
+          <TabsList className="mb-6 grid h-auto w-full grid-cols-2 sm:grid-cols-4 rounded-2xl bg-muted p-1 md:h-10 md:rounded-md">
             <TabsTrigger value="overview" className="min-h-11 rounded-xl px-2 text-xs sm:text-sm md:min-h-0 md:rounded-sm">
               Overview
             </TabsTrigger>
@@ -948,7 +948,7 @@ const AdminDashboard = () => {
           <TabsContent value="users">
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <CardTitle>User Management</CardTitle>
                   <div className="relative w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
