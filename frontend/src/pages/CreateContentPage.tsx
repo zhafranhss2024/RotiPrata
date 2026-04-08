@@ -54,7 +54,12 @@ const MAX_OLDER_REFERENCE = 160;
 const MAX_TAG = 30;
 
 const sanitizeInputValue = (value: string, maxLength: number) => {
-  const cleaned = value.replace(/[\u0000-\u001F\u007F]/g, '');
+  const cleaned = Array.from(value)
+    .filter((character) => {
+      const code = character.charCodeAt(0);
+      return code >= 0x20 && code !== 0x7f;
+    })
+    .join('');
   if (maxLength > 0 && cleaned.length > maxLength) {
     return cleaned.slice(0, maxLength);
   }

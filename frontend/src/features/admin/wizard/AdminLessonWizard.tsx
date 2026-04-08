@@ -2272,7 +2272,7 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+12rem)] sm:pb-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+8rem)] lg:pb-28">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <Button
@@ -2311,8 +2311,8 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
       ) : null}
 
       <div className="space-y-3 rounded-xl border bg-card/50 p-3 md:p-4">
-        <div className="overflow-x-auto pb-1">
-          <div className="flex min-w-max items-start gap-2 md:w-full md:min-w-0 md:justify-between">
+        <div className="overflow-hidden pb-1">
+          <div className="flex w-full min-w-0 items-start justify-between gap-1 sm:gap-2">
             {STEPS.map((step, index) => {
               const visual = getStepVisual(step.key, index);
               const connectorComplete = index < currentStepIndex;
@@ -2324,10 +2324,10 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
                       if (step.key === activeStep) return;
                       void saveAndMoveStep(step.key);
                     }}
-                    className="group flex min-w-[68px] flex-col items-center gap-1.5 px-1 text-center md:min-w-0 md:flex-1"
+                    className="group flex min-w-0 flex-1 flex-col items-center gap-1.5 px-0.5 text-center sm:px-1"
                   >
                     <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold transition md:h-9 md:w-9 md:text-sm ${
+                      className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold transition sm:h-8 sm:w-8 md:h-9 md:w-9 md:text-sm ${
                         visual.isInvalid
                           ? "border-destructive bg-destructive text-destructive-foreground"
                           : visual.isComplete
@@ -2346,11 +2346,11 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
                       )}
                     </span>
                     <span
-                      className={`text-[10px] font-medium leading-tight md:text-xs ${
+                      className={`max-w-full text-[10px] font-medium leading-tight sm:text-[11px] md:text-xs ${
                         visual.isActive ? "text-foreground" : "text-muted-foreground"
                       }`}
                     >
-                      <span className="md:hidden">{shortStepLabel[step.key]}</span>
+                      <span className="block truncate md:hidden">{shortStepLabel[step.key]}</span>
                       <span className="hidden md:inline">{step.label}</span>
                     </span>
                     <span
@@ -2363,7 +2363,7 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
                   </button>
                   {index < STEPS.length - 1 ? (
                     <div
-                      className={`mt-3 h-0.5 w-8 shrink-0 rounded-full transition md:mt-4 md:h-1 md:flex-1 md:min-w-[28px] ${
+                      className={`mt-3 h-0.5 flex-1 min-w-[10px] rounded-full transition sm:min-w-[16px] md:mt-4 md:h-1 md:min-w-[28px] ${
                         connectorComplete ? "bg-primary" : "bg-muted"
                       }`}
                     />
@@ -2393,7 +2393,7 @@ export const AdminLessonWizard = ({ mode, lessonId: lessonIdProp }: Props) => {
       {activeStep === "quiz_setup" ? renderQuizSetupStep() : null}
       {activeStep === "review_publish" ? renderReviewStep() : null}
 
-      <div className="sticky bottom-0 z-20 rounded-lg border bg-background/95 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur">
+      <div className="sticky bottom-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+0.75rem)] lg:bottom-0 z-20 rounded-lg border bg-background/95 p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] backdrop-blur">
         <div className="space-y-2 sm:hidden">
           {hasNext ? (
             <Button

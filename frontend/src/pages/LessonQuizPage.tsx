@@ -4,6 +4,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Check,
   CheckCircle2,
   Heart,
@@ -56,6 +57,13 @@ const questionTypeLabel = (question: LessonQuizQuestion) => {
       return "Answer the question";
   }
 };
+
+const sortQuizChoices = (choices: LessonQuizChoice[]) =>
+  [...choices].sort((left, right) =>
+    left.id.localeCompare(right.id, undefined, { numeric: true, sensitivity: "base" })
+  );
+
+const choiceDisplayLabel = (index: number) => String.fromCharCode(65 + index);
 
 const normalizeQuestionResponse = (
   question: LessonQuizQuestion,
@@ -140,7 +148,7 @@ const LessonQuizQuestionRenderer = ({
   disabled: boolean;
 }) => {
   if (question.questionType === "multiple_choice" || question.questionType === "true_false") {
-    const choices = question.payload.choices;
+    const choices = sortQuizChoices(question.payload.choices);
     const selectedId =
       typeof response?.choiceId === "string"
         ? response.choiceId
@@ -150,7 +158,7 @@ const LessonQuizQuestionRenderer = ({
 
     return (
       <div className="grid gap-3 lg:grid-cols-2">
-        {choices.map((choice) => {
+        {choices.map((choice, index) => {
           const selected = selectedId === choice.id;
           return (
             <DuoChoiceButton
@@ -166,7 +174,7 @@ const LessonQuizQuestionRenderer = ({
               disabled={disabled}
             >
               {question.questionType === "multiple_choice" ? (
-                <span className="font-bold mr-2">{choice.id}.</span>
+                <span className="font-bold mr-2">{choiceDisplayLabel(index)}.</span>
               ) : null}
               <span>{choice.text}</span>
             </DuoChoiceButton>
@@ -479,6 +487,33 @@ const LessonQuizPage = () => {
             <Link to={`/lessons/${id}`} className="inline-flex h-11 items-center justify-center px-5 duo-button-primary">
               Back to Lesson
             </Link>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!quizSummary && quizState.status !== "passed" && !quizState.currentQuestion) {
+    return (
+      <MainLayout className="overflow-hidden">
+        <div className="w-full px-4 lg:px-8 py-10">
+          <div className="rounded-2xl p-6 text-center space-y-4">
+            <p className="text-statusStrong">This quiz is missing its current question. Restart it or go back to the lesson.</p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {quizState.canRestart ? (
+                <button
+                  type="button"
+                  onClick={handleRestart}
+                  disabled={isSubmitting}
+                  className="inline-flex h-11 items-center justify-center px-5 duo-button-primary disabled:opacity-60"
+                >
+                  Restart Quiz
+                </button>
+              ) : null}
+              <Link to={`/lessons/${id}`} className="inline-flex h-11 items-center justify-center px-5 rounded-xl border border-mainAlt bg-main text-mainAccent dark:text-white">
+                Back to Lesson
+              </Link>
+            </div>
           </div>
         </div>
       </MainLayout>

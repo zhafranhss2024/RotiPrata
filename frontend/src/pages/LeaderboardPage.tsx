@@ -30,8 +30,6 @@ const LeaderboardPage = () => {
 
   useEffect(() => {
     let active = true;
-    setIsLoading(true);
-    setErrorMessage(null);
 
     fetchLeaderboard(page, PAGE_SIZE, deferredSearchQuery)
       .then((response) => {
@@ -89,6 +87,8 @@ const LeaderboardPage = () => {
                   <Input
                     value={searchQuery}
                     onChange={(event) => {
+                      setIsLoading(true);
+                      setErrorMessage(null);
                       setSearchQuery(event.target.value);
                       setPage(1);
                     }}
@@ -237,7 +237,11 @@ const LeaderboardPage = () => {
                       type="button"
                       variant="outline"
                       disabled={(leaderboard?.page ?? page) <= 1}
-                      onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      onClick={() => {
+                        setIsLoading(true);
+                        setErrorMessage(null);
+                        setPage((current) => Math.max(1, current - 1));
+                      }}
                     >
                       Previous
                     </Button>
@@ -245,7 +249,11 @@ const LeaderboardPage = () => {
                       type="button"
                       variant="outline"
                       disabled={!leaderboard?.hasNext}
-                      onClick={() => setPage((current) => current + 1)}
+                      onClick={() => {
+                        setIsLoading(true);
+                        setErrorMessage(null);
+                        setPage((current) => current + 1);
+                      }}
                     >
                       Next
                     </Button>

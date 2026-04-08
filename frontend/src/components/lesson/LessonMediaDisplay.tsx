@@ -60,7 +60,10 @@ export function LessonMediaDisplay({
           sourceUrl={mediaUrl}
           poster={thumbnailUrl ?? null}
           showPoster
-          className={cn("w-full overflow-hidden rounded-2xl bg-black", mediaClassName)}
+          className={cn(
+            "mx-auto block h-auto max-h-[min(32rem,70vh)] w-full max-w-full rounded-2xl border bg-black object-contain",
+            mediaClassName
+          )}
           controls
           loop={false}
           isActive
@@ -77,7 +80,10 @@ export function LessonMediaDisplay({
       <img
         src={mediaUrl}
         alt={alt?.trim() || caption?.trim() || "Lesson media"}
-        className={cn("w-full rounded-2xl border object-cover", mediaClassName)}
+        className={cn(
+          "mx-auto block h-auto max-h-[min(32rem,70vh)] w-full max-w-full rounded-2xl border bg-black/5 object-contain object-center",
+          mediaClassName
+        )}
       />
       {caption?.trim() ? <figcaption className="text-sm leading-6 text-muted-foreground">{caption.trim()}</figcaption> : null}
     </figure>

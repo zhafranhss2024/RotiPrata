@@ -21,52 +21,52 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
   const location = useLocation();
   const navigate = useNavigate();
   const requestVersionRef = useRef(0);
-  const [similarVideos, setSimilarVideos] = useState<Content[]>([]);
-  const [isLoadingSimilar, setIsLoadingSimilar] = useState(false);
+  const [similarVideosState, setSimilarVideosState] = useState<{ contentId: string | null; items: Content[] }>({
+    contentId: null,
+    items: [],
+  });
 
   useEffect(() => {
+    requestVersionRef.current += 1;
+
     if (!open || !content?.id) {
-      setIsLoadingSimilar(false);
-      setSimilarVideos([]);
       return;
     }
 
-    requestVersionRef.current += 1;
     const requestVersion = requestVersionRef.current;
-    setIsLoadingSimilar(true);
 
     fetchSimilarContent(content.id, SIMILAR_CONTENT_LIMIT)
       .then((items) => {
         if (requestVersion !== requestVersionRef.current) {
           return;
         }
-        setSimilarVideos(
-          items
+        setSimilarVideosState({
+          contentId: content.id,
+          items: items
             .filter((item) => item.id !== content.id)
-            .slice(0, SIMILAR_CONTENT_LIMIT)
-        );
+            .slice(0, SIMILAR_CONTENT_LIMIT),
+        });
       })
       .catch((error) => {
         if (requestVersion !== requestVersionRef.current) {
           return;
         }
         console.warn("Failed to load similar videos", error);
-        setSimilarVideos([]);
-      })
-      .finally(() => {
-        if (requestVersion === requestVersionRef.current) {
-          setIsLoadingSimilar(false);
-        }
+        setSimilarVideosState({
+          contentId: content.id,
+          items: [],
+        });
       });
   }, [content?.id, open]);
 
   const visibleSimilarVideos = useMemo(
     () =>
-      similarVideos
+      (open && content?.id === similarVideosState.contentId ? similarVideosState.items : [])
         .filter((item) => item.id !== content?.id)
         .slice(0, SIMILAR_CONTENT_LIMIT),
-    [content?.id, similarVideos]
+    [content?.id, open, similarVideosState]
   );
+  const showSimilarLoading = open && Boolean(content?.id) && similarVideosState.contentId !== content.id;
 
   if (!content) return null;
 
@@ -193,7 +193,7 @@ export function ContentDetailSheet({ content, open, onOpenChange }: ContentDetai
               <Badge variant="outline">Top {SIMILAR_CONTENT_LIMIT}</Badge>
             </div>
 
-            {isLoadingSimilar ? (
+            {showSimilarLoading ? (
               <div className="grid grid-cols-[repeat(auto-fit,minmax(6.75rem,8.5rem))] justify-center gap-2 sm:grid-cols-[repeat(auto-fit,minmax(7.5rem,9rem))] sm:gap-3">
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div

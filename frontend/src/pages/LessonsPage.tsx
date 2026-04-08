@@ -218,8 +218,6 @@ const LessonsPage = () => {
   useEffect(() => {
     let active = true;
     if (!deferredSearchQuery) {
-      setMatchedLessonIds(null);
-      setResolvedSearchQuery('');
       return () => {
         active = false;
       };
@@ -349,7 +347,14 @@ const LessonsPage = () => {
             <Input
               type="search"
               value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
+              onChange={(event) => {
+                const nextQuery = event.target.value;
+                setSearchQuery(nextQuery);
+                if (!nextQuery.trim()) {
+                  setMatchedLessonIds(null);
+                  setResolvedSearchQuery('');
+                }
+              }}
               placeholder="Search lessons across all categories"
               className="h-12 rounded-2xl border-mainAlt/35 bg-white/80 pl-11 text-mainAccent placeholder:text-mainAccent/55 dark:bg-black/20 dark:text-white"
             />

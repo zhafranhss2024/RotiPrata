@@ -1382,16 +1382,54 @@ export const fetchAdminQuizQuestionTypes = () =>
     { allowAutoFallback: false }
   );
 
-const toAdminQuestionPayload = (question: AdminQuizQuestionDraft) => {
+const canonicalMultipleChoiceKey = (index: number) => String.fromCharCode(65 + index);
+
+const normalizeMultipleChoiceQuestionPayload = (question: AdminQuizQuestionDraft) => {
+  const options = (question.options ?? {}) as Record<string, unknown>;
+  const rawChoices = ((options.choices as Record<string, unknown> | undefined) ?? options) as Record<string, unknown>;
+  const nonEmptyChoices = Object.entries(rawChoices)
+    .map(([choiceId, text]) => [choiceId.trim().toUpperCase(), String(text ?? "").trim()] as const)
+    .filter(([, text]) => text.length > 0)
+    .sort(([leftId], [rightId]) => leftId.localeCompare(rightId, undefined, { numeric: true, sensitivity: "base" }));
+
+  const remappedChoices = Object.fromEntries(
+    nonEmptyChoices.map(([_, text], index) => [canonicalMultipleChoiceKey(index), text])
+  );
+
+  const normalizedCorrectAnswer = (() => {
+    const existingCorrect = question.correct_answer?.trim().toUpperCase();
+    if (!existingCorrect) {
+      return question.correct_answer;
+    }
+    const oldIndex = nonEmptyChoices.findIndex(([choiceId]) => choiceId === existingCorrect);
+    return oldIndex >= 0 ? canonicalMultipleChoiceKey(oldIndex) : question.correct_answer;
+  })();
+
   return {
-    question_type: question.question_type,
-    question_text: question.question_text,
-    explanation: question.explanation,
-    points: question.points,
-    order_index: question.order_index,
-    options: question.options,
-    correct_answer: question.correct_answer,
-    media_url: question.media_url,
+    ...question,
+    options: {
+      ...options,
+      choices: remappedChoices,
+    },
+    correct_answer: normalizedCorrectAnswer,
+  } satisfies AdminQuizQuestionDraft;
+};
+
+const toAdminQuestionPayload = (question: AdminQuizQuestionDraft) => {
+  const normalizedQuestion =
+    question.question_type === "multiple_choice"
+      ? normalizeMultipleChoiceQuestionPayload(question)
+      : question;
+
+  return {
+    question_type: normalizedQuestion.question_type,
+    question_text: normalizedQuestion.question_text,
+    explanation: normalizedQuestion.explanation,
+    points: normalizedQuestion.points,
+    order_index: normalizedQuestion.order_index,
+    options: normalizedQuestion.options,
+    correct_answer: normalizedQuestion.correct_answer,
+    media_url: normalizedQuestion.media_url,
   } satisfies Record<string, unknown>;
 };
 

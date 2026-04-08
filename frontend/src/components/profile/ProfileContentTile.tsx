@@ -45,7 +45,11 @@ export function ProfileContentTile({ content, showStatus = false, onClick }: Pro
     >
       <div className="relative aspect-[3/4] bg-mainDark">
         {previewUrl ? (
-          <img src={previewUrl} alt={content.title} className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={previewUrl}
+            alt={content.title}
+            className="absolute inset-0 h-full w-full bg-black/70 p-2 object-contain object-center"
+          />
         ) : (
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#ff6b9833,transparent_55%),linear-gradient(180deg,#12121a,#09090f)]" />
         )}

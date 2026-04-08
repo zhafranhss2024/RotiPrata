@@ -824,18 +824,44 @@ public class MediaProcessingService {
     }
 
     private void downloadWithYtDlp(String url, Path output) throws IOException, InterruptedException {
-    List<String> command = List.of(
-        properties.getYtdlpPath(),
-        "--no-playlist",
-        //"--impersonate", "chrome:windows-10",
-        "--ffmpeg-location", Path.of(properties.getFfmpegPath()).getParent().toString(), // or exact dir containing ffmpeg
-        "--merge-output-format", "mp4",
-        "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
-        "-o", output.toString(),
-        url
-    );
-    runProcess(command, "yt-dlp-download");
-}
+        runProcess(buildYtDlpDownloadCommand(url, output), "yt-dlp-download");
+    }
+
+    List<String> buildYtDlpDownloadCommand(String url, Path output) {
+        List<String> command = new ArrayList<>();
+        command.add(properties.getYtdlpPath());
+        command.add("--no-playlist");
+        String ffmpegLocation = resolveExecutableDirectory(properties.getFfmpegPath());
+        if (ffmpegLocation != null) {
+            command.add("--ffmpeg-location");
+            command.add(ffmpegLocation);
+        }
+        command.add("--merge-output-format");
+        command.add("mp4");
+        command.add("-f");
+        command.add("bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b");
+        command.add("-o");
+        command.add(output.toString());
+        command.add(url);
+        return command;
+    }
+
+    private String resolveExecutableDirectory(String executablePath) {
+        if (executablePath == null || executablePath.isBlank()) {
+            return null;
+        }
+        int separatorIndex = Math.max(executablePath.lastIndexOf('/'), executablePath.lastIndexOf('\\'));
+        if (separatorIndex < 0) {
+            return null;
+        }
+        if (separatorIndex == 0) {
+            return executablePath.substring(0, 1);
+        }
+        if (separatorIndex == 2 && executablePath.length() >= 3 && executablePath.charAt(1) == ':') {
+            return executablePath.substring(0, 3);
+        }
+        return executablePath.substring(0, separatorIndex);
+    }
 
     private void maybeUpdateYtDlp() {
         if (!properties.isAutoUpdateYtdlp()) {
