@@ -80,6 +80,7 @@ describe("ContentFeedPage", () => {
       contents: Content[];
       hasMore: boolean;
       initialIndex: number;
+      containerClassName?: string;
     };
 
     expect(lastProps.contents.map((content) => content.id)).toEqual([
@@ -89,6 +90,8 @@ describe("ContentFeedPage", () => {
     ]);
     expect(lastProps.hasMore).toBe(false);
     expect(lastProps.initialIndex).toBe(0);
+    expect(lastProps.containerClassName).toBe("h-full");
+    expect(screen.getByLabelText("Back")).toBeInTheDocument();
   });
 
   it("uses route-state queue contents and initial index without refetching", async () => {
@@ -122,11 +125,13 @@ describe("ContentFeedPage", () => {
       contents: Content[];
       hasMore: boolean;
       initialIndex: number;
+      containerClassName?: string;
     };
 
     expect(lastProps.contents.map((content) => content.id)).toEqual(["alpha", "beta", "gamma"]);
     expect(lastProps.initialIndex).toBe(1);
     expect(lastProps.hasMore).toBe(false);
-    expect(screen.getByText("Back to Feed")).toBeInTheDocument();
+    expect(lastProps.containerClassName).toBe("h-full");
+    expect(screen.getByLabelText("Back to Feed")).toBeInTheDocument();
   });
 });

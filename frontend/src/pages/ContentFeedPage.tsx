@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { FeedContainer } from "@/components/feed/FeedContainer";
-import { Button } from "@/components/ui/button";
+import { FloatingBackButton } from "@/components/ui/floating-back-button";
 import type { Content } from "@/types";
 import { fetchContentById, fetchSimilarContent, SIMILAR_CONTENT_LIMIT } from "@/lib/api";
 import type { ContentViewerLocationState } from "@/lib/contentViewer";
@@ -93,35 +92,30 @@ const ContentFeedPage = () => {
     void loadInitial();
   }, [hasRouteQueue, id, loadInitial, queueContents]);
 
+  const viewerViewportClassName =
+    "relative h-[calc(100dvh-var(--mobile-top-bar-height)-var(--bottom-nav-height)-var(--safe-area-bottom))] lg:h-[calc(100dvh-4rem)]";
+
   return (
     <MainLayout fullScreen>
-      <div className="sticky top-0 z-30 h-12 flex items-center justify-between gap-2 px-4 border-b border-mainAlt bg-main dark:bg-mainDark">
-        <Button
-          variant="ghost"
-          onClick={handleBack}
-          className="text-mainAccent dark:text-white hover:bg-mainAlt"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          {viewerState?.backLabel ?? "Back"}
-        </Button>
-        <span className="text-sm text-mainAccent">{contents.length} videos</span>
-      </div>
-      {error ? (
-        <div className="h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom)-3rem)] lg:h-[calc(100dvh-4rem-3rem)] flex items-center justify-center">
-          <div className="text-center p-6">
-            <h2 className="text-xl font-semibold mb-2">Unable to load content</h2>
-            <p className="text-muted-foreground">{error}</p>
+      <div className={viewerViewportClassName}>
+        <FloatingBackButton onClick={handleBack} label={viewerState?.backLabel ?? "Back"} />
+        {error ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center p-6">
+              <h2 className="mb-2 text-xl font-semibold">Unable to load content</h2>
+              <p className="text-muted-foreground">{error}</p>
+            </div>
           </div>
-        </div>
-      ) : (
-        <FeedContainer
-          contents={contents}
-          hasMore={false}
-          isLoading={isLoading}
-          initialIndex={initialIndex}
-          containerClassName="h-[calc(100dvh-var(--bottom-nav-height)-var(--safe-area-bottom)-3rem)] lg:h-[calc(100dvh-4rem-3rem)]"
-        />
-      )}
+        ) : (
+          <FeedContainer
+            contents={contents}
+            hasMore={false}
+            isLoading={isLoading}
+            initialIndex={initialIndex}
+            containerClassName="h-full"
+          />
+        )}
+      </div>
     </MainLayout>
   );
 };

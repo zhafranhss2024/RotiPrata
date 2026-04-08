@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, BookOpen, Search, Video } from 'lucide-react';
+import { BookOpen, Search, Video } from 'lucide-react';
 import type { Content } from '@/types';
 import {
   clearBrowsingHistory,
@@ -19,6 +19,7 @@ import {
 } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { CompactVideoTile } from '@/components/feed/CompactVideoTile';
+import { FloatingBackButton } from '@/components/ui/floating-back-button';
 
 type SearchKind = 'video' | 'lesson' | 'profile' | 'unknown';
 
@@ -305,30 +306,20 @@ const ExplorePage = () => {
 
   const viewerContents = videoViewerState?.mode === 'recommendations' ? recommendedContents : searchFeedContents;
   const viewerLabel = videoViewerState?.mode === 'recommendations' ? 'Back to Explore' : 'Back to Search';
-  const viewerCountLabel =
-    videoViewerState?.mode === 'recommendations'
-      ? `${recommendedContents.length} recommended`
-      : `${videoResults.length} videos`;
+  const viewerViewportClassName =
+    'relative h-[calc(100dvh-var(--mobile-top-bar-height)-var(--bottom-nav-height)-var(--safe-area-bottom))] lg:h-[calc(100dvh-4rem)]';
 
   if (videoViewerState !== null) {
     return (
       <MainLayout fullScreen>
-        <div className="sticky top-0 z-30 h-12 flex items-center justify-between gap-2 px-4 border-b border-mainAlt bg-main dark:bg-mainDark">
-          <Button
-            variant="ghost"
-            onClick={() => setVideoViewerState(null)}
-            className="text-mainAccent dark:text-white hover:bg-mainAlt"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {viewerLabel}
-          </Button>
-          <span className="text-sm text-mainAccent">{viewerCountLabel}</span>
-        </div>
+        <div className={viewerViewportClassName}>
+          <FloatingBackButton onClick={() => setVideoViewerState(null)} label={viewerLabel} />
           <FeedContainer
             contents={viewerContents}
             initialIndex={videoViewerState.index}
-           containerClassName="h-[calc(100dvh-3rem-9rem)] md:pt-12 md:h-[100dvh]"
+            containerClassName="h-full"
           />
+        </div>
       </MainLayout>
     );
   }
