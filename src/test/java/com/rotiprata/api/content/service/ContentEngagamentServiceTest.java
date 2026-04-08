@@ -30,6 +30,7 @@ class ContentEngagementServiceTest {
 
     // Ensures unauthenticated callers receive default false engagement flags.
     @Test
+    @SuppressWarnings("unchecked")
     void decorateItemsWithUserEngagement_ShouldSetDefaultFlags_WhenMissingAuthContext() {
         //arrange
         ContentEngagementService service = new ContentEngagementService(supabaseRestClient);
@@ -51,6 +52,7 @@ class ContentEngagementServiceTest {
 
     // Ensures no remote lookup happens when input has no usable content ids.
     @Test
+    @SuppressWarnings("unchecked")
     void decorateItemsWithUserEngagement_ShouldReturnSameItems_WhenNoContentIdsExist() {
         //arrange
         ContentEngagementService service = new ContentEngagementService(supabaseRestClient);
@@ -68,6 +70,7 @@ class ContentEngagementServiceTest {
 
     // Ensures liked and saved flags are mapped from both engagement tables.
     @Test
+    @SuppressWarnings("unchecked")
     void decorateItemsWithUserEngagement_ShouldDecorateFlags_WhenLikesAndSavesExist() {
         //arrange
         ContentEngagementService service = new ContentEngagementService(supabaseRestClient);
