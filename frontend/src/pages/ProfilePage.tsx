@@ -61,7 +61,7 @@ const ProfilePage = () => {
     saved: null,
     liked: null,
   });
-  const [loadingCollection, setLoadingCollection] = useState(false);
+  const [loadingCollection, setLoadingCollection] = useState(true);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -99,8 +99,6 @@ const ProfilePage = () => {
       return;
     }
 
-    setLoadingCollection(true);
-    setCollectionErrors((prev) => ({ ...prev, [activeCollection]: null }));
     fetchProfileContentCollection(activeCollection)
       .then((items) => {
         setCollectionItems((prev) => ({ ...prev, [activeCollection]: items }));
@@ -280,7 +278,17 @@ const ProfilePage = () => {
             <CardTitle className="text-lg">Your Content</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs value={activeCollection} onValueChange={(value) => setActiveCollection(value as ProfileContentCollection)}>
+            <Tabs
+              value={activeCollection}
+              onValueChange={(value) => {
+                const nextCollection = value as ProfileContentCollection;
+                setActiveCollection(nextCollection);
+                if (!loadedCollections[nextCollection]) {
+                  setLoadingCollection(true);
+                }
+                setCollectionErrors((prev) => ({ ...prev, [nextCollection]: null }));
+              }}
+            >
               <TabsList className="grid h-12 w-full grid-cols-3 rounded-full bg-muted/70 p-1">
                 <TabsTrigger value="posted" className="rounded-full">
                   <Clapperboard className="mr-2 h-4 w-4" />

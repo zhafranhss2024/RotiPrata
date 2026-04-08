@@ -56,7 +56,6 @@ const ExplorePage = () => {
 
   useEffect(() => {
     let active = true;
-    setIsRecommendationsLoading(true);
     fetchRecommendations()
       .then((response) => {
         if (!active) {
@@ -126,11 +125,9 @@ const ExplorePage = () => {
     searchRequestVersionRef.current += 1;
 
     if (!normalizedQuery) {
-      setDebouncedQuery('');
       return;
     }
 
-    setIsSearching(true);
     const debounceTimeout = setTimeout(() => {
       setDebouncedQuery(normalizedQuery);
     }, 350);
@@ -140,8 +137,6 @@ const ExplorePage = () => {
 
   useEffect(() => {
     if (!debouncedQuery) {
-      setSearchResults([]);
-      setIsSearching(false);
       return;
     }
 

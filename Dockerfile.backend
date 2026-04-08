@@ -27,13 +27,20 @@ RUN ./mvnw -B -DskipTests package
 FROM eclipse-temurin:21-jre AS runtime
 WORKDIR /app
 
+ARG YTDLP_VERSION=2026.03.17
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Required media tooling
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg yt-dlp \
+    && apt-get install -y --no-install-recommends ca-certificates curl ffmpeg python3 \
+    && curl -L "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}/yt-dlp" -o /usr/local/bin/yt-dlp \
+    && chmod 755 /usr/local/bin/yt-dlp \
+    && yt-dlp --version \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up application runtime metadata
 ENV SPRING_PROFILES_ACTIVE=prod
+ENV YTDLP_AUTO_UPDATE=false
 
 # Copy the built jar from the builder stage
 COPY --from=builder /workspace/target/*.jar app.jar

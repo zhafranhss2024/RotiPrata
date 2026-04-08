@@ -34,7 +34,15 @@ const RegisterPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [displayNameStatus, setDisplayNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid' | 'error'>('idle');
+  const [displayNameStatus, setDisplayNameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle');
+  const trimmedDisplayName = formData.displayName.trim();
+  const hasDisplayName = trimmedDisplayName.length > 0;
+  const isDisplayNameValid = !hasDisplayName || isDisplayNameFormatValid(formData.displayName);
+  const effectiveDisplayNameStatus = !hasDisplayName
+    ? 'idle'
+    : !isDisplayNameValid
+      ? 'invalid'
+      : displayNameStatus;
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -44,15 +52,9 @@ const RegisterPage = () => {
 
   useEffect(() => {
     const raw = formData.displayName;
-    if (!raw.trim()) {
-      setDisplayNameStatus('idle');
+    if (!raw.trim() || !isDisplayNameFormatValid(raw)) {
       return;
     }
-    if (!isDisplayNameFormatValid(raw)) {
-      setDisplayNameStatus('invalid');
-      return;
-    }
-    setDisplayNameStatus('checking');
     const timeout = window.setTimeout(async () => {
       try {
         const result = await checkDisplayNameAvailability(raw);
@@ -75,17 +77,17 @@ const RegisterPage = () => {
       return;
     }
 
-    if (displayNameStatus === 'checking') {
+    if (effectiveDisplayNameStatus === 'checking') {
       setError('Checking display name availability. Please wait.');
       return;
     }
 
-    if (displayNameStatus === 'taken') {
+    if (effectiveDisplayNameStatus === 'taken') {
       setError('Display name already in use.');
       return;
     }
 
-    if (displayNameStatus === 'error') {
+    if (effectiveDisplayNameStatus === 'error') {
       setError('Unable to verify display name availability. Please try again.');
       return;
     }
@@ -164,16 +166,25 @@ const RegisterPage = () => {
                     type="text"
                     placeholder="cooluser123"
                     value={formData.displayName}
-                    onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                    onChange={(e) => {
+                      const nextDisplayName = e.target.value;
+                      setFormData({ ...formData, displayName: nextDisplayName });
+                      const nextTrimmedDisplayName = nextDisplayName.trim();
+                      if (!nextTrimmedDisplayName || !isDisplayNameFormatValid(nextDisplayName)) {
+                        setDisplayNameStatus('idle');
+                        return;
+                      }
+                      setDisplayNameStatus('checking');
+                    }}
                     required
                   />
                   {formData.displayName && (
                     <p className="text-xs text-muted-foreground">
-                      {displayNameStatus === 'checking' && 'Checking availability...'}
-                      {displayNameStatus === 'available' && 'Display name is available.'}
-                      {displayNameStatus === 'taken' && 'Display name is already taken.'}
-                      {displayNameStatus === 'invalid' && DISPLAY_NAME_POLICY_MESSAGE}
-                      {displayNameStatus === 'error' && 'Unable to check display name right now.'}
+                      {effectiveDisplayNameStatus === 'checking' && 'Checking availability...'}
+                      {effectiveDisplayNameStatus === 'available' && 'Display name is available.'}
+                      {effectiveDisplayNameStatus === 'taken' && 'Display name is already taken.'}
+                      {effectiveDisplayNameStatus === 'invalid' && DISPLAY_NAME_POLICY_MESSAGE}
+                      {effectiveDisplayNameStatus === 'error' && 'Unable to check display name right now.'}
                     </p>
                   )}
                 </div>

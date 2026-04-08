@@ -1,6 +1,9 @@
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
+$backendWorkingDir = $repoRoot.Path
+$frontendWorkingDir = (Join-Path $repoRoot.Path "frontend")
+$powershellExe = (Get-Command powershell.exe -ErrorAction Stop).Source
 
 function Refresh-Path {
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -50,10 +53,18 @@ Write-Host "Installing media tools..."
 & (Join-Path $PSScriptRoot "install-media-tools.ps1")
 
 Write-Host "Starting backend + frontend in separate shells..."
-$backendCmd = "cd `"$repoRoot`"; mvn spring-boot:run"
-$frontendCmd = "cd `"$repoRoot\\frontend`"; npm install; npm run dev"
+$backendArgs = @(
+    "-NoExit",
+    "-ExecutionPolicy", "Bypass",
+    "-Command", "mvn spring-boot:run"
+)
+$frontendArgs = @(
+    "-NoExit",
+    "-ExecutionPolicy", "Bypass",
+    "-Command", "npm install; npm run dev"
+)
 
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd
+Start-Process -FilePath $powershellExe -WorkingDirectory $backendWorkingDir -ArgumentList $backendArgs -WindowStyle Normal
+Start-Process -FilePath $powershellExe -WorkingDirectory $frontendWorkingDir -ArgumentList $frontendArgs -WindowStyle Normal
 
 Write-Host "Done. Backend and frontend are starting in separate windows."

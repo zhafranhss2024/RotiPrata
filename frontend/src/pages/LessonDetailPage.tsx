@@ -148,6 +148,10 @@ const LessonDetailPage = () => {
 
   const resolveNextPath = (detail: LessonProgressDetail | null) => {
     if (!id || !detail) return null;
+    if (detail.status === 'completed') {
+      const firstSectionId = sectionStops[0]?.id;
+      return firstSectionId ? `/lessons/${id}/${firstSectionId}` : null;
+    }
     if (detail.nextStopType === 'quiz') {
       return `/lessons/${id}/quiz`;
     }

@@ -1,25 +1,28 @@
 services:
   backend:
-    build: 
+    build:
       dockerfile: Dockerfile.backend
-    image: cs203/backend
+    image: cs203/backend:latest
     container_name: backend
     env_file:
       - .env
     ports:
       - "${PORT}:8080"
     environment:
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      FFMPEG_PATH: ffmpeg
+      FFPROBE_PATH: ffprobe
+      YTDLP_PATH: yt-dlp
+      YTDLP_AUTO_UPDATE: "false"
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.frontend
-      args:
-        VITE_API_URL: ${BACKEND_URL}
-    image: cs203/frontend
+    image: cs203/frontend:latest
     container_name: frontend
     ports:
       - "5173:80"
     depends_on:
       - backend
+    restart: unless-stopped
