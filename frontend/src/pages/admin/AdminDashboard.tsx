@@ -753,17 +753,11 @@ const AdminDashboard = () => {
               <CardHeader>
                 <CardTitle>Quick Actions</CardTitle>
               </CardHeader>
-              <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <Link to="/admin/lessons">
                   <Button variant="outline" className="w-full h-auto py-4 flex-col">
                     <FileText className="h-6 w-6 mb-2" />
                     Manage Lessons
-                  </Button>
-                </Link>
-                <Link to="/admin/categories">
-                  <Button variant="outline" className="w-full h-auto py-4 flex-col">
-                    <Flag className="h-6 w-6 mb-2" />
-                    Manage Categories
                   </Button>
                 </Link>
                 <Button
