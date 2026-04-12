@@ -190,13 +190,13 @@ class LessonControllerMockIntegrationTest {
     void lessonProgress_ShouldReturnProgress_WhenAuthenticated() {
         //arrange
         when(lessonService.getLessonProgress(any(), any(), anyString()))
-            .thenReturn(new LessonProgressResponse("in_progress", 40, "intro", 1, 3, "def", true, 4, 2, "intro", 2, "available", 5, OffsetDateTime.now(), "section"));
+            .thenReturn(new LessonProgressResponse("in_progress", 40, "intro", 1, 3, "def", true, 4, 2, "intro", 2, "available", 4, OffsetDateTime.now(), "section"));
 
         //act
         var response = auth.when().get("/api/lessons/{lessonId}/progress", LESSON_ID.toString());
 
         //assert
-        response.then().status(HttpStatus.OK).body("progressPercentage", equalTo(40));
+        response.then().status(HttpStatus.OK).body("progressPercentage", equalTo(40)).body("heartsRemaining", equalTo(4));
 
         //verify
         verify(lessonService).getLessonProgress(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));

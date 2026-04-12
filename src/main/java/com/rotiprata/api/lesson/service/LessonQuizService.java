@@ -568,12 +568,7 @@ public class LessonQuizService {
     }
 
     private HeartsState ensureHeartsState(UUID userId, String token) {
-        List<Map<String, Object>> rows = supabaseRestClient.getList(
-            "user_quiz_hearts",
-            buildQuery(Map.of("select", "*", "user_id", "eq." + userId)),
-            token,
-            MAP_LIST
-        );
+        List<Map<String, Object>> rows = fetchHeartsRows(userId, token);
         OffsetDateTime now = OffsetDateTime.now();
         if (rows.isEmpty()) {
             Map<String, Object> insert = new LinkedHashMap<>();
@@ -585,20 +580,34 @@ public class LessonQuizService {
             if (created.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unable to initialize hearts");
             }
-            Map<String, Object> row = created.get(0);
-            return new HeartsState(
-                parseInteger(row.get("hearts_remaining")) == null ? LessonFlowConstants.MAX_HEARTS : parseInteger(row.get("hearts_remaining")),
-                parseOffsetDateTime(row.get("refill_at"))
-            );
+            return heartsStateFromRow(created.get(0));
         }
 
         Map<String, Object> row = rows.get(0);
-        int hearts = parseInteger(row.get("hearts_remaining")) == null ? LessonFlowConstants.MAX_HEARTS : parseInteger(row.get("hearts_remaining"));
-        OffsetDateTime refillAt = parseOffsetDateTime(row.get("refill_at"));
+        HeartsState current = heartsStateFromRow(row);
+        int hearts = current.heartsRemaining();
+        OffsetDateTime refillAt = current.refillAt();
+        if (hearts >= LessonFlowConstants.MAX_HEARTS && refillAt != null && !now.isBefore(refillAt)) {
+            Map<String, Object> normalizePatch = new LinkedHashMap<>();
+            normalizePatch.put("hearts_remaining", LessonFlowConstants.MAX_HEARTS);
+            normalizePatch.put("refill_at", null);
+            normalizePatch.put("updated_at", now);
+            List<Map<String, Object>> updated = supabaseRestClient.patchList(
+                "user_quiz_hearts",
+                buildQuery(Map.of("user_id", "eq." + userId)),
+                normalizePatch,
+                token,
+                MAP_LIST
+            );
+            if (updated.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Unable to normalize hearts state");
+            }
+            return fetchPersistedHeartsState(userId, token);
+        }
         if (hearts < LessonFlowConstants.MAX_HEARTS && refillAt != null && !now.isBefore(refillAt)) {
             hearts = LessonFlowConstants.MAX_HEARTS;
             refillAt = now.plusHours(24);
-            supabaseRestClient.patchList(
+            List<Map<String, Object>> updated = supabaseRestClient.patchList(
                 "user_quiz_hearts",
                 buildQuery(Map.of("user_id", "eq." + userId)),
                 Map.of(
@@ -609,6 +618,10 @@ public class LessonQuizService {
                 token,
                 MAP_LIST
             );
+            if (updated.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Unable to refresh hearts state");
+            }
+            return fetchPersistedHeartsState(userId, token);
         }
         return new HeartsState(hearts, refillAt);
     }
@@ -619,19 +632,53 @@ public class LessonQuizService {
         OffsetDateTime refillAt = hearts.refillAt();
         if (nextHearts == 0) {
             refillAt = now.plusHours(24);
+        } else if (refillAt != null && !now.isBefore(refillAt)) {
+            refillAt = null;
         }
-        supabaseRestClient.patchList(
+        Map<String, Object> heartsPatch = new LinkedHashMap<>();
+        heartsPatch.put("hearts_remaining", nextHearts);
+        heartsPatch.put("refill_at", refillAt);
+        heartsPatch.put("updated_at", now);
+        List<Map<String, Object>> updated = supabaseRestClient.patchList(
             "user_quiz_hearts",
             buildQuery(Map.of("user_id", "eq." + userId)),
-            Map.of(
-                "hearts_remaining", nextHearts,
-                "refill_at", refillAt,
-                "updated_at", now
-            ),
+            heartsPatch,
             token,
             MAP_LIST
         );
-        return new HeartsState(nextHearts, refillAt);
+        if (updated.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Unable to persist hearts deduction");
+        }
+        HeartsState persisted = fetchPersistedHeartsState(userId, token);
+        if (persisted.heartsRemaining() != nextHearts) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Hearts state is out of sync. Refresh and try again.");
+        }
+        return persisted;
+    }
+
+    private List<Map<String, Object>> fetchHeartsRows(UUID userId, String token) {
+        return supabaseRestClient.getList(
+            "user_quiz_hearts",
+            buildQuery(Map.of("select", "*", "user_id", "eq." + userId)),
+            token,
+            MAP_LIST
+        );
+    }
+
+    private HeartsState heartsStateFromRow(Map<String, Object> row) {
+        Integer parsedHearts = parseInteger(row.get("hearts_remaining"));
+        return new HeartsState(
+            parsedHearts == null ? LessonFlowConstants.MAX_HEARTS : parsedHearts,
+            parseOffsetDateTime(row.get("refill_at"))
+        );
+    }
+
+    private HeartsState fetchPersistedHeartsState(UUID userId, String token) {
+        List<Map<String, Object>> rows = fetchHeartsRows(userId, token);
+        if (rows.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Hearts state is missing. Refresh and try again.");
+        }
+        return heartsStateFromRow(rows.get(0));
     }
 
     private Map<String, Object> createAttempt(

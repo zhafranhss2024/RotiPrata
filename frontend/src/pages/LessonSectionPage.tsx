@@ -130,10 +130,12 @@ const LessonSectionPage = () => {
   const completedSections = progressDetail?.completedSections ?? 0;
   const hasPrevious = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < totalSections - 1;
+  const quizBlocked = progressDetail?.quizStatus === "blocked_hearts";
   const quizReady =
     progressDetail?.nextStopType === "quiz" &&
-    progressDetail?.quizStatus !== "blocked_hearts";
+    !quizBlocked;
   const showTakeQuizButton = Boolean(quizReady && currentIndex === totalSections - 1);
+  const showBlockedQuizButton = Boolean(quizBlocked && currentIndex === totalSections - 1);
 
   const goToRelative = (delta: number) => {
     if (!id || currentIndex < 0) return;
@@ -452,6 +454,14 @@ const LessonSectionPage = () => {
           </div>
         ) : null}
 
+        {showBlockedQuizButton ? (
+          <div className="mt-4 rounded-xl border border-mainAlt bg-main p-4 text-sm text-mainAccent dark:text-white/90">
+            Quiz is blocked because hearts are empty.
+            {progressDetail?.heartsRefillAt ? ` Hearts refill at ${new Date(progressDetail.heartsRefillAt).toLocaleString()}.` : " Hearts will refill later."}
+            {" "}You can still review all lesson sections.
+          </div>
+        ) : null}
+
         <div className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+0.75rem)] z-30 flex justify-center px-4 lg:hidden pointer-events-none">
           <div className="pointer-events-auto grid w-full max-w-md grid-cols-2 gap-3">
             <Button
@@ -471,6 +481,14 @@ const LessonSectionPage = () => {
                 className="duo-button-primary h-12"
               >
                 Take Quiz
+              </Button>
+            ) : showBlockedQuizButton ? (
+              <Button
+                type="button"
+                className="h-12"
+                disabled
+              >
+                Quiz Blocked
               </Button>
             ) : (
               <Button
@@ -496,6 +514,16 @@ const LessonSectionPage = () => {
               className="duo-button-primary h-12 px-8 w-full max-w-sm pointer-events-auto"
             >
               Take Quiz
+            </Button>
+          </div>
+        ) : showBlockedQuizButton ? (
+          <div className="fixed inset-x-0 bottom-[calc(var(--bottom-nav-height)+var(--safe-area-bottom)+0.75rem)] lg:bottom-6 z-30 hidden justify-center px-4 pointer-events-none lg:flex">
+            <Button
+              type="button"
+              className="h-12 px-8 w-full max-w-sm pointer-events-auto"
+              disabled
+            >
+              Quiz Blocked
             </Button>
           </div>
         ) : null}

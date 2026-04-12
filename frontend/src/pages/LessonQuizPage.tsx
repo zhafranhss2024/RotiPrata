@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import type {
   Lesson,
-  LessonHeartsStatus,
   LessonProgressDetail,
   LessonQuizAnswerResult,
   LessonQuizQuestion,
@@ -92,23 +91,6 @@ const normalizeQuestionResponse = (
 
 const railOffsetX = (index: number) =>
   index % 2 === 0 ? -STEP_HORIZONTAL_OFFSET : STEP_HORIZONTAL_OFFSET;
-
-const resolveHeartsAfterSubmit = (
-  previousHearts: LessonHeartsStatus,
-  submitResult: LessonQuizAnswerResult
-): LessonHeartsStatus => {
-  const serverHearts = submitResult.hearts;
-  if (submitResult.correct) {
-    return serverHearts;
-  }
-  if (serverHearts.heartsRemaining < previousHearts.heartsRemaining) {
-    return serverHearts;
-  }
-  return {
-    ...serverHearts,
-    heartsRemaining: Math.max(0, previousHearts.heartsRemaining - 1),
-  };
-};
 
 const DuoChoiceButton = ({
   selected,
@@ -321,8 +303,7 @@ const LessonQuizPage = () => {
         questionId: currentQuestion.questionId,
         response: normalizedResponse,
       });
-      const resolvedHearts = resolveHeartsAfterSubmit(quizState.hearts, submitResult);
-      emitHeartsUpdated(resolvedHearts);
+      emitHeartsUpdated(submitResult.hearts);
       if (submitResult.quizCompleted) {
         setFeedback(null);
         setPendingState(null);
@@ -337,7 +318,7 @@ const LessonQuizPage = () => {
                 correctCount: submitResult.correctCount,
                 earnedScore: submitResult.earnedScore,
                 maxScore: submitResult.maxScore,
-                hearts: resolvedHearts,
+                hearts: submitResult.hearts,
                 canAnswer: false,
                 canRestart: !submitResult.passed,
                 currentQuestion: null,
@@ -371,7 +352,7 @@ const LessonQuizPage = () => {
               correctCount: submitResult.correctCount,
               earnedScore: submitResult.earnedScore,
               maxScore: submitResult.maxScore,
-              hearts: resolvedHearts,
+              hearts: submitResult.hearts,
               canAnswer: false,
               wrongQuestionIds: submitResult.wrongQuestionIds ?? previous.wrongQuestionIds ?? [],
             }
@@ -392,9 +373,9 @@ const LessonQuizPage = () => {
         earnedScore: submitResult.earnedScore,
         maxScore: submitResult.maxScore,
         currentQuestion: submitResult.nextQuestion,
-        hearts: resolvedHearts,
+        hearts: submitResult.hearts,
         canAnswer: submitResult.status === "in_progress" && Boolean(submitResult.nextQuestion),
-        canRestart: submitResult.status === "failed",
+        canRestart: submitResult.status === "failed" || submitResult.status === "blocked_hearts",
         wrongQuestionIds: submitResult.wrongQuestionIds ?? [],
       });
     } catch (submitError) {
@@ -487,6 +468,32 @@ const LessonQuizPage = () => {
             <Link to={`/lessons/${id}`} className="inline-flex h-11 items-center justify-center px-5 duo-button-primary">
               Back to Lesson
             </Link>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!quizSummary && quizState.status === "blocked_hearts") {
+    return (
+      <MainLayout className="overflow-hidden">
+        <div className="w-full px-4 lg:px-8 py-10">
+          <div className="rounded-2xl p-6 text-center space-y-4">
+            <div className="mx-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-mainAlt bg-main">
+              <Heart className="h-6 w-6 text-primary" />
+            </div>
+            <h2 className="text-2xl text-mainAccent dark:text-white">No hearts left</h2>
+            <p className="text-mainAccent dark:text-white">
+              Quiz attempts are paused{quizState.hearts.heartsRefillAt ? ` until ${formatRefill(quizState.hearts.heartsRefillAt)}` : " for now"}.
+            </p>
+            <p className="text-sm text-mainAccent/80 dark:text-white/80">
+              Lesson content stays available, but quiz answers and restarts are blocked until hearts refill.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <Link to={`/lessons/${id}`} className="inline-flex h-11 items-center justify-center px-5 duo-button-primary">
+                Back to Lesson
+              </Link>
+            </div>
           </div>
         </div>
       </MainLayout>

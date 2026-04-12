@@ -296,9 +296,14 @@ const LessonDetailPage = () => {
 
           <div className="mt-6">
             {quizBlocked && isEnrolled ? (
-              <Button className="w-full h-14 text-base" disabled>
-                {heartsRefill ? `No hearts left. Refill at ${heartsRefill}` : 'No hearts left. Try again later.'}
-              </Button>
+              <div className="space-y-2">
+                <Button className="w-full h-14 text-base" disabled>
+                  {heartsRefill ? `No hearts left. Refill at ${heartsRefill}` : 'No hearts left. Try again later.'}
+                </Button>
+                <p className="text-sm text-mainAccent/80 dark:text-white/80">
+                  Lesson sections remain open. Only the quiz is blocked until hearts refill.
+                </p>
+              </div>
             ) : (
               <Button
                 onClick={() => {
