@@ -238,7 +238,7 @@ class LessonQuizServiceImplTest {
     @Test
     void getQuizState_ShouldReturnBlockedState_WhenHeartsAreZero() {
         // arrange
-        OffsetDateTime refillAt = OffsetDateTime.parse("2026-04-13T10:00:00Z");
+        OffsetDateTime refillAt = OffsetDateTime.now().plusMinutes(5);
         when(supabaseRestClient.getList(eq("lessons"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(lesson));
         when(supabaseRestClient.getList(eq("user_lesson_progress"), anyString(), eq(ACCESS_TOKEN), any()))
@@ -266,7 +266,7 @@ class LessonQuizServiceImplTest {
     @Test
     void getProgressMetadata_ShouldBlockOnlyQuiz_WhenHeartsAreZero() {
         // arrange
-        OffsetDateTime refillAt = OffsetDateTime.parse("2026-04-13T10:00:00Z");
+        OffsetDateTime refillAt = OffsetDateTime.now().plusMinutes(5);
         List<Map<String, Object>> sections = List.of(
             Map.of("id", LessonFlowConstants.SECTION_INTRO),
             Map.of("id", LessonFlowConstants.SECTION_DEFINITION)
