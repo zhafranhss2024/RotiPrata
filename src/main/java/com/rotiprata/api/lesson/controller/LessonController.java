@@ -21,6 +21,7 @@ import com.rotiprata.api.lesson.service.LessonQuizService;
 import com.rotiprata.api.lesson.service.LessonService;
 import com.rotiprata.api.zdto.SectionCompleteResponse;
 import com.rotiprata.security.SecurityUtils;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -74,9 +75,16 @@ public class LessonController {
         return lessonService.getLessonHub(userId, SecurityUtils.getAccessToken());
     }
 
+    @GetMapping("/lessons/search-results")
+    public List<Map<String, Object>> searchLessonResults(@RequestParam("q") String q) {
+        return lessonService.searchLessons(q, SecurityUtils.getAccessToken());
+    }
+
+    @Hidden
+    @Deprecated
     @GetMapping("/lessons/search")
     public List<Map<String, Object>> searchLessons(@RequestParam("q") String q) {
-        return lessonService.searchLessons(q, SecurityUtils.getAccessToken());
+        return searchLessonResults(q);
     }
 
     @GetMapping("/lessons/{lessonId}")
@@ -101,8 +109,8 @@ public class LessonController {
         return lessonQuizService.getQuizState(userId, lessonId, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/lessons/{lessonId}/quiz/answer")
-    public LessonQuizAnswerResponse answerLessonQuiz(
+    @PostMapping("/lessons/{lessonId}/quiz/answers")
+    public LessonQuizAnswerResponse createLessonQuizAnswer(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID lessonId,
         @Valid @RequestBody LessonQuizAnswerRequest request
@@ -111,8 +119,19 @@ public class LessonController {
         return lessonQuizService.answerQuestion(userId, lessonId, request, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/lessons/{lessonId}/quiz/restart")
-    public LessonQuizStateResponse restartLessonQuiz(
+    @Hidden
+    @Deprecated
+    @PostMapping("/lessons/{lessonId}/quiz/answer")
+    public LessonQuizAnswerResponse answerLessonQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @Valid @RequestBody LessonQuizAnswerRequest request
+    ) {
+        return createLessonQuizAnswer(jwt, lessonId, request);
+    }
+
+    @PostMapping("/lessons/{lessonId}/quiz-attempts")
+    public LessonQuizStateResponse createLessonQuizAttempt(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID lessonId,
         @RequestParam(name = "mode", required = false) String mode
@@ -121,8 +140,19 @@ public class LessonController {
         return lessonQuizService.restartQuiz(userId, lessonId, mode, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/lessons/{lessonId}/sections/{sectionId}/complete")
-    public SectionCompleteResponse completeLessonSection(
+    @Hidden
+    @Deprecated
+    @PostMapping("/lessons/{lessonId}/quiz/restart")
+    public LessonQuizStateResponse restartLessonQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @RequestParam(name = "mode", required = false) String mode
+    ) {
+        return createLessonQuizAttempt(jwt, lessonId, mode);
+    }
+
+    @PutMapping("/lessons/{lessonId}/sections/{sectionId}/completion")
+    public SectionCompleteResponse updateLessonSectionCompletion(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID lessonId,
         @PathVariable String sectionId
@@ -137,18 +167,45 @@ public class LessonController {
         return new SectionCompleteResponse(progress);
     }
 
-    @PostMapping("/lessons/{lessonId}/enroll")
-    public void enrollLesson(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
+    @Hidden
+    @Deprecated
+    @PostMapping("/lessons/{lessonId}/sections/{sectionId}/complete")
+    public SectionCompleteResponse completeLessonSection(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @PathVariable String sectionId
+    ) {
+        return updateLessonSectionCompletion(jwt, lessonId, sectionId);
+    }
+
+    @PutMapping("/lessons/{lessonId}/enrollment")
+    public void updateLessonEnrollment(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
         UUID userId = SecurityUtils.getUserId(jwt);
         lessonService.enrollLesson(userId, lessonId, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/lessons/{lessonId}/save")
-    public void saveLesson(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
+    @Hidden
+    @Deprecated
+    @PostMapping("/lessons/{lessonId}/enroll")
+    public void enrollLesson(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
+        updateLessonEnrollment(jwt, lessonId);
+    }
+
+    @PutMapping("/lessons/{lessonId}/saved")
+    public void updateSavedLesson(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
         UUID userId = SecurityUtils.getUserId(jwt);
         lessonService.saveLesson(userId, lessonId, SecurityUtils.getAccessToken());
     }
 
+    @Hidden
+    @Deprecated
+    @PostMapping("/lessons/{lessonId}/save")
+    public void saveLesson(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID lessonId) {
+        updateSavedLesson(jwt, lessonId);
+    }
+
+    @Hidden
+    @Deprecated
     @PutMapping("/lessons/{lessonId}/progress")
     public void updateProgress(
         @AuthenticationPrincipal Jwt jwt,
@@ -158,7 +215,6 @@ public class LessonController {
         UUID userId = SecurityUtils.getUserId(jwt);
         lessonService.updateLessonProgress(userId, lessonId, payload.progress(), SecurityUtils.getAccessToken());
     }
-
 
     @GetMapping("/admin/lessons")
     public List<Map<String, Object>> adminLessons(@AuthenticationPrincipal Jwt jwt) {
@@ -172,7 +228,7 @@ public class LessonController {
         return lessonService.getAdminLessonById(userId, lessonId, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/admin/lessons/draft")
+    @PostMapping("/admin/lesson-drafts")
     public AdminLessonDraftResponse createLessonDraft(
         @AuthenticationPrincipal Jwt jwt,
         @RequestBody(required = false) Map<String, Object> payload
@@ -181,7 +237,17 @@ public class LessonController {
         return lessonService.createLessonDraft(userId, payload, SecurityUtils.getAccessToken());
     }
 
-    @PutMapping("/admin/lessons/{lessonId}/draft/step/{stepKey}")
+    @Hidden
+    @Deprecated
+    @PostMapping("/admin/lessons/draft")
+    public AdminLessonDraftResponse createLessonDraftAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestBody(required = false) Map<String, Object> payload
+    ) {
+        return createLessonDraft(jwt, payload);
+    }
+
+    @PutMapping("/admin/lesson-drafts/{lessonId}/steps/{stepKey}")
     public AdminStepSaveResponse saveLessonDraftStep(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID lessonId,
@@ -192,7 +258,19 @@ public class LessonController {
         return lessonService.saveLessonStep(userId, lessonId, stepKey, request, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/admin/lessons/{lessonId}/publish")
+    @Hidden
+    @Deprecated
+    @PutMapping("/admin/lessons/{lessonId}/draft/step/{stepKey}")
+    public AdminStepSaveResponse saveLessonDraftStepAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @PathVariable String stepKey,
+        @RequestBody(required = false) AdminStepSaveRequest request
+    ) {
+        return saveLessonDraftStep(jwt, lessonId, stepKey, request);
+    }
+
+    @PostMapping("/admin/lessons/{lessonId}/publication")
     public AdminPublishLessonResponse publishLesson(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID lessonId,
@@ -202,12 +280,22 @@ public class LessonController {
         return lessonService.publishLessonWithValidation(userId, lessonId, request, SecurityUtils.getAccessToken());
     }
 
+    @Hidden
+    @Deprecated
+    @PostMapping("/admin/lessons/{lessonId}/publish")
+    public AdminPublishLessonResponse publishLessonAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @RequestBody(required = false) AdminStepSaveRequest request
+    ) {
+        return publishLesson(jwt, lessonId, request);
+    }
+
     @PostMapping("/admin/lessons")
     public Map<String, Object> createLesson(@AuthenticationPrincipal Jwt jwt, @RequestBody Map<String, Object> payload) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.createLesson(userId, payload, SecurityUtils.getAccessToken());
     }
-
 
     @PutMapping("/admin/lessons/{lessonId}")
     public Map<String, Object> updateLesson(
@@ -225,7 +313,7 @@ public class LessonController {
         lessonService.deleteLesson(userId, lessonId, SecurityUtils.getAccessToken());
     }
 
-    @PutMapping("/admin/lessons/{lessonId}/move-category")
+    @PutMapping("/admin/lessons/{lessonId}/category")
     public AdminLessonCategoryMoveResponse moveLessonToCategory(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID lessonId,
@@ -233,6 +321,17 @@ public class LessonController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.moveLessonToCategory(userId, lessonId, request, SecurityUtils.getAccessToken());
+    }
+
+    @Hidden
+    @Deprecated
+    @PutMapping("/admin/lessons/{lessonId}/move-category")
+    public AdminLessonCategoryMoveResponse moveLessonToCategoryAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @RequestBody AdminLessonCategoryMoveRequest request
+    ) {
+        return moveLessonToCategory(jwt, lessonId, request);
     }
 
     @GetMapping("/admin/lessons/{lessonId}/quiz")
@@ -270,7 +369,7 @@ public class LessonController {
         return lessonService.replaceLessonQuiz(userId, lessonId, payload, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/admin/lessons/{lessonId}/media/start")
+    @PostMapping("/admin/lessons/{lessonId}/media-uploads")
     public LessonMediaStartResponse startLessonMediaUpload(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID lessonId,
@@ -280,7 +379,18 @@ public class LessonController {
         return lessonService.startLessonMediaUpload(userId, lessonId, file, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/admin/lessons/{lessonId}/media/start-link")
+    @Hidden
+    @Deprecated
+    @PostMapping("/admin/lessons/{lessonId}/media/start")
+    public LessonMediaStartResponse startLessonMediaUploadAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @RequestPart("file") MultipartFile file
+    ) {
+        return startLessonMediaUpload(jwt, lessonId, file);
+    }
+
+    @PostMapping("/admin/lessons/{lessonId}/media-link-imports")
     public LessonMediaStartResponse startLessonMediaLink(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID lessonId,
@@ -288,6 +398,17 @@ public class LessonController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return lessonService.startLessonMediaLink(userId, lessonId, request, SecurityUtils.getAccessToken());
+    }
+
+    @Hidden
+    @Deprecated
+    @PostMapping("/admin/lessons/{lessonId}/media/start-link")
+    public LessonMediaStartResponse startLessonMediaLinkAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @Valid @RequestBody LessonMediaStartLinkRequest request
+    ) {
+        return startLessonMediaLink(jwt, lessonId, request);
     }
 
     @GetMapping("/admin/lessons/{lessonId}/media/{assetId}")

@@ -8,12 +8,12 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ## Security and Error Contract
 
 - Public endpoints (no JWT required):
-  - `GET /auth/username-available`
+  - `GET /auth/display-name-availability`
   - `GET /categories`
-  - `POST /auth/login`
-  - `POST /auth/register`
-  - `POST /auth/forgot-password`
-  - `POST /auth/reset-password`
+  - `POST /auth/sessions`
+  - `POST /auth/registrations`
+  - `POST /auth/password-reset-requests`
+  - `PUT /auth/password`
 - All other `/api/**` endpoints require `Authorization: Bearer <accessToken>`.
 - Standard API error envelope:
   - `{ code, message, fieldErrors?, retryAfterSeconds? }`
@@ -22,13 +22,13 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ## Implemented Endpoints (Controller-Verified)
 
 ### Auth (`AuthController`)
-- `POST /auth/login`
-- `POST /auth/register`
-- `POST /auth/forgot-password`
-- `POST /auth/reset-password`
-- `POST /auth/logout`
-- `POST /auth/streak/touch`
-- `GET /auth/username-available`
+- `POST /auth/sessions`
+- `POST /auth/registrations`
+- `POST /auth/password-reset-requests`
+- `PUT /auth/password`
+- `DELETE /auth/session`
+- `PUT /auth/login-streak`
+- `GET /auth/display-name-availability`
 
 ### Users (`UserController`)
 - `GET /users/me`
@@ -51,48 +51,48 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 
 ### Feed and Search (`FeedController`, `BrowsingController`)
 - `GET /feed` (cursor-based pagination: `cursor`, `limit`)
-- `GET /search`
+- `GET /search-results`
 
 ### Categories and Tags (`CategoryController`, `TagController`)
 - `GET /categories`
 - `GET /tags`
 
 ### Content (`ContentController`)
-- `POST /content/media/start`
-- `POST /content/media/start-link`
+- `POST /content/uploads`
+- `POST /content/link-imports`
 - `PATCH /content/{contentId}`
-- `POST /content/{contentId}/submit`
+- `POST /content/{contentId}/submission`
 - `GET /content/{contentId}`
 - `GET /content/{contentId}/similar`
 - `GET /content/{contentId}/media`
 - `GET /content/{contentId}/quiz`
-- `POST /content/{contentId}/quiz/submit`
-- `POST /content/{contentId}/view`
+- `POST /content/{contentId}/quiz-submissions`
+- `POST /content/{contentId}/views`
 - `POST /content/{contentId}/playback-events`
-- `POST /content/{contentId}/like`
-- `DELETE /content/{contentId}/like`
-- `POST /content/{contentId}/save`
-- `DELETE /content/{contentId}/save`
-- `POST /content/{contentId}/share`
+- `POST /content/{contentId}/likes`
+- `DELETE /content/{contentId}/likes`
+- `POST /content/{contentId}/saves`
+- `DELETE /content/{contentId}/saves`
+- `POST /content/{contentId}/shares`
 - `GET /content/{contentId}/comments`
 - `POST /content/{contentId}/comments`
 - `DELETE /content/{contentId}/comments/{commentId}`
-- `POST /content/{contentId}/flag`
+- `POST /content/{contentId}/flags`
 
 ### Lessons Learner Flow (`LessonController`)
 - `GET /lessons`
 - `GET /lessons/feed`
 - `GET /lessons/hub`
-- `GET /lessons/search`
+- `GET /lessons/search-results`
 - `GET /lessons/{lessonId}`
 - `GET /lessons/{lessonId}/sections`
 - `GET /lessons/{lessonId}/progress`
 - `GET /lessons/{lessonId}/quiz/state`
-- `POST /lessons/{lessonId}/quiz/answer`
-- `POST /lessons/{lessonId}/quiz/restart`
-- `POST /lessons/{lessonId}/sections/{sectionId}/complete`
-- `POST /lessons/{lessonId}/enroll`
-- `POST /lessons/{lessonId}/save`
+- `POST /lessons/{lessonId}/quiz/answers`
+- `POST /lessons/{lessonId}/quiz-attempts`
+- `PUT /lessons/{lessonId}/sections/{sectionId}/completion`
+- `PUT /lessons/{lessonId}/enrollment`
+- `PUT /lessons/{lessonId}/saved`
 - `PUT /lessons/{lessonId}/progress` (legacy compatibility endpoint)
 
 ### Admin Moderation and Content (`AdminController`)
@@ -103,23 +103,21 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `PUT /admin/users/{userId}/status`
 - `DELETE /admin/users/{userId}/lessons/{lessonId}/progress`
 - `GET /admin/moderation-queue`
-- `PUT /admin/content/{contentId}/approve`
+- `PUT /admin/content/{contentId}/review`
 - `PUT /admin/content/{contentId}`
 - `GET /admin/content/{contentId}/quiz`
 - `PUT /admin/content/{contentId}/quiz`
-- `PUT /admin/content/{contentId}/reject`
 - `GET /admin/flags`
 - `GET /admin/flags/{flagId}/reports`
-- `PUT /admin/flags/{flagId}/resolve`
-- `PUT /admin/flags/{flagId}/take-down`
+- `PUT /admin/flags/{flagId}/resolution`
 
 ### Admin Lessons and Quiz Builder (`LessonController`)
 - `GET /admin/lessons`
 - `GET /admin/lessons/{lessonId}`
-- `PUT /admin/lessons/{lessonId}/move-category`
-- `POST /admin/lessons/draft`
-- `PUT /admin/lessons/{lessonId}/draft/step/{stepKey}`
-- `POST /admin/lessons/{lessonId}/publish`
+- `PUT /admin/lessons/{lessonId}/category`
+- `POST /admin/lesson-drafts`
+- `PUT /admin/lesson-drafts/{lessonId}/steps/{stepKey}`
+- `POST /admin/lessons/{lessonId}/publication`
 - `POST /admin/lessons`
 - `PUT /admin/lessons/{lessonId}`
 - `DELETE /admin/lessons/{lessonId}`
@@ -127,8 +125,8 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /admin/quiz/question-types`
 - `POST /admin/lessons/{lessonId}/quiz`
 - `PUT /admin/lessons/{lessonId}/quiz`
-- `POST /admin/lessons/{lessonId}/media/start`
-- `POST /admin/lessons/{lessonId}/media/start-link`
+- `POST /admin/lessons/{lessonId}/media-uploads`
+- `POST /admin/lessons/{lessonId}/media-link-imports`
 - `GET /admin/lessons/{lessonId}/media/{assetId}`
 
 ## Feed Contract (Cursor-Based)
@@ -153,7 +151,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 
 ## Login Streak Contract
 
-- Endpoint: `POST /auth/streak/touch`
+- Endpoint: `PUT /auth/login-streak`
 - Auth: required (`Authorization: Bearer <accessToken>`)
 - Request body (optional):
   - `{ "timezone": "Asia/Singapore" }`
@@ -220,9 +218,8 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   - `reporter` contains `{ user_id, display_name, avatar_url }`
   - Page size is capped to 5 reports per request
   - `query` filters by reporter username/display name
-- Action endpoints:
-  - `PUT /admin/flags/{flagId}/resolve` resolves all pending reports for that flagged content group.
-  - `PUT /admin/flags/{flagId}/take-down` rejects the content and resolves all pending reports for that flagged content group.
+- Action endpoint:
+  - `PUT /admin/flags/{flagId}/resolution` accepts `{ status: "resolved" | "taken_down", feedback? }`.
 
 ## Admin User Management Contract
 
@@ -306,7 +303,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 ### Feed / Explore
 - `GET /feed?cursor=...&limit=...` -> implemented (cursor-only contract)
 - `GET /trending` -> missing
-- `GET /search?query=...&filter=...` -> implemented
+- `GET /search-results?query=...&filter=...` -> implemented
 - `GET /recommendations` -> missing
 
 ### User profile / utility
@@ -329,50 +326,50 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `DELETE /users/me/chat` -> implemented
 
 ### Content
-- `POST /content/media/start` -> implemented
-- `POST /content/media/start-link` -> implemented
+- `POST /content/uploads` -> implemented
+- `POST /content/link-imports` -> implemented
 - `GET /content/{id}` -> implemented
 - `GET /content/{id}/similar?limit=...` -> implemented
 - `GET /content/{id}/media` -> implemented
 - `PATCH /content/{id}` -> implemented
-- `POST /content/{id}/submit` -> implemented
+- `POST /content/{id}/submission` -> implemented
 - `GET /content/{id}/quiz` -> implemented
-- `POST /content/{id}/quiz/submit` -> implemented
-- `POST /content/{id}/view` -> implemented
+- `POST /content/{id}/quiz-submissions` -> implemented
+- `POST /content/{id}/views` -> implemented
 - `POST /content/{id}/playback-events` -> implemented
-- `POST /content/{id}/like` -> implemented
-- `DELETE /content/{id}/like` -> implemented
-- `POST /content/{id}/save` -> implemented
-- `DELETE /content/{id}/save` -> implemented
-- `POST /content/{id}/share` -> implemented
+- `POST /content/{id}/likes` -> implemented
+- `DELETE /content/{id}/likes` -> implemented
+- `POST /content/{id}/saves` -> implemented
+- `DELETE /content/{id}/saves` -> implemented
+- `POST /content/{id}/shares` -> implemented
 - `GET /content/{id}/comments` -> implemented
 - `POST /content/{id}/comments` -> implemented
 - `DELETE /content/{id}/comments/{commentId}` -> implemented
-- `POST /content/{id}/flag` -> implemented
+- `POST /content/{id}/flags` -> implemented
 
 ### Lessons learner flow
 - `GET /lessons` -> implemented
 - `GET /lessons/feed` -> implemented
 - `GET /lessons/hub` -> implemented (category-based response)
-- `GET /lessons/search` -> implemented
+- `GET /lessons/search-results` -> implemented
 - `GET /lessons/{id}` -> implemented
 - `GET /lessons/{id}/sections` -> implemented
 - `GET /lessons/{id}/progress` -> implemented
-- `POST /lessons/{id}/sections/{sectionId}/complete` -> implemented
+- `PUT /lessons/{id}/sections/{sectionId}/completion` -> implemented
 - `GET /lessons/{id}/quiz/state` -> implemented
-- `POST /lessons/{id}/quiz/answer` -> implemented
-- `POST /lessons/{id}/quiz/restart` -> implemented
-- `POST /lessons/{id}/enroll` -> implemented
-- `POST /lessons/{id}/save` -> implemented
+- `POST /lessons/{id}/quiz/answers` -> implemented
+- `POST /lessons/{id}/quiz-attempts` -> implemented
+- `PUT /lessons/{id}/enrollment` -> implemented
+- `PUT /lessons/{id}/saved` -> implemented
 - `PUT /lessons/{id}/progress` -> implemented (legacy)
 
 ### Auth
-- `POST /auth/login` -> implemented
-- `POST /auth/register` -> implemented
-- `POST /auth/logout` -> implemented
-- `POST /auth/forgot-password` -> implemented
-- `POST /auth/reset-password` -> implemented
-- `GET /auth/username-available` -> implemented
+- `POST /auth/sessions` -> implemented
+- `POST /auth/registrations` -> implemented
+- `DELETE /auth/session` -> implemented
+- `POST /auth/password-reset-requests` -> implemented
+- `PUT /auth/password` -> implemented
+- `GET /auth/display-name-availability` -> implemented
 
 ### Admin
 - `GET /admin/stats` -> implemented
@@ -385,17 +382,15 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /admin/moderation-queue` -> implemented
 - `GET /admin/flags` -> implemented (grouped by `content_id` for admin review)
 - `GET /admin/flags/{id}/reports` -> implemented (5-per-page reporter list with username search)
-- `PUT /admin/content/{id}/approve` -> implemented
+- `PUT /admin/content/{id}/review` -> implemented
 - `PUT /admin/content/{id}` -> implemented
-- `PUT /admin/content/{id}/reject` -> implemented
-- `PUT /admin/flags/{id}/resolve` -> implemented (resolves all pending reports for the grouped content item)
-- `PUT /admin/flags/{id}/take-down` -> implemented
+- `PUT /admin/flags/{id}/resolution` -> implemented
 - `GET /admin/lessons` -> implemented
 - `GET /admin/lessons/{id}` -> implemented
-- `PUT /admin/lessons/{id}/move-category` -> implemented
-- `POST /admin/lessons/draft` -> implemented
-- `PUT /admin/lessons/{id}/draft/step/{step}` -> implemented
-- `POST /admin/lessons/{id}/publish` -> implemented
+- `PUT /admin/lessons/{id}/category` -> implemented
+- `POST /admin/lesson-drafts` -> implemented
+- `PUT /admin/lesson-drafts/{id}/steps/{step}` -> implemented
+- `POST /admin/lessons/{id}/publication` -> implemented
 - `POST /admin/lessons` -> implemented
 - `PUT /admin/lessons/{id}` -> implemented
 - `DELETE /admin/lessons/{id}` -> implemented
@@ -403,8 +398,8 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /admin/quiz/question-types` -> implemented
 - `POST /admin/lessons/{id}/quiz` -> implemented
 - `PUT /admin/lessons/{id}/quiz` -> implemented
-- `POST /admin/lessons/{id}/media/start` -> implemented
-- `POST /admin/lessons/{id}/media/start-link` -> implemented
+- `POST /admin/lessons/{id}/media-uploads` -> implemented
+- `POST /admin/lessons/{id}/media-link-imports` -> implemented
 - `GET /admin/lessons/{id}/media/{assetId}` -> implemented
 
 ## Missing Endpoints (Required for Full Frontend Parity)
@@ -450,10 +445,10 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
 - `GET /lessons/hub` now returns `summary` plus `categories[]`, where each category includes `categoryId`, `name`, `type`, `color`, `isVirtual`, and ordered `lessons[]`.
 - Real categories are returned even when they have no lessons; legacy published lessons without `category_id` are grouped into a synthetic `Uncategorized` category.
 - Lesson authoring now persists `category_id` on `lessons`; lessons are no longer path-ordered.
-- `PUT /admin/lessons/{lessonId}/move-category` accepts `{ sourceCategoryId, targetCategoryId }`.
-- `PUT /admin/lessons/{lessonId}/move-category` returns `{ sourceCategoryId, targetCategoryId, sourceLessons, targetLessons, movedLesson }`.
+- `PUT /admin/lessons/{lessonId}/category` accepts `{ sourceCategoryId, targetCategoryId }`.
+- `PUT /admin/lessons/{lessonId}/category` returns `{ sourceCategoryId, targetCategoryId, sourceLessons, targetLessons, movedLesson }`.
 - `GET /admin/quiz/question-types` currently advertises only `multiple_choice`, `true_false`, `match_pairs`, and `short_text`.
 - Lesson media authoring endpoints are now part of the admin lesson flow:
-  - `POST /admin/lessons/{lessonId}/media/start` expects multipart form data with `file`
-  - `POST /admin/lessons/{lessonId}/media/start-link` expects `{ sourceUrl, mediaKind }`
+  - `POST /admin/lessons/{lessonId}/media-uploads` expects multipart form data with `file`
+  - `POST /admin/lessons/{lessonId}/media-link-imports` expects `{ sourceUrl, mediaKind }`
   - `GET /admin/lessons/{lessonId}/media/{assetId}` returns media processing / ready status for previews and save validation

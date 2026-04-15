@@ -98,7 +98,7 @@ class AuthControllerMockIntegrationTest {
                 }
                 """)
         .when()
-            .post("/api/auth/login")
+            .post("/api/auth/sessions")
         //assert
         .then()
             .status(HttpStatus.OK)
@@ -137,7 +137,7 @@ class AuthControllerMockIntegrationTest {
                 }
                 """)
         .when()
-            .post("/api/auth/register")
+            .post("/api/auth/registrations")
         //assert
         .then()
             .status(HttpStatus.OK)
@@ -162,7 +162,7 @@ class AuthControllerMockIntegrationTest {
                 }
                 """)
         .when()
-            .post("/api/auth/forgot-password")
+            .post("/api/auth/password-reset-requests")
         //assert
         .then()
             .status(HttpStatus.NO_CONTENT);
@@ -186,7 +186,7 @@ class AuthControllerMockIntegrationTest {
                 }
                 """)
         .when()
-            .post("/api/auth/reset-password")
+            .put("/api/auth/password")
         //assert
         .then()
             .status(HttpStatus.NO_CONTENT);
@@ -204,7 +204,7 @@ class AuthControllerMockIntegrationTest {
         authenticated
             .header(HttpHeaders.AUTHORIZATION, "ApiKey abc-123")
         .when()
-            .post("/api/auth/logout")
+            .delete("/api/auth/session")
         //assert
         .then()
             .status(HttpStatus.NO_CONTENT);
@@ -221,7 +221,7 @@ class AuthControllerMockIntegrationTest {
         //act
         authenticated
         .when()
-            .post("/api/auth/logout")
+            .delete("/api/auth/session")
         //assert
         .then()
             .status(HttpStatus.NO_CONTENT);
@@ -239,7 +239,7 @@ class AuthControllerMockIntegrationTest {
         authenticated
             .header(HttpHeaders.AUTHORIZATION, "   ")
         .when()
-            .post("/api/auth/logout")
+            .delete("/api/auth/session")
         //assert
         .then()
             .status(HttpStatus.NO_CONTENT);
@@ -265,7 +265,7 @@ class AuthControllerMockIntegrationTest {
                 }
                 """)
         .when()
-            .post("/api/auth/streak/touch")
+            .put("/api/auth/login-streak")
         //assert
         .then()
             .status(HttpStatus.OK)
@@ -289,7 +289,7 @@ class AuthControllerMockIntegrationTest {
         //act
         authenticated
         .when()
-            .post("/api/auth/streak/touch")
+            .put("/api/auth/login-streak")
         //assert
         .then()
             .status(HttpStatus.OK)
@@ -312,7 +312,7 @@ class AuthControllerMockIntegrationTest {
             .queryParam("displayName", "Dot.User")
             .queryParam("username", "ignored_username")
         .when()
-            .get("/api/auth/username-available")
+            .get("/api/auth/display-name-availability")
         //assert
         .then()
             .status(HttpStatus.OK)
@@ -338,7 +338,7 @@ class AuthControllerMockIntegrationTest {
             .queryParam("displayName", "   ")
             .queryParam("username", "fallback_user")
         .when()
-            .get("/api/auth/username-available")
+            .get("/api/auth/display-name-availability")
         //assert
         .then()
             .status(HttpStatus.OK)
@@ -359,7 +359,7 @@ class AuthControllerMockIntegrationTest {
         //act
         given()
         .when()
-            .get("/api/auth/username-available")
+            .get("/api/auth/display-name-availability")
         //assert
         .then()
             .status(HttpStatus.BAD_REQUEST);
@@ -377,12 +377,58 @@ class AuthControllerMockIntegrationTest {
         given()
             .queryParam("displayName", "bad name!!")
         .when()
-            .get("/api/auth/username-available")
+            .get("/api/auth/display-name-availability")
         //assert
         .then()
             .status(HttpStatus.BAD_REQUEST);
 
         //verify
         verify(userService).isDisplayNameFormatValid("bad name!!");
+    }
+
+    @Test
+    void legacyAuthAliases_ShouldStillWork() {
+        AuthSessionResponse response = new AuthSessionResponse(
+            "legacy-access-token",
+            "legacy-refresh-token",
+            "Bearer",
+            3600L,
+            UUID.fromString("33333333-3333-3333-3333-333333333333"),
+            "legacy@example.com",
+            false,
+            null
+        );
+        when(authService.login(any(LoginRequest.class))).thenReturn(response);
+        when(userService.isDisplayNameFormatValid("legacy_user")).thenReturn(true);
+        when(userService.normalizeDisplayName("legacy_user")).thenReturn("legacy_user");
+        when(userService.isDisplayNameTaken("legacy_user")).thenReturn(false);
+
+        given()
+            .contentType(ContentType.JSON)
+            .body("""
+                {
+                  \"email\": \"legacy@example.com\",
+                  \"password\": \"StrongPass123!\"
+                }
+                """)
+        .when()
+            .post("/api/auth/login")
+        .then()
+            .status(HttpStatus.OK)
+            .body("accessToken", equalTo("legacy-access-token"));
+
+        authenticated
+        .when()
+            .post("/api/auth/logout")
+        .then()
+            .status(HttpStatus.NO_CONTENT);
+
+        given()
+            .queryParam("displayName", "legacy_user")
+        .when()
+            .get("/api/auth/username-available")
+        .then()
+            .status(HttpStatus.OK)
+            .body("available", equalTo(true));
     }
 }

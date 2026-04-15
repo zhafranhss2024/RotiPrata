@@ -1,7 +1,9 @@
 package com.rotiprata.api.admin.controller;
 
 import com.rotiprata.api.admin.dto.AdminContentQuizRequest;
+import com.rotiprata.api.admin.dto.AdminContentReviewRequest;
 import com.rotiprata.api.admin.dto.AdminContentUpdateRequest;
+import com.rotiprata.api.admin.dto.AdminFlagResolutionRequest;
 import com.rotiprata.api.admin.dto.AdminStatsResponse;
 import com.rotiprata.api.admin.dto.AdminUserDetailResponse;
 import com.rotiprata.api.admin.dto.AdminUserRoleUpdateRequest;
@@ -13,10 +15,13 @@ import com.rotiprata.api.content.dto.ContentQuizQuestionResponse;
 import com.rotiprata.api.content.service.ContentQuizService;
 import com.rotiprata.api.zdto.RejectContentRequest;
 import com.rotiprata.security.SecurityUtils;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -28,6 +33,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -101,14 +107,29 @@ public class AdminController {
         return adminService.getModerationQueue(adminUserId, SecurityUtils.getAccessToken());
     }
 
+    @PutMapping("/content/{contentId}/review")
+    public ResponseEntity<Void> reviewContent(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @Valid @RequestBody AdminContentReviewRequest request
+    ) {
+        UUID adminUserId = SecurityUtils.getUserId(jwt);
+        switch (normalizeActionStatus(request.status())) {
+            case "approved" -> adminService.approveContent(adminUserId, contentId, SecurityUtils.getAccessToken());
+            case "rejected" -> adminService.rejectContent(adminUserId, contentId, request.feedback(), SecurityUtils.getAccessToken());
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported review status");
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    @Hidden
+    @Deprecated
     @PutMapping("/content/{contentId}/approve")
     public ResponseEntity<Void> approveContent(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID contentId
     ) {
-        UUID adminUserId = SecurityUtils.getUserId(jwt);
-        adminService.approveContent(adminUserId, contentId, SecurityUtils.getAccessToken());
-        return ResponseEntity.noContent().build();
+        return reviewContent(jwt, contentId, new AdminContentReviewRequest("approved", null));
     }
 
     @PutMapping("/content/{contentId}")
@@ -121,15 +142,15 @@ public class AdminController {
         return adminService.updateContentMetadata(adminUserId, contentId, request, SecurityUtils.getAccessToken());
     }
 
+    @Hidden
+    @Deprecated
     @PutMapping("/content/{contentId}/reject")
     public ResponseEntity<Void> rejectContent(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID contentId,
         @Valid @RequestBody RejectContentRequest request
     ) {
-        UUID adminUserId = SecurityUtils.getUserId(jwt);
-        adminService.rejectContent(adminUserId, contentId, request.feedback(), SecurityUtils.getAccessToken());
-        return ResponseEntity.noContent().build();
+        return reviewContent(jwt, contentId, new AdminContentReviewRequest("rejected", request.feedback()));
     }
 
     @GetMapping("/content/{contentId}/quiz")
@@ -206,24 +227,46 @@ public class AdminController {
         );
     }
 
-    @PutMapping("/flags/{flagId}/resolve")
+    @PutMapping("/flags/{flagId}/resolution")
     public ResponseEntity<Void> resolveFlag(
         @AuthenticationPrincipal Jwt jwt,
-        @PathVariable UUID flagId
+        @PathVariable UUID flagId,
+        @Valid @RequestBody AdminFlagResolutionRequest request
     ) {
         UUID adminUserId = SecurityUtils.getUserId(jwt);
-        adminService.resolveFlag(adminUserId, flagId, SecurityUtils.getAccessToken());
+        switch (normalizeActionStatus(request.status())) {
+            case "resolved" -> adminService.resolveFlag(adminUserId, flagId, SecurityUtils.getAccessToken());
+            case "taken_down" -> adminService.takeDownFlag(adminUserId, flagId, request.feedback(), SecurityUtils.getAccessToken());
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported resolution status");
+        }
         return ResponseEntity.noContent().build();
     }
 
+    @Hidden
+    @Deprecated
+    @PutMapping("/flags/{flagId}/resolve")
+    public ResponseEntity<Void> resolveFlagAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID flagId
+    ) {
+        return resolveFlag(jwt, flagId, new AdminFlagResolutionRequest("resolved", null));
+    }
+
+    @Hidden
+    @Deprecated
     @PutMapping("/flags/{flagId}/take-down")
     public ResponseEntity<Void> takeDownFlag(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID flagId,
         @Valid @RequestBody RejectContentRequest request
     ) {
-        UUID adminUserId = SecurityUtils.getUserId(jwt);
-        adminService.takeDownFlag(adminUserId, flagId, request.feedback(), SecurityUtils.getAccessToken());
-        return ResponseEntity.noContent().build();
+        return resolveFlag(jwt, flagId, new AdminFlagResolutionRequest("taken_down", request.feedback()));
+    }
+
+    private String normalizeActionStatus(String status) {
+        if (status == null) {
+            return "";
+        }
+        return status.trim().toLowerCase(Locale.ROOT);
     }
 }

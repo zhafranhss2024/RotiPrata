@@ -18,10 +18,11 @@ import com.rotiprata.api.content.service.ContentDraftService;
 import com.rotiprata.api.content.service.ContentQuizService;
 import com.rotiprata.api.content.service.ContentService;
 import com.rotiprata.security.SecurityUtils;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
-import java.util.UUID;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,9 +32,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -56,7 +57,7 @@ public class ContentController {
         this.contentQuizService = contentQuizService;
     }
 
-    @PostMapping("/media/start")
+    @PostMapping("/uploads")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ContentMediaStartResponse startUpload(
         @AuthenticationPrincipal Jwt jwt,
@@ -73,7 +74,18 @@ public class ContentController {
         return contentDraftService.startUpload(userId, contentType, file);
     }
 
-    @PostMapping("/media/start-link")
+    @Hidden
+    @Deprecated
+    @PostMapping("/media/start")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ContentMediaStartResponse startUploadAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestPart("file") MultipartFile file
+    ) {
+        return startUpload(jwt, file);
+    }
+
+    @PostMapping("/link-imports")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ContentMediaStartResponse startLink(
         @AuthenticationPrincipal Jwt jwt,
@@ -81,6 +93,17 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return contentDraftService.startLink(userId, request.sourceUrl());
+    }
+
+    @Hidden
+    @Deprecated
+    @PostMapping("/media/start-link")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ContentMediaStartResponse startLinkAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @Valid @RequestBody ContentMediaStartLinkRequest request
+    ) {
+        return startLink(jwt, request);
     }
 
     @PatchMapping("/{contentId}")
@@ -93,14 +116,25 @@ public class ContentController {
         return contentDraftService.updateDraft(userId, contentId, request);
     }
 
-    @PostMapping("/{contentId}/submit")
-    public Content submit(
+    @PostMapping("/{contentId}/submission")
+    public Content createSubmission(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID contentId,
         @Valid @RequestBody ContentSubmitRequest request
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return contentDraftService.submit(userId, contentId, request);
+    }
+
+    @Hidden
+    @Deprecated
+    @PostMapping("/{contentId}/submit")
+    public Content submit(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @Valid @RequestBody ContentSubmitRequest request
+    ) {
+        return createSubmission(jwt, contentId, request);
     }
 
     @GetMapping("/{contentId}/media")
@@ -131,7 +165,7 @@ public class ContentController {
         return contentService.getSimilarContent(userId, contentId, SecurityUtils.getAccessToken(), limit);
     }
 
-    @PostMapping("/{contentId}/view")
+    @PostMapping("/{contentId}/views")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void trackView(
         @AuthenticationPrincipal Jwt jwt,
@@ -139,6 +173,17 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         contentService.trackView(userId, contentId);
+    }
+
+    @Hidden
+    @Deprecated
+    @PostMapping("/{contentId}/view")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void trackViewAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        trackView(jwt, contentId);
     }
 
     @PostMapping("/{contentId}/playback-events")
@@ -152,7 +197,7 @@ public class ContentController {
         contentService.recordPlaybackEvent(userId, contentId, request);
     }
 
-    @PostMapping("/{contentId}/like")
+    @PostMapping("/{contentId}/likes")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void like(
         @AuthenticationPrincipal Jwt jwt,
@@ -162,7 +207,18 @@ public class ContentController {
         contentService.likeContent(userId, contentId, SecurityUtils.getAccessToken());
     }
 
-    @DeleteMapping("/{contentId}/like")
+    @Hidden
+    @Deprecated
+    @PostMapping("/{contentId}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void likeAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        like(jwt, contentId);
+    }
+
+    @DeleteMapping("/{contentId}/likes")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unlike(
         @AuthenticationPrincipal Jwt jwt,
@@ -172,7 +228,18 @@ public class ContentController {
         contentService.unlikeContent(userId, contentId, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/{contentId}/save")
+    @Hidden
+    @Deprecated
+    @DeleteMapping("/{contentId}/like")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unlikeAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        unlike(jwt, contentId);
+    }
+
+    @PostMapping("/{contentId}/saves")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void save(
         @AuthenticationPrincipal Jwt jwt,
@@ -182,7 +249,18 @@ public class ContentController {
         contentService.saveContent(userId, contentId, SecurityUtils.getAccessToken());
     }
 
-    @DeleteMapping("/{contentId}/save")
+    @Hidden
+    @Deprecated
+    @PostMapping("/{contentId}/save")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void saveAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        save(jwt, contentId);
+    }
+
+    @DeleteMapping("/{contentId}/saves")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void unsave(
         @AuthenticationPrincipal Jwt jwt,
@@ -192,7 +270,18 @@ public class ContentController {
         contentService.unsaveContent(userId, contentId, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/{contentId}/share")
+    @Hidden
+    @Deprecated
+    @DeleteMapping("/{contentId}/save")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void unsaveAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        unsave(jwt, contentId);
+    }
+
+    @PostMapping("/{contentId}/shares")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void share(
         @AuthenticationPrincipal Jwt jwt,
@@ -200,6 +289,17 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         contentService.shareContent(userId, contentId, SecurityUtils.getAccessToken());
+    }
+
+    @Hidden
+    @Deprecated
+    @PostMapping("/{contentId}/share")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void shareAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId
+    ) {
+        share(jwt, contentId);
     }
 
     @GetMapping("/{contentId}/quiz")
@@ -215,14 +315,25 @@ public class ContentController {
         return ResponseEntity.ok(quiz);
     }
 
-    @PostMapping("/{contentId}/quiz/submit")
-    public ContentQuizSubmitResponse submitContentQuiz(
+    @PostMapping("/{contentId}/quiz-submissions")
+    public ContentQuizSubmitResponse createContentQuizSubmission(
         @AuthenticationPrincipal Jwt jwt,
         @PathVariable UUID contentId,
         @RequestBody ContentQuizSubmitRequest request
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return contentQuizService.submitContentQuiz(userId, contentId, request, SecurityUtils.getAccessToken());
+    }
+
+    @Hidden
+    @Deprecated
+    @PostMapping("/{contentId}/quiz/submit")
+    public ContentQuizSubmitResponse submitContentQuiz(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @RequestBody ContentQuizSubmitRequest request
+    ) {
+        return createContentQuizSubmission(jwt, contentId, request);
     }
 
     @GetMapping("/{contentId}/comments")
@@ -258,7 +369,7 @@ public class ContentController {
         contentService.deleteComment(userId, contentId, commentId, SecurityUtils.getAccessToken());
     }
 
-    @PostMapping("/{contentId}/flag")
+    @PostMapping("/{contentId}/flags")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void flag(
         @AuthenticationPrincipal Jwt jwt,
@@ -267,6 +378,18 @@ public class ContentController {
     ) {
         UUID userId = SecurityUtils.getUserId(jwt);
         contentService.flagContent(userId, contentId, request, SecurityUtils.getAccessToken());
+    }
+
+    @Hidden
+    @Deprecated
+    @PostMapping("/{contentId}/flag")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void flagAlias(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID contentId,
+        @Valid @RequestBody ContentFlagRequest request
+    ) {
+        flag(jwt, contentId, request);
     }
 
     private ContentType detectContentType(MultipartFile file) {

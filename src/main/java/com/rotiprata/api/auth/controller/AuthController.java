@@ -12,20 +12,22 @@ import com.rotiprata.api.zdto.RegisterRequest;
 import com.rotiprata.api.zdto.ResetPasswordRequest;
 import com.rotiprata.application.LoginStreakService;
 import com.rotiprata.security.SecurityUtils;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -44,30 +46,58 @@ public class AuthController {
         this.userService = userService;
     }
 
-    @PostMapping("/login")
-    public AuthSessionResponse login(@Valid @RequestBody LoginRequest request) {
+    @PostMapping("/sessions")
+    public AuthSessionResponse createSession(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
     }
 
-    @PostMapping("/register")
-    public AuthSessionResponse register(@Valid @RequestBody RegisterRequest request) {
+    @Hidden
+    @Deprecated
+    @PostMapping("/login")
+    public AuthSessionResponse login(@Valid @RequestBody LoginRequest request) {
+        return createSession(request);
+    }
+
+    @PostMapping("/registrations")
+    public AuthSessionResponse createRegistration(@Valid @RequestBody RegisterRequest request) {
         return authService.register(request);
     }
 
-    @PostMapping("/forgot-password")
-    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+    @Hidden
+    @Deprecated
+    @PostMapping("/register")
+    public AuthSessionResponse register(@Valid @RequestBody RegisterRequest request) {
+        return createRegistration(request);
+    }
+
+    @PostMapping("/password-reset-requests")
+    public ResponseEntity<Void> createPasswordResetRequest(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.requestPasswordReset(request);
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/reset-password")
-    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    @Hidden
+    @Deprecated
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return createPasswordResetRequest(request);
+    }
+
+    @PutMapping("/password")
+    public ResponseEntity<Void> updatePassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/logout")
-    public ResponseEntity<Void> logout(
+    @Hidden
+    @Deprecated
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return updatePassword(request);
+    }
+
+    @DeleteMapping("/session")
+    public ResponseEntity<Void> deleteSession(
         @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader
     ) {
         String token = extractBearerToken(authHeader);
@@ -75,8 +105,17 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/streak/touch")
-    public LoginStreakTouchResponse touchLoginStreak(
+    @Hidden
+    @Deprecated
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+        @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader
+    ) {
+        return deleteSession(authHeader);
+    }
+
+    @PutMapping("/login-streak")
+    public LoginStreakTouchResponse updateLoginStreak(
         @AuthenticationPrincipal Jwt jwt,
         @RequestBody(required = false) LoginStreakTouchRequest request
     ) {
@@ -87,8 +126,18 @@ public class AuthController {
         );
     }
 
-    @GetMapping("/username-available")
-    public DisplayNameAvailabilityResponse usernameAvailable(
+    @Hidden
+    @Deprecated
+    @PostMapping("/streak/touch")
+    public LoginStreakTouchResponse touchLoginStreak(
+        @AuthenticationPrincipal Jwt jwt,
+        @RequestBody(required = false) LoginStreakTouchRequest request
+    ) {
+        return updateLoginStreak(jwt, request);
+    }
+
+    @GetMapping("/display-name-availability")
+    public DisplayNameAvailabilityResponse displayNameAvailability(
         @RequestParam(value = "displayName", required = false) String displayName,
         @RequestParam(value = "username", required = false) String username
     ) {
@@ -108,6 +157,16 @@ public class AuthController {
         String normalized = userService.normalizeDisplayName(candidate);
         boolean available = !userService.isDisplayNameTaken(normalized);
         return new DisplayNameAvailabilityResponse(available, normalized);
+    }
+
+    @Hidden
+    @Deprecated
+    @GetMapping("/username-available")
+    public DisplayNameAvailabilityResponse usernameAvailable(
+        @RequestParam(value = "displayName", required = false) String displayName,
+        @RequestParam(value = "username", required = false) String username
+    ) {
+        return displayNameAvailability(displayName, username);
     }
 
     private String extractBearerToken(String authHeader) {

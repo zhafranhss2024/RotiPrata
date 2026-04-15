@@ -25,10 +25,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class AuthRateLimitFilter extends OncePerRequestFilter {
     private static final String LOGIN_PATH = "/api/auth/login";
+    private static final String LOGIN_SESSIONS_PATH = "/api/auth/sessions";
     private static final String REGISTER_PATH = "/api/auth/register";
+    private static final String REGISTRATIONS_PATH = "/api/auth/registrations";
     private static final String FORGOT_PASSWORD_PATH = "/api/auth/forgot-password";
+    private static final String PASSWORD_RESET_REQUESTS_PATH = "/api/auth/password-reset-requests";
     private static final String RESET_PASSWORD_PATH = "/api/auth/reset-password";
+    private static final String PASSWORD_PATH = "/api/auth/password";
     private static final String QUIZ_ANSWER_SUFFIX = "/quiz/answer";
+    private static final String QUIZ_ANSWERS_SUFFIX = "/quiz/answers";
 
     private static final RateLimitDefinition SIGNIN_LIMIT = new RateLimitDefinition(30, Duration.ofMinutes(5));
     private static final RateLimitDefinition FORGOT_PASSWORD_LIMIT = new RateLimitDefinition(2, Duration.ofHours(1));
@@ -43,13 +48,9 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         HttpServletResponse response,
         FilterChain filterChain
     ) throws ServletException, IOException {
-        if (!"POST".equalsIgnoreCase(request.getMethod())) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
+        String method = request.getMethod();
         String path = request.getRequestURI();
-        RateLimitDefinition limit = resolveLimit(path);
+        RateLimitDefinition limit = resolveLimit(method, path);
         if (limit == null) {
             filterChain.doFilter(request, response);
             return;
@@ -77,15 +78,28 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         objectMapper.writeValue(response.getWriter(), body);
     }
 
-    private RateLimitDefinition resolveLimit(String path) {
-        if (path != null && path.startsWith("/api/lessons/") && path.endsWith(QUIZ_ANSWER_SUFFIX)) {
+    private RateLimitDefinition resolveLimit(String method, String path) {
+        if (!"POST".equalsIgnoreCase(method) && !"PUT".equalsIgnoreCase(method)) {
+            return null;
+        }
+        if ("POST".equalsIgnoreCase(method)
+            && path != null
+            && path.startsWith("/api/lessons/")
+            && (path.endsWith(QUIZ_ANSWER_SUFFIX) || path.endsWith(QUIZ_ANSWERS_SUFFIX))) {
             return QUIZ_ANSWER_LIMIT.withKeyPrefix("quiz-answer");
         }
+        if ("POST".equalsIgnoreCase(method)) {
+            return switch (path) {
+                case LOGIN_PATH, LOGIN_SESSIONS_PATH -> SIGNIN_LIMIT.withKeyPrefix("login");
+                case REGISTER_PATH, REGISTRATIONS_PATH -> SIGNIN_LIMIT.withKeyPrefix("register");
+                case FORGOT_PASSWORD_PATH, PASSWORD_RESET_REQUESTS_PATH ->
+                    FORGOT_PASSWORD_LIMIT.withKeyPrefix("forgot-password");
+                case RESET_PASSWORD_PATH -> SIGNIN_LIMIT.withKeyPrefix("reset-password");
+                default -> null;
+            };
+        }
         return switch (path) {
-            case LOGIN_PATH -> SIGNIN_LIMIT.withKeyPrefix("login");
-            case REGISTER_PATH -> SIGNIN_LIMIT.withKeyPrefix("register");
-            case FORGOT_PASSWORD_PATH -> FORGOT_PASSWORD_LIMIT.withKeyPrefix("forgot-password");
-            case RESET_PASSWORD_PATH -> SIGNIN_LIMIT.withKeyPrefix("reset-password");
+            case PASSWORD_PATH -> SIGNIN_LIMIT.withKeyPrefix("reset-password");
             default -> null;
         };
     }
@@ -117,7 +131,9 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveRateLimitKey(String path, HttpServletRequest request, RateLimitDefinition definition) {
-        if (path != null && path.startsWith("/api/lessons/") && path.endsWith(QUIZ_ANSWER_SUFFIX)) {
+        if (path != null
+            && path.startsWith("/api/lessons/")
+            && (path.endsWith(QUIZ_ANSWER_SUFFIX) || path.endsWith(QUIZ_ANSWERS_SUFFIX))) {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication != null && authentication.isAuthenticated() && authentication.getName() != null) {
                 String principal = authentication.getName().trim();

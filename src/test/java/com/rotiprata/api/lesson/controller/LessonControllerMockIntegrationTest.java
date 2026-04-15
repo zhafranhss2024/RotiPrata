@@ -144,7 +144,7 @@ class LessonControllerMockIntegrationTest {
         when(lessonService.searchLessons(anyString(), anyString())).thenReturn(List.of(Map.of("title", "Bonjour")));
 
         //act
-        var response = auth.queryParam("q", "bon").when().get("/api/lessons/search");
+        var response = auth.queryParam("q", "bon").when().get("/api/lessons/search-results");
 
         //assert
         response.then().status(HttpStatus.OK).body("[0].title", equalTo("Bonjour"));
@@ -231,7 +231,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("attemptId", "attempt-1", "questionId", "q1", "response", Map.of("answer", "A"))))
             .when()
-            .post("/api/lessons/{lessonId}/quiz/answer", LESSON_ID.toString());
+            .post("/api/lessons/{lessonId}/quiz/answers", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("correct", equalTo(true));
@@ -248,7 +248,7 @@ class LessonControllerMockIntegrationTest {
             .thenReturn(new LessonQuizStateResponse("attempt-2", "in_progress", 0, 3, 0, 0, 30, null, null, true, true, List.of()));
 
         //act
-        var response = auth.queryParam("mode", "retry_wrong").when().post("/api/lessons/{lessonId}/quiz/restart", LESSON_ID.toString());
+        var response = auth.queryParam("mode", "retry_wrong").when().post("/api/lessons/{lessonId}/quiz-attempts", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("attemptId", equalTo("attempt-2"));
@@ -265,7 +265,7 @@ class LessonControllerMockIntegrationTest {
             .thenReturn(new LessonProgressResponse("in_progress", 60, "usage", 2, 3, "quiz", true, 4, 3, "usage", 1, "available", 5, OffsetDateTime.now(), "quiz"));
 
         //act
-        var response = auth.when().post("/api/lessons/{lessonId}/sections/{sectionId}/complete", LESSON_ID.toString(), "usage");
+        var response = auth.when().put("/api/lessons/{lessonId}/sections/{sectionId}/completion", LESSON_ID.toString(), "usage");
 
         //assert
         response.then().status(HttpStatus.OK).body("progress.progressPercentage", equalTo(60));
@@ -280,7 +280,7 @@ class LessonControllerMockIntegrationTest {
         //arrange
 
         //act
-        var response = auth.when().post("/api/lessons/{lessonId}/enroll", LESSON_ID.toString());
+        var response = auth.when().put("/api/lessons/{lessonId}/enrollment", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK);
@@ -295,7 +295,7 @@ class LessonControllerMockIntegrationTest {
         //arrange
 
         //act
-        var response = auth.when().post("/api/lessons/{lessonId}/save", LESSON_ID.toString());
+        var response = auth.when().put("/api/lessons/{lessonId}/saved", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK);
@@ -367,7 +367,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("title", "Intro Lesson")))
             .when()
-            .post("/api/admin/lessons/draft");
+            .post("/api/admin/lesson-drafts");
 
         //assert
         response.then().status(HttpStatus.OK).body("lessonId", equalTo(LESSON_ID.toString()));
@@ -388,7 +388,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("lesson", Map.of("title", "Updated"), "questions", List.of())))
             .when()
-            .put("/api/admin/lessons/{lessonId}/draft/step/{stepKey}", LESSON_ID.toString(), "metadata");
+            .put("/api/admin/lesson-drafts/{lessonId}/steps/{stepKey}", LESSON_ID.toString(), "metadata");
 
         //assert
         response.then().status(HttpStatus.OK).body("step", equalTo("metadata"));
@@ -409,7 +409,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("lesson", Map.of("title", "Ready"), "questions", List.of())))
             .when()
-            .post("/api/admin/lessons/{lessonId}/publish", LESSON_ID.toString());
+            .post("/api/admin/lessons/{lessonId}/publication", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("success", equalTo(true));
@@ -485,7 +485,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("sourceCategoryId", SOURCE_CATEGORY_ID, "targetCategoryId", TARGET_CATEGORY_ID)))
             .when()
-            .put("/api/admin/lessons/{lessonId}/move-category", LESSON_ID.toString());
+            .put("/api/admin/lessons/{lessonId}/category", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("sourceCategoryId", equalTo(SOURCE_CATEGORY_ID.toString()));
@@ -580,7 +580,7 @@ class LessonControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(USER_ID.toString()).tokenValue(ACCESS_TOKEN)))
             .multiPart("file", file.getOriginalFilename(), file.getBytes(), file.getContentType())
             .when()
-            .post("/api/admin/lessons/{lessonId}/media/start", LESSON_ID.toString());
+            .post("/api/admin/lessons/{lessonId}/media-uploads", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("assetId", equalTo(ASSET_ID.toString()));
@@ -601,7 +601,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("sourceUrl", "https://cdn.example.com/media.mp4", "mediaKind", "video")))
             .when()
-            .post("/api/admin/lessons/{lessonId}/media/start-link", LESSON_ID.toString());
+            .post("/api/admin/lessons/{lessonId}/media-link-imports", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("status", equalTo("queued"));
@@ -625,5 +625,36 @@ class LessonControllerMockIntegrationTest {
 
         //verify
         verify(lessonService).getLessonMediaStatus(eq(USER_ID), eq(LESSON_ID), eq(ASSET_ID), eq(ACCESS_TOKEN));
+    }
+
+    @Test
+    void legacyLessonAliases_ShouldStillWork() throws Exception {
+        when(lessonQuizService.restartQuiz(any(), any(), anyString(), anyString()))
+            .thenReturn(new LessonQuizStateResponse("attempt-2", "in_progress", 0, 3, 0, 0, 30, null, null, true, true, List.of()));
+        when(lessonService.createLessonDraft(any(), any(), anyString()))
+            .thenReturn(new AdminLessonDraftResponse(LESSON_ID, Map.of("metadata", true), Map.of("id", LESSON_ID.toString())));
+
+        auth
+            .queryParam("mode", "retry_wrong")
+        .when()
+            .post("/api/lessons/{lessonId}/quiz/restart", LESSON_ID.toString())
+        .then()
+            .status(HttpStatus.OK)
+            .body("attemptId", equalTo("attempt-2"));
+
+        auth
+            .contentType(ContentType.JSON)
+            .body(objectMapper.writeValueAsString(Map.of("title", "Intro Lesson")))
+        .when()
+            .post("/api/admin/lessons/draft")
+        .then()
+            .status(HttpStatus.OK)
+            .body("lessonId", equalTo(LESSON_ID.toString()));
+
+        auth
+        .when()
+            .post("/api/lessons/{lessonId}/enroll", LESSON_ID.toString())
+        .then()
+            .status(HttpStatus.OK);
     }
 }

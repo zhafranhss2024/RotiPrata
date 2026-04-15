@@ -43,13 +43,20 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.GET,
                     "/api/auth/username-available",
+                    "/api/auth/display-name-availability",
                     "/api/categories"
                 ).permitAll()
                 .requestMatchers(HttpMethod.POST,
+                    "/api/auth/sessions",
+                    "/api/auth/registrations",
+                    "/api/auth/password-reset-requests",
                     "/api/auth/login",
                     "/api/auth/register",
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password"
+                ).permitAll()
+                .requestMatchers(HttpMethod.PUT,
+                    "/api/auth/password"
                 ).permitAll()
                 .requestMatchers(
                     "/v3/api-docs/**",

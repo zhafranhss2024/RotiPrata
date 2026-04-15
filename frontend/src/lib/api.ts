@@ -416,7 +416,7 @@ export const searchContent = (query: string, filter?: string | null) =>
   withMockFallback(
     "search",
     () => [],
-    () => apiGet<SearchResult[]>(`/search?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
+    () => apiGet<SearchResult[]>(`/search-results?query=${encodeURIComponent(query)}&filter=${filter || ""}`)
   );
 
 export const sendChatMessage = (message: string) =>
@@ -566,7 +566,7 @@ export const searchLessons = (query: string) =>
         const summary = lesson.summary?.toLowerCase() ?? "";
         return title.includes(normalizedQuery) || description.includes(normalizedQuery) || summary.includes(normalizedQuery);
       }),
-    () => apiGet<Lesson[]>(`/lessons/search?q=${encodeURIComponent(query)}`)
+    () => apiGet<Lesson[]>(`/lessons/search-results?q=${encodeURIComponent(query)}`)
   );
 
 export const fetchLessonById = (lessonId: string) =>
@@ -586,13 +586,13 @@ export const fetchLessonSections = (lessonId: string) =>
   );
 
 export const startLessonMediaUpload = (lessonId: string, formData: FormData) =>
-  apiUpload<LessonMediaStartResponse>(`/admin/lessons/${lessonId}/media/start`, formData);
+  apiUpload<LessonMediaStartResponse>(`/admin/lessons/${lessonId}/media-uploads`, formData);
 
 export const startLessonMediaLink = (
   lessonId: string,
   payload: { sourceUrl: string; mediaKind: "image" | "gif" | "video" }
 ) =>
-  apiPost<LessonMediaStartResponse>(`/admin/lessons/${lessonId}/media/start-link`, payload);
+  apiPost<LessonMediaStartResponse>(`/admin/lessons/${lessonId}/media-link-imports`, payload);
 
 export const fetchLessonMediaStatus = (lessonId: string, assetId: string) =>
   apiGet<LessonMediaStatusResponse>(`/admin/lessons/${lessonId}/media/${assetId}`);
@@ -627,9 +627,9 @@ export const fetchUserHearts = () =>
     { allowAutoFallback: false }
   );
 
-export const enrollLesson = (lessonId: string) => apiPost<void>(`/lessons/${lessonId}/enroll`);
+export const enrollLesson = (lessonId: string) => apiPut<void>(`/lessons/${lessonId}/enrollment`);
 
-export const saveLesson = (lessonId: string) => apiPost<void>(`/lessons/${lessonId}/save`);
+export const saveLesson = (lessonId: string) => apiPut<void>(`/lessons/${lessonId}/saved`);
 
 export const updateLessonProgress = (lessonId: string, progress: number) =>
   apiPut<void>(`/lessons/${lessonId}/progress`, { progress });
@@ -689,7 +689,7 @@ export const completeLessonSection = (lessonId: string, sectionId: string) =>
     },
     async () => {
       const response = await apiPost<CompleteLessonSectionResponse>(
-        `/lessons/${lessonId}/sections/${sectionId}/complete`
+        `/lessons/${lessonId}/sections/${sectionId}/completion`
       );
       return response.progress;
     },
@@ -759,7 +759,7 @@ export const submitLessonQuizAnswer = (lessonId: string, payload: LessonQuizAnsw
       },
       wrongQuestionIds: [],
     } as LessonQuizAnswerResult),
-    () => apiPost<LessonQuizAnswerResult>(`/lessons/${lessonId}/quiz/answer`, payload),
+    () => apiPost<LessonQuizAnswerResult>(`/lessons/${lessonId}/quiz/answers`, payload),
     { allowAutoFallback: false }
   );
 
@@ -799,7 +799,7 @@ export const restartLessonQuiz = (lessonId: string, mode: "wrong_only" | "full" 
       canRestart: false,
       wrongQuestionIds: [],
     } as LessonQuizState),
-    () => apiPost<LessonQuizState>(`/lessons/${lessonId}/quiz/restart?mode=${encodeURIComponent(mode)}`),
+    () => apiPost<LessonQuizState>(`/lessons/${lessonId}/quiz-attempts?mode=${encodeURIComponent(mode)}`),
     { allowAutoFallback: false }
   );
 
@@ -814,10 +814,10 @@ export const fetchTags = (query: string) =>
   );
 
 export const startContentMediaUpload = (formData: FormData) =>
-  apiUpload<ContentMediaStartResponse>(`/content/media/start`, formData);
+  apiUpload<ContentMediaStartResponse>(`/content/uploads`, formData);
 
 export const startContentMediaLink = (sourceUrl: string) =>
-  apiPost<ContentMediaStartResponse>(`/content/media/start-link`, { sourceUrl });
+  apiPost<ContentMediaStartResponse>(`/content/link-imports`, { sourceUrl });
 
 export const fetchContentMediaStatus = (contentId: string) =>
   apiGet<ContentMediaStatusResponse>(`/content/${contentId}/media`);
@@ -840,7 +840,7 @@ export const updateDraftContent = (contentId: string, payload: Record<string, un
   apiPatch<Content>(`/content/${contentId}`, payload);
 
 export const submitContent = (contentId: string, payload: Record<string, unknown>) =>
-  apiPost<Content>(`/content/${contentId}/submit`, payload);
+  apiPost<Content>(`/content/${contentId}/submission`, payload);
 
 export const fetchContentQuiz = (contentId: string) =>
   withMockFallback("content-quiz", () => null, () => apiGet<Quiz>(`/content/${contentId}/quiz`));
@@ -849,7 +849,7 @@ export const submitContentQuiz = (
   contentId: string,
   payload: { answers: Record<string, string>; timeTakenSeconds?: number | null }
 ) =>
-  apiPost<ContentQuizSubmitResult>(`/content/${contentId}/quiz/submit`, payload);
+  apiPost<ContentQuizSubmitResult>(`/content/${contentId}/quiz-submissions`, payload);
 
 export const fetchAdminContentQuiz = (contentId: string) =>
   withMockFallback(
@@ -862,23 +862,23 @@ export const fetchAdminContentQuiz = (contentId: string) =>
 export const saveAdminContentQuiz = (contentId: string, questions: Partial<QuizQuestion>[]) =>
   apiPut<QuizQuestion[]>(`/admin/content/${contentId}/quiz`, { questions });
 
-export const trackContentView = (contentId: string) => apiPost<void>(`/content/${contentId}/view`);
+export const trackContentView = (contentId: string) => apiPost<void>(`/content/${contentId}/views`);
 
 export const trackContentPlaybackEvent = (contentId: string, payload: ContentPlaybackEventPayload) =>
   apiPost<void>(`/content/${contentId}/playback-events`, payload);
 
-export const likeContent = (contentId: string) => apiPost<void>(`/content/${contentId}/like`);
+export const likeContent = (contentId: string) => apiPost<void>(`/content/${contentId}/likes`);
 
-export const unlikeContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/like`);
+export const unlikeContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/likes`);
 
-export const saveContent = (contentId: string) => apiPost<void>(`/content/${contentId}/save`);
+export const saveContent = (contentId: string) => apiPost<void>(`/content/${contentId}/saves`);
 
-export const unsaveContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/save`);
+export const unsaveContent = (contentId: string) => apiDelete<void>(`/content/${contentId}/saves`);
 
-export const shareContent = (contentId: string) => apiPost<void>(`/content/${contentId}/share`);
+export const shareContent = (contentId: string) => apiPost<void>(`/content/${contentId}/shares`);
 
 export const flagContent = (contentId: string, reason: string, description?: string) =>
-  apiPost<void>(`/content/${contentId}/flag`, { reason, description });
+  apiPost<void>(`/content/${contentId}/flags`, { reason, description });
 
 export const fetchContentComments = (contentId: string, limit = 50, offset = 0) =>
   apiGet<ContentComment[]>(`/content/${contentId}/comments?limit=${limit}&offset=${offset}`);
@@ -938,7 +938,7 @@ export const loginUser = (email: string, password: string) =>
       tokenType: "bearer",
       expiresIn: 3600,
     }),
-    () => apiPost<AuthSessionResponse>(`/auth/login`, { email, password }),
+    () => apiPost<AuthSessionResponse>(`/auth/sessions`, { email, password }),
     { allowAutoFallback: false }
   );
 
@@ -958,20 +958,20 @@ export const registerUser = (
       userId: "mock-user",
       email,
     }),
-    () => apiPost<AuthSessionResponse>(`/auth/register`, { email, password, displayName, isGenAlpha }),
+    () => apiPost<AuthSessionResponse>(`/auth/registrations`, { email, password, displayName, isGenAlpha }),
     { allowAutoFallback: false }
   );
 
-export const logoutUser = () => apiPost<void>(`/auth/logout`);
+export const logoutUser = () => apiDelete<void>(`/auth/session`);
 
 export const touchLoginStreak = (timezone?: string | null) =>
-  apiPost<LoginStreakTouchResponse>(`/auth/streak/touch`, timezone ? { timezone } : {});
+  apiPut<LoginStreakTouchResponse>(`/auth/login-streak`, timezone ? { timezone } : {});
 
 export const requestPasswordReset = (email: string, redirectTo?: string) =>
   withMockFallback(
     "auth-forgot-password",
     () => undefined as void,
-    () => apiPost<void>(`/auth/forgot-password`, { email, redirectTo }),
+    () => apiPost<void>(`/auth/password-reset-requests`, { email, redirectTo }),
     { allowAutoFallback: false }
   );
 
@@ -979,7 +979,7 @@ export const resetPassword = (accessToken: string, newPassword: string) =>
   withMockFallback(
     "auth-reset-password",
     () => undefined as void,
-    () => apiPost<void>(`/auth/reset-password`, { accessToken, password: newPassword }),
+    () => apiPut<void>(`/auth/password`, { accessToken, password: newPassword }),
     { allowAutoFallback: false }
   );
 
@@ -987,7 +987,7 @@ export const checkDisplayNameAvailability = (displayName: string) =>
   withMockFallback(
     "auth-display-name-available",
     () => ({ available: true, normalized: displayName.trim().toLowerCase() }),
-    () => apiGet<DisplayNameAvailabilityResponse>(`/auth/username-available?displayName=${encodeURIComponent(displayName)}`),
+    () => apiGet<DisplayNameAvailabilityResponse>(`/auth/display-name-availability?displayName=${encodeURIComponent(displayName)}`),
     { allowAutoFallback: false }
   );
 
@@ -1316,18 +1316,20 @@ export const fetchAdminFlagReviewReports = (
       )
   );
 
-export const approveContent = (contentId: string) => apiPut<void>(`/admin/content/${contentId}/approve`);
+export const approveContent = (contentId: string) =>
+  apiPut<void>(`/admin/content/${contentId}/review`, { status: "approved" });
 
 export const updateAdminContent = (contentId: string, payload: Record<string, unknown>) =>
   apiPut<Content>(`/admin/content/${contentId}`, payload);
 
 export const rejectContent = (contentId: string, feedback?: string) =>
-  apiPut<void>(`/admin/content/${contentId}/reject`, { feedback });
+  apiPut<void>(`/admin/content/${contentId}/review`, { status: "rejected", feedback });
 
-export const resolveFlag = (flagId: string) => apiPut<void>(`/admin/flags/${flagId}/resolve`);
+export const resolveFlag = (flagId: string) =>
+  apiPut<void>(`/admin/flags/${flagId}/resolution`, { status: "resolved" });
 
 export const takeDownFlag = (flagId: string, feedback?: string) =>
-  apiPut<void>(`/admin/flags/${flagId}/take-down`, { feedback });
+  apiPut<void>(`/admin/flags/${flagId}/resolution`, { status: "taken_down", feedback });
 
 
 export const fetchAdminLessons = () =>
@@ -1467,7 +1469,7 @@ export const createAdminLessonDraft = (payload: Record<string, unknown> = {}) =>
         },
       } as AdminLessonDraftResponse;
     },
-    () => apiPost<AdminLessonDraftResponse>(`/admin/lessons/draft`, payload),
+    () => apiPost<AdminLessonDraftResponse>(`/admin/lesson-drafts`, payload),
     { allowAutoFallback: false }
   );
 
@@ -1493,7 +1495,7 @@ export const saveAdminLessonDraftStep = (
     } as AdminStepValidationResult),
     () =>
       apiPut<AdminStepValidationResult>(
-        `/admin/lessons/${lessonId}/draft/step/${step}`,
+        `/admin/lesson-drafts/${lessonId}/steps/${step}`,
         {
           lesson: payload.lesson ?? {},
           questions: (payload.questions ?? []).map(toAdminQuestionPayload),
@@ -1515,7 +1517,7 @@ export const publishAdminLesson = (
       lessonSnapshot: payload.lesson ?? {},
     } as AdminPublishLessonResult),
     () =>
-      apiPost<AdminPublishLessonResult>(`/admin/lessons/${lessonId}/publish`, {
+      apiPost<AdminPublishLessonResult>(`/admin/lessons/${lessonId}/publication`, {
         lesson: payload.lesson ?? {},
         questions: (payload.questions ?? []).map(toAdminQuestionPayload),
       }),
@@ -1564,4 +1566,3 @@ export const getTopFlagContent = (month: string, year: string) =>
 
 export const getAuditLogs = (month: string, year: string) =>
   apiGet<AuditLogItem[]>(`/admin/analytics/audit-logs?month=${month}&year=${year}`);
-

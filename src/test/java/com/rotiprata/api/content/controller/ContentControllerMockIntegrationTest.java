@@ -80,7 +80,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "video.mp4", "data".getBytes(), "video/mp4")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.ACCEPTED)
@@ -103,7 +103,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "image.png", "data".getBytes(), "image/png")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.ACCEPTED);
@@ -120,7 +120,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "empty.mp4", new byte[0], "video/mp4")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.BAD_REQUEST)
@@ -138,7 +138,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "upload.bin", "data".getBytes(), "application/octet-stream")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.BAD_REQUEST)
@@ -156,7 +156,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "doc.txt", "data".getBytes(), "text/plain")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.BAD_REQUEST)
@@ -181,7 +181,7 @@ class ContentControllerMockIntegrationTest {
                 {"sourceUrl":"https://example.com/video"}
                 """)
         .when()
-            .post("/api/content/media/start-link")
+            .post("/api/content/link-imports")
         .then()
             //assert
             .status(HttpStatus.ACCEPTED)
@@ -242,7 +242,7 @@ class ContentControllerMockIntegrationTest {
                 }
                 """)
         .when()
-            .post("/api/content/{contentId}/submit", contentId.toString())
+            .post("/api/content/{contentId}/submission", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.OK)
@@ -330,7 +330,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .post("/api/content/{contentId}/view", contentId.toString())
+            .post("/api/content/{contentId}/views", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -372,7 +372,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .post("/api/content/{contentId}/like", contentId.toString())
+            .post("/api/content/{contentId}/likes", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -391,7 +391,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .delete("/api/content/{contentId}/like", contentId.toString())
+            .delete("/api/content/{contentId}/likes", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -410,7 +410,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .post("/api/content/{contentId}/save", contentId.toString())
+            .post("/api/content/{contentId}/saves", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -429,7 +429,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .delete("/api/content/{contentId}/save", contentId.toString())
+            .delete("/api/content/{contentId}/saves", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -448,7 +448,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .post("/api/content/{contentId}/share", contentId.toString())
+            .post("/api/content/{contentId}/shares", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -530,7 +530,7 @@ class ContentControllerMockIntegrationTest {
                 {"answers":{"q1":"A"},"timeTakenSeconds":30}
                 """)
         .when()
-            .post("/api/content/{contentId}/quiz/submit", contentId.toString())
+            .post("/api/content/{contentId}/quiz-submissions", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.OK)
@@ -643,12 +643,51 @@ class ContentControllerMockIntegrationTest {
                 {"reason":"spam","description":"Looks misleading"}
                 """)
         .when()
-            .post("/api/content/{contentId}/flag", contentId.toString())
+            .post("/api/content/{contentId}/flags", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
 
         //verify
         verify(contentService).flagContent(any(), eq(contentId), any(ContentFlagRequest.class), anyString());
+    }
+
+    @Test
+    void legacyContentAliases_ShouldStillWork() {
+        UUID contentId = randomId();
+        when(contentDraftService.startLink(any(), anyString()))
+            .thenReturn(new ContentMediaStartResponse(contentId, "processing", "/api/content/poll"));
+        when(contentQuizService.submitContentQuiz(any(), eq(contentId), any(), anyString()))
+            .thenReturn(new ContentQuizSubmitResponse(8, 10, 80.0, true));
+
+        given()
+            .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
+            .contentType(ContentType.JSON)
+            .body("""
+                {"sourceUrl":"https://example.com/video"}
+                """)
+        .when()
+            .post("/api/content/media/start-link")
+        .then()
+            .status(HttpStatus.ACCEPTED);
+
+        given()
+            .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
+        .when()
+            .post("/api/content/{contentId}/like", contentId.toString())
+        .then()
+            .status(HttpStatus.NO_CONTENT);
+
+        given()
+            .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
+            .contentType(ContentType.JSON)
+            .body("""
+                {"answers":{"q1":"A"},"timeTakenSeconds":30}
+                """)
+        .when()
+            .post("/api/content/{contentId}/quiz/submit", contentId.toString())
+        .then()
+            .status(HttpStatus.OK)
+            .body("score", equalTo(8));
     }
 }
