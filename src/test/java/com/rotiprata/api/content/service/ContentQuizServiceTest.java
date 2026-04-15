@@ -27,6 +27,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers content quiz service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class ContentQuizServiceTest {
 
@@ -37,6 +40,9 @@ class ContentQuizServiceTest {
     @Mock
     private UserService userService;
 
+    /**
+     * Handles suppress warnings.
+     */
     // Ensures quiz retrieval requires a non-empty access token.
     @Test
     @SuppressWarnings("unchecked")
@@ -55,6 +61,9 @@ class ContentQuizServiceTest {
         verify(supabaseAdminRestClient, never()).getList(eq("content"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Ensures submit computes score and persists quiz attempt rows.
     @Test
     @SuppressWarnings("unchecked")
@@ -83,6 +92,9 @@ class ContentQuizServiceTest {
         verify(supabaseAdminRestClient).postList(eq("user_quiz_results"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Ensures admin retrieval forbids non-admin users.
     @Test
     @SuppressWarnings("unchecked")
@@ -103,6 +115,9 @@ class ContentQuizServiceTest {
         verify(supabaseAdminRestClient, never()).getList(eq("quizzes"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Ensures replace API archives old quiz and inserts new quiz with normalized questions.
     @Test
     @SuppressWarnings("unchecked")

@@ -32,6 +32,9 @@ import com.rotiprata.security.authorization.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 
+/**
+ * Implements the content service workflows and persistence coordination used by the API layer.
+ */
 @Service
 public class ContentServiceImpl implements ContentService {
     private static final Logger log = LoggerFactory.getLogger(ContentServiceImpl.class);
@@ -82,6 +85,9 @@ public class ContentServiceImpl implements ContentService {
     private final ContentCreatorEnrichmentService contentCreatorEnrichmentService;
     private final UserService userService;
 
+    /**
+     * Creates a content service impl instance with its collaborators.
+     */
     public ContentServiceImpl(
         SupabaseRestClient supabaseRestClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
@@ -96,6 +102,9 @@ public class ContentServiceImpl implements ContentService {
         this.userService = userService;
     }
 
+    /**
+     * Returns the content by id.
+     */
     @Override
     public Map<String, Object> getContentById(UUID userId, UUID contentId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -140,6 +149,9 @@ public class ContentServiceImpl implements ContentService {
         return item;
     }
 
+    /**
+     * Returns the similar content.
+     */
     @Override
     public List<Map<String, Object>> getSimilarContent(UUID userId, UUID contentId, String accessToken, Integer limit) {
         String token = requireAccessToken(accessToken);
@@ -178,6 +190,9 @@ public class ContentServiceImpl implements ContentService {
         return hydrateContentItems(selectedRows, userId, token);
     }
 
+    /**
+     * Returns the profile content collection.
+     */
     @Override
     public List<Map<String, Object>> getProfileContentCollection(UUID userId, String accessToken, String collection) {
         String token = requireAccessToken(accessToken);
@@ -196,6 +211,9 @@ public class ContentServiceImpl implements ContentService {
         };
     }
 
+    /**
+     * Fetches the tags for content.
+     */
     private List<String> fetchTagsForContent(UUID contentId) {
         if (contentId == null) {
             return List.of();
@@ -221,6 +239,9 @@ public class ContentServiceImpl implements ContentService {
         return tags;
     }
 
+    /**
+     * Fetches the shared tag counts.
+     */
     private Map<String, Integer> fetchSharedTagCounts(UUID currentContentId, List<String> tags) {
         Set<String> currentTagSet = tags.stream()
             .map(this::normalizeNullableText)
@@ -257,6 +278,9 @@ public class ContentServiceImpl implements ContentService {
         return counts;
     }
 
+    /**
+     * Fetches the content rows by ids.
+     */
     private List<Map<String, Object>> fetchContentRowsByIds(Set<String> ids, String accessToken) {
         if (ids == null || ids.isEmpty()) {
             return List.of();
@@ -274,6 +298,9 @@ public class ContentServiceImpl implements ContentService {
         return fetchPlayableVideoRowsWithFallback(params, accessToken);
     }
 
+    /**
+     * Returns the posted profile content.
+     */
     private List<Map<String, Object>> getPostedProfileContent(UUID userId, String accessToken) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "content",
@@ -287,6 +314,9 @@ public class ContentServiceImpl implements ContentService {
         return hydrateContentItems(rows, userId, accessToken);
     }
 
+    /**
+     * Returns the interaction video collection.
+     */
     private List<Map<String, Object>> getInteractionVideoCollection(UUID userId, String accessToken, String table) {
         List<Map<String, Object>> interactionRows = supabaseAdminRestClient.getList(
             table,
@@ -325,6 +355,9 @@ public class ContentServiceImpl implements ContentService {
         return hydrated;
     }
 
+    /**
+     * Fetches the playable video rows with fallback.
+     */
     private List<Map<String, Object>> fetchPlayableVideoRowsWithFallback(Map<String, String> params, String accessToken) {
         Map<String, String> requestParams = new LinkedHashMap<>(params);
         requestParams.putIfAbsent("media_status", "eq.ready");
@@ -350,6 +383,9 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
+    /**
+     * Hydrates the content items.
+     */
     private List<Map<String, Object>> hydrateContentItems(List<Map<String, Object>> items, UUID userId, String accessToken) {
         if (items == null || items.isEmpty()) {
             return List.of();
@@ -362,6 +398,9 @@ public class ContentServiceImpl implements ContentService {
         return enriched;
     }
 
+    /**
+     * Attaches the tags to items.
+     */
     private void attachTagsToItems(List<Map<String, Object>> items) {
         if (items == null || items.isEmpty()) {
             return;
@@ -403,6 +442,9 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
+    /**
+     * Builds the similar content comparator.
+     */
     private Comparator<Map<String, Object>> buildSimilarContentComparator(Map<String, Integer> sharedTagCounts) {
         return (left, right) -> {
             String leftId = toStringOrNull(left.get("id"));
@@ -434,6 +476,9 @@ public class ContentServiceImpl implements ContentService {
         };
     }
 
+    /**
+     * Normalizes the similar limit.
+     */
     private int normalizeSimilarLimit(Integer limit) {
         if (limit == null || limit < 1) {
             return DEFAULT_SIMILAR_LIMIT;
@@ -441,6 +486,9 @@ public class ContentServiceImpl implements ContentService {
         return Math.min(MAX_SIMILAR_LIMIT, limit);
     }
 
+    /**
+     * Returns the filtered content.
+     */
     @Override
     public List<ContentSearchDTO> getFilteredContent(String query, String filter, String accessToken) {
         if (query == null || query.isBlank()) {
@@ -485,6 +533,9 @@ public class ContentServiceImpl implements ContentService {
         return new ArrayList<>(deduped.values());
     }
 
+    /**
+     * Tracks the view.
+     */
     @Override
     public void trackView(UUID userId, UUID contentId) {
         if (userId == null) {
@@ -516,6 +567,9 @@ public class ContentServiceImpl implements ContentService {
         );
     }
 
+    /**
+     * Records the playback event.
+     */
     @Override
     public void recordPlaybackEvent(UUID userId, UUID contentId, ContentPlaybackEventRequest request) {
         if (userId == null) {
@@ -543,6 +597,9 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
+    /**
+     * Likes the content.
+     */
     @Override
     public void likeContent(UUID userId, UUID contentId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -568,6 +625,9 @@ public class ContentServiceImpl implements ContentService {
         refreshEngagementCounts(contentId);
     }
 
+    /**
+     * Removes the like from the content.
+     */
     @Override
     public void unlikeContent(UUID userId, UUID contentId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -586,6 +646,9 @@ public class ContentServiceImpl implements ContentService {
         refreshEngagementCounts(contentId);
     }
 
+    /**
+     * Saves the content.
+     */
     @Override
     public void saveContent(UUID userId, UUID contentId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -611,6 +674,9 @@ public class ContentServiceImpl implements ContentService {
         refreshEngagementCounts(contentId);
     }
 
+    /**
+     * Removes the saved marker from the content.
+     */
     @Override
     public void unsaveContent(UUID userId, UUID contentId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -629,6 +695,9 @@ public class ContentServiceImpl implements ContentService {
         refreshEngagementCounts(contentId);
     }
 
+    /**
+     * Records a share for the content.
+     */
     @Override
     public void shareContent(UUID userId, UUID contentId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -649,6 +718,9 @@ public class ContentServiceImpl implements ContentService {
         refreshEngagementCounts(contentId);
     }
 
+    /**
+     * Flags the content.
+     */
     @Override
     public void flagContent(UUID userId, UUID contentId, ContentFlagRequest request, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -680,6 +752,9 @@ public class ContentServiceImpl implements ContentService {
         supabaseRestClient.postList("content_flags", insert, token, MAP_LIST);
     }
 
+    /**
+     * Lists the comments.
+     */
     @Override
     public List<ContentCommentResponse> listComments(
         UUID userId,
@@ -721,6 +796,9 @@ public class ContentServiceImpl implements ContentService {
         return comments;
     }
 
+    /**
+     * Creates the comment.
+     */
     @Override
     public ContentCommentResponse createComment(
         UUID userId,
@@ -762,6 +840,9 @@ public class ContentServiceImpl implements ContentService {
         return toCommentResponse(row, authors);
     }
 
+    /**
+     * Deletes the comment.
+     */
     @Override
     public void deleteComment(UUID userId, UUID contentId, UUID commentId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -810,6 +891,9 @@ public class ContentServiceImpl implements ContentService {
         refreshEngagementCounts(contentId);
     }
 
+    /**
+     * Refreshes the engagement counts.
+     */
     private void refreshEngagementCounts(UUID contentId) {
         int likes = countByContent("content_likes", contentId, null);
         int saves = countByContent("content_saves", contentId, null);
@@ -832,6 +916,9 @@ public class ContentServiceImpl implements ContentService {
         );
     }
 
+    /**
+     * Counts the by content.
+     */
     private int countByContent(String table, UUID contentId, String optionalCondition) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("select", "id");
@@ -848,6 +935,9 @@ public class ContentServiceImpl implements ContentService {
         return rows.size();
     }
 
+    /**
+     * Converts the value into comment response.
+     */
     private ContentCommentResponse toCommentResponse(Map<String, Object> row, Map<UUID, String> authors) {
         UUID userId = parseUuid(row.get("user_id"));
         String author = authors.getOrDefault(userId, "anonymous");
@@ -863,6 +953,9 @@ public class ContentServiceImpl implements ContentService {
         );
     }
 
+    /**
+     * Fetches the display names.
+     */
     private Map<UUID, String> fetchDisplayNames(Set<UUID> userIds) {
         if (userIds.isEmpty()) {
             return Map.of();
@@ -894,6 +987,9 @@ public class ContentServiceImpl implements ContentService {
         return authors;
     }
 
+    /**
+     * Handles exists by content and user.
+     */
     private boolean existsByContentAndUser(String table, UUID contentId, UUID userId, String token) {
         List<Map<String, Object>> rows = supabaseRestClient.getList(
             table,
@@ -909,6 +1005,9 @@ public class ContentServiceImpl implements ContentService {
         return !rows.isEmpty();
     }
 
+    /**
+     * Handles exists parent comment.
+     */
     private boolean existsParentComment(UUID contentId, UUID parentId, String token) {
         List<Map<String, Object>> rows = supabaseRestClient.getList(
             "content_comments",
@@ -925,6 +1024,9 @@ public class ContentServiceImpl implements ContentService {
         return !rows.isEmpty();
     }
 
+    /**
+     * Ensures the user and content.
+     */
     private void ensureUserAndContent(UUID userId, UUID contentId) {
         if (userId == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user");
@@ -932,6 +1034,9 @@ public class ContentServiceImpl implements ContentService {
         ensureContentExists(contentId);
     }
 
+    /**
+     * Ensures the content exists.
+     */
     private void ensureContentExists(UUID contentId) {
         if (contentId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content id is required");
@@ -952,6 +1057,9 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
+    /**
+     * Fetches the content ids by tag.
+     */
     private List<String> fetchContentIdsByTag(String query, String accessToken) {
         String path = "/content_tags";
         String filterQuery = String.format("select=content_id&tag=ilike.*%s*&limit=20", query);
@@ -971,6 +1079,9 @@ public class ContentServiceImpl implements ContentService {
         return new ArrayList<>(ids);
     }
 
+    /**
+     * Fetches the content by ids.
+     */
     private List<ContentSearchDTO> fetchContentByIds(List<String> ids, String accessToken) {
         if (ids.isEmpty()) {
             return List.of();
@@ -991,6 +1102,9 @@ public class ContentServiceImpl implements ContentService {
         );
     }
 
+    /**
+     * Returns the snippet.
+     */
     private ContentSearchDTO withSnippet(ContentSearchDTO c) {
         String desc = c.description();
         String snippet = (desc != null && desc.length() > 100)
@@ -1005,6 +1119,9 @@ public class ContentServiceImpl implements ContentService {
         );
     }
 
+    /**
+     * Checks whether unique violation.
+     */
     private boolean isUniqueViolation(ResponseStatusException ex) {
         StringBuilder normalizedBuilder = new StringBuilder();
         if (ex.getReason() != null) {
@@ -1023,6 +1140,9 @@ public class ContentServiceImpl implements ContentService {
             || normalized.contains("on conflict");
     }
 
+    /**
+     * Parses the uuid.
+     */
     private UUID parseUuid(Object value) {
         if (value == null) {
             return null;
@@ -1034,6 +1154,9 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
+    /**
+     * Parses the offset date time.
+     */
     private OffsetDateTime parseOffsetDateTime(Object value) {
         if (value == null) {
             return null;
@@ -1048,10 +1171,16 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
+    /**
+     * Converts the value into string or null.
+     */
     private String toStringOrNull(Object value) {
         return value == null ? null : value.toString();
     }
 
+    /**
+     * Attaches the stream fields.
+     */
     private void attachStreamFields(Map<String, Object> item) {
         if (item == null) {
             return;
@@ -1069,6 +1198,9 @@ public class ContentServiceImpl implements ContentService {
         item.put("stream_type", "file");
     }
 
+    /**
+     * Normalizes the nullable text.
+     */
     private String normalizeNullableText(String value) {
         if (value == null) {
             return null;
@@ -1077,6 +1209,9 @@ public class ContentServiceImpl implements ContentService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    /**
+     * Normalizes the tags.
+     */
     private List<String> normalizeTags(Object value) {
         if (!(value instanceof List<?> tags)) {
             return List.of();
@@ -1091,10 +1226,16 @@ public class ContentServiceImpl implements ContentService {
         return normalized;
     }
 
+    /**
+     * Escapes the query.
+     */
     private String escapeQuery(String query) {
         return query.replace(",", " ").replace("(", " ").replace(")", " ");
     }
 
+    /**
+     * Handles should retry without media status.
+     */
     private boolean shouldRetryWithoutMediaStatus(ResponseStatusException ex) {
         String reason = ex.getReason();
         String message = ex.getMessage();
@@ -1111,6 +1252,9 @@ public class ContentServiceImpl implements ContentService {
         return false;
     }
 
+    /**
+     * Builds the query.
+     */
     private String buildQuery(Map<String, String> params) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance();
         params.forEach(builder::queryParam);
@@ -1118,6 +1262,9 @@ public class ContentServiceImpl implements ContentService {
         return uri.startsWith("?") ? uri.substring(1) : uri;
     }
 
+    /**
+     * Converts the value into int.
+     */
     private int toInt(Object value) {
         if (value == null) {
             return 0;
@@ -1132,6 +1279,9 @@ public class ContentServiceImpl implements ContentService {
         }
     }
 
+    /**
+     * Requires the access token.
+     */
     private String requireAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
@@ -1139,6 +1289,9 @@ public class ContentServiceImpl implements ContentService {
         return accessToken;
     }
 
+    /**
+     * Returns the flagged content by month and year.
+     */
     @Override
     public List<Map<String, Object>> getFlaggedContentByMonthAndYear
     (

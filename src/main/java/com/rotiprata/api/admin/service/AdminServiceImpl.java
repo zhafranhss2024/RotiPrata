@@ -44,6 +44,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+/**
+ * Implements the admin service workflows and persistence coordination used by the API layer.
+ */
 @Service
 public class AdminServiceImpl implements AdminService {
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
@@ -71,6 +74,9 @@ public class AdminServiceImpl implements AdminService {
     private final UserService userService;
     private final AdminLoggingService adminLoggingService;
 
+    /**
+     * Creates a admin service impl instance with its collaborators.
+     */
     @Autowired
     public AdminServiceImpl(
         SupabaseAdminClient supabaseAdminClient,
@@ -91,6 +97,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Creates a admin service impl instance with its collaborators.
+     */
     public AdminServiceImpl(
         SupabaseAdminClient supabaseAdminClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
@@ -109,6 +118,9 @@ public class AdminServiceImpl implements AdminService {
         this.adminLoggingService = adminLoggingService;
     }
 
+    /**
+     * Returns the moderation queue.
+     */
     @Override
     public List<Map<String, Object>> getModerationQueue(UUID adminUserId, String accessToken) {
         requireAdmin(adminUserId, accessToken);
@@ -124,6 +136,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Handles approve content.
+     */
     @Override
     public void approveContent(UUID adminUserId, UUID contentId, String accessToken) {
         requireAdmin(adminUserId, accessToken);
@@ -140,6 +155,9 @@ public class AdminServiceImpl implements AdminService {
         adminLoggingService.logAdminAction(adminUserId, AdminAction.APPROVE_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, "Approved content");
     }
 
+    /**
+     * Handles reject content.
+     */
     @Override
     public void rejectContent(UUID adminUserId, UUID contentId, String feedback, String accessToken) {
         String sanitized = sanitizeText(feedback, MAX_LONG_TEXT);
@@ -160,6 +178,9 @@ public class AdminServiceImpl implements AdminService {
         adminLoggingService.logAdminAction(adminUserId, AdminAction.REJECT_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, "Rejected content");
     }
 
+    /**
+     * Updates the content metadata.
+     */
     @Override
     public Content updateContentMetadata(
         UUID adminUserId,
@@ -196,6 +217,9 @@ public class AdminServiceImpl implements AdminService {
         return updated.get(0);
     }
 
+    /**
+     * Returns the open flags.
+     */
     @Override
     public List<Map<String, Object>> getOpenFlags(UUID adminUserId, String accessToken) {
         requireAdmin(adminUserId, accessToken);
@@ -213,6 +237,9 @@ public class AdminServiceImpl implements AdminService {
         return groupedFlags;
     }
 
+    /**
+     * Resolves the flag.
+     */
     @Override
     public void resolveFlag(UUID adminUserId, UUID flagId, String accessToken) {
         requireAdmin(adminUserId, accessToken);
@@ -226,6 +253,9 @@ public class AdminServiceImpl implements AdminService {
         adminLoggingService.logAdminAction(adminUserId, AdminAction.RESOLVE_FLAG, flagId, AdminLoggingService.TargetType.FLAG, "Resolved pending flag");
     }
 
+    /**
+     * Handles take down flag.
+     */
     @Override
     public void takeDownFlag(UUID adminUserId, UUID flagId, String feedback, String accessToken) {
         String sanitized = sanitizeText(feedback, MAX_LONG_TEXT);
@@ -254,6 +284,9 @@ public class AdminServiceImpl implements AdminService {
         adminLoggingService.logAdminAction(adminUserId, AdminAction.TAKE_DOWN_CONTENT, contentId, AdminLoggingService.TargetType.CONTENT, "Took down flagged content");
     }
 
+    /**
+     * Returns the flag reports.
+     */
     @Override
     public Map<String, Object> getFlagReports(
         UUID adminUserId,
@@ -296,6 +329,9 @@ public class AdminServiceImpl implements AdminService {
         return response;
     }
 
+    /**
+     * Returns the flag review by content.
+     */
     @Override
     public Map<String, Object> getFlagReviewByContent(
         UUID adminUserId,
@@ -349,6 +385,9 @@ public class AdminServiceImpl implements AdminService {
         return review;
     }
 
+    /**
+     * Returns the flag reports by content.
+     */
     @Override
     public Map<String, Object> getFlagReportsByContent(
         UUID adminUserId,
@@ -392,6 +431,9 @@ public class AdminServiceImpl implements AdminService {
         return response;
     }
 
+    /**
+     * Returns the stats.
+     */
     @Override
     public AdminStatsResponse getStats(UUID adminUserId, String accessToken) {
         requireAdmin(adminUserId, accessToken);
@@ -431,6 +473,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Returns the users.
+     */
     @Override
     public List<AdminUserSummaryResponse> getUsers(UUID adminUserId, String searchQuery, String accessToken) {
         requireAdmin(adminUserId, accessToken);
@@ -456,6 +501,9 @@ public class AdminServiceImpl implements AdminService {
             .toList();
     }
 
+    /**
+     * Returns the user detail.
+     */
     @Override
     public AdminUserDetailResponse getUserDetail(UUID adminUserId, UUID targetUserId, String accessToken) {
         String token = requireAdmin(adminUserId, accessToken);
@@ -512,6 +560,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Updates the user role.
+     */
     @Override
     public AdminUserSummaryResponse updateUserRole(
         UUID adminUserId,
@@ -554,6 +605,9 @@ public class AdminServiceImpl implements AdminService {
         return loadUserSummary(targetUserId);
     }
 
+    /**
+     * Updates the user status.
+     */
     @Override
     public AdminUserSummaryResponse updateUserStatus(
         UUID adminUserId,
@@ -576,6 +630,9 @@ public class AdminServiceImpl implements AdminService {
         return loadUserSummary(targetUserId);
     }
 
+    /**
+     * Handles reset user lesson progress.
+     */
     @Override
     public void resetUserLessonProgress(
         UUID adminUserId,
@@ -704,12 +761,18 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Handles count.
+     */
     // Private Helps 
 
     private int count(String table, String query) {
         return supabaseAdminRestClient.getList(table, query, MAP_LIST).size();
     }
 
+    /**
+     * Fetches the profiles for users.
+     */
     private Map<UUID, Profile> fetchProfilesForUsers(Set<UUID> userIds) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put(
@@ -729,10 +792,16 @@ public class AdminServiceImpl implements AdminService {
         return byUserId;
     }
 
+    /**
+     * Fetches the profile by user id.
+     */
     private Profile fetchProfileByUserId(UUID userId) {
         return fetchProfilesForUsers(Set.of(userId)).get(userId);
     }
 
+    /**
+     * Fetches the roles for users.
+     */
     private Map<UUID, List<AppRole>> fetchRolesForUsers(Set<UUID> userIds) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("select", "user_id,role");
@@ -751,6 +820,9 @@ public class AdminServiceImpl implements AdminService {
         return byUserId;
     }
 
+    /**
+     * Loads the user summary.
+     */
     private AdminUserSummaryResponse loadUserSummary(UUID userId) {
         AuthUserData authUser = toAuthUserData(supabaseAdminClient.getUser(userId));
         if (authUser == null) {
@@ -761,6 +833,9 @@ public class AdminServiceImpl implements AdminService {
         return buildUserSummary(authUser, profile, roles);
     }
 
+    /**
+     * Converts the value into auth user data.
+     */
     private AuthUserData toAuthUserData(JsonNode node) {
         if (node == null || node.isNull()) {
             return null;
@@ -781,6 +856,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Builds the user summary.
+     */
     private AdminUserSummaryResponse buildUserSummary(AuthUserData authUser, Profile profile, List<AppRole> roles) {
         List<AppRole> normalizedRoles = roles == null || roles.isEmpty() ? List.of(AppRole.USER) : roles;
         String fallbackName = authUser.email() != null && authUser.email().contains("@")
@@ -807,6 +885,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Handles matches user query.
+     */
     private boolean matchesUserQuery(AdminUserSummaryResponse summary, String normalizedQuery) {
         if (normalizedQuery == null || normalizedQuery.isBlank()) {
             return true;
@@ -816,15 +897,24 @@ public class AdminServiceImpl implements AdminService {
             || containsIgnoreCase(summary.userId() == null ? null : summary.userId().toString(), normalizedQuery);
     }
 
+    /**
+     * Handles contains ignore case.
+     */
     private boolean containsIgnoreCase(String value, String query) {
         return value != null && value.toLowerCase().contains(query);
     }
 
+    /**
+     * Normalizes the user query.
+     */
     private String normalizeUserQuery(String value) {
         String sanitized = sanitizeText(value, 120);
         return sanitized == null ? null : sanitized.toLowerCase();
     }
 
+    /**
+     * Normalizes the account status.
+     */
     private String normalizeAccountStatus(String value) {
         String normalized = sanitizeText(value, 40);
         if (normalized == null) {
@@ -837,10 +927,16 @@ public class AdminServiceImpl implements AdminService {
         return lowered;
     }
 
+    /**
+     * Checks whether suspended.
+     */
     private boolean isSuspended(OffsetDateTime suspendedUntil) {
         return suspendedUntil != null && suspendedUntil.isAfter(OffsetDateTime.now());
     }
 
+    /**
+     * Fetches the user comments.
+     */
     private List<AdminUserCommentResponse> fetchUserComments(UUID userId) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "content_comments",
@@ -879,6 +975,9 @@ public class AdminServiceImpl implements AdminService {
             .toList();
     }
 
+    /**
+     * Fetches the content titles.
+     */
     private Map<UUID, String> fetchContentTitles(Set<UUID> contentIds) {
         if (contentIds == null || contentIds.isEmpty()) {
             return Map.of();
@@ -901,6 +1000,9 @@ public class AdminServiceImpl implements AdminService {
         return byId;
     }
 
+    /**
+     * Fetches the user lesson progress details.
+     */
     private List<AdminUserLessonProgressResponse> fetchUserLessonProgressDetails(UUID userId) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "user_lesson_progress",
@@ -946,6 +1048,9 @@ public class AdminServiceImpl implements AdminService {
             .toList();
     }
 
+    /**
+     * Fetches the lesson titles.
+     */
     private Map<UUID, String> fetchLessonTitles(Set<UUID> lessonIds) {
         if (lessonIds == null || lessonIds.isEmpty()) {
             return Map.of();
@@ -968,6 +1073,9 @@ public class AdminServiceImpl implements AdminService {
         return byId;
     }
 
+    /**
+     * Fetches the user search history.
+     */
     private List<AdminUserSearchHistoryResponse> fetchUserSearchHistory(UUID userId) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "search_history",
@@ -988,6 +1096,9 @@ public class AdminServiceImpl implements AdminService {
             .toList();
     }
 
+    /**
+     * Fetches the user browsing history.
+     */
     private List<AdminUserBrowsingHistoryResponse> fetchUserBrowsingHistory(UUID userId) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "browsing_history",
@@ -1011,6 +1122,9 @@ public class AdminServiceImpl implements AdminService {
             .toList();
     }
 
+    /**
+     * Handles user still has badge reward.
+     */
     private boolean userStillHasBadgeReward(UUID userId, String badgeName) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "user_lesson_rewards",
@@ -1025,6 +1139,9 @@ public class AdminServiceImpl implements AdminService {
         return !rows.isEmpty();
     }
 
+    /**
+     * Handles decrement lesson completion count.
+     */
     private void decrementLessonCompletionCount(UUID lessonId) {
         List<Map<String, Object>> lessons = supabaseAdminRestClient.getList(
             "lessons",
@@ -1050,6 +1167,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Fetches the user chat history.
+     */
     private List<ChatbotMessageDTO> fetchUserChatHistory(UUID userId) {
         return supabaseAdminRestClient.getList(
             "user_chatbot_history",
@@ -1062,6 +1182,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Returns the pending flag.
+     */
     private Map<String, Object> getPendingFlag(UUID flagId) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "content_flags",
@@ -1083,6 +1206,9 @@ public class AdminServiceImpl implements AdminService {
         return flag;
     }
 
+    /**
+     * Fetches the all flag rows for content.
+     */
     private List<Map<String, Object>> fetchAllFlagRowsForContent(UUID contentId, boolean includeContent) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put(
@@ -1096,6 +1222,9 @@ public class AdminServiceImpl implements AdminService {
         return supabaseAdminRestClient.getList("content_flags", buildQuery(params), MAP_LIST);
     }
 
+    /**
+     * Handles group open flags.
+     */
     private List<Map<String, Object>> groupOpenFlags(List<Map<String, Object>> flags) {
         if (flags == null || flags.isEmpty()) {
             return List.of();
@@ -1148,6 +1277,9 @@ public class AdminServiceImpl implements AdminService {
             .toList();
     }
 
+    /**
+     * Creates the flag group.
+     */
     private Map<String, Object> createFlagGroup(Map<String, Object> flag) {
         Map<String, Object> group = new LinkedHashMap<>();
         group.put("id", flag.get("id"));
@@ -1161,6 +1293,9 @@ public class AdminServiceImpl implements AdminService {
         return group;
     }
 
+    /**
+     * Creates the flag report.
+     */
     private Map<String, Object> createFlagReport(Map<String, Object> flag, Map<String, Object> reporterProfile) {
         Map<String, Object> report = new LinkedHashMap<>();
         report.put("id", flag.get("id"));
@@ -1172,6 +1307,9 @@ public class AdminServiceImpl implements AdminService {
         return report;
     }
 
+    /**
+     * Builds the reporter payload.
+     */
     private Map<String, Object> buildReporterPayload(Object reportedBy, Map<String, Object> reporterProfile) {
         UUID userId = parseUuid(reportedBy);
         Map<String, Object> reporter = new LinkedHashMap<>();
@@ -1185,6 +1323,9 @@ public class AdminServiceImpl implements AdminService {
         return reporter;
     }
 
+    /**
+     * Fetches the flag report rows.
+     */
     private List<Map<String, Object>> fetchFlagReportRows(
         UUID contentId,
         String reporterQuery,
@@ -1210,6 +1351,9 @@ public class AdminServiceImpl implements AdminService {
         return supabaseAdminRestClient.getList("content_flags", buildQuery(params), MAP_LIST);
     }
 
+    /**
+     * Handles filter flag rows for review.
+     */
     private List<Map<String, Object>> filterFlagRowsForReview(
         List<Map<String, Object>> rows,
         FlagReviewPeriod period
@@ -1224,6 +1368,9 @@ public class AdminServiceImpl implements AdminService {
             .toList();
     }
 
+    /**
+     * Handles matches flag review period.
+     */
     private boolean matchesFlagReviewPeriod(Map<String, Object> row, FlagReviewPeriod period) {
         OffsetDateTime createdAt = parseOffsetDateTime(row.get("created_at"));
         return createdAt != null
@@ -1231,6 +1378,9 @@ public class AdminServiceImpl implements AdminService {
             && createdAt.getMonthValue() == period.month();
     }
 
+    /**
+     * Handles filter flag rows by reporter.
+     */
     private List<Map<String, Object>> filterFlagRowsByReporter(
         List<Map<String, Object>> rows,
         String normalizedReporterQuery
@@ -1250,6 +1400,9 @@ public class AdminServiceImpl implements AdminService {
             .toList();
     }
 
+    /**
+     * Finds the latest pending flag id.
+     */
     private UUID findLatestPendingFlagId(List<Map<String, Object>> rows) {
         return rows.stream()
             .filter(row -> "pending".equalsIgnoreCase(toStringOrNull(row.get("status"))))
@@ -1259,6 +1412,9 @@ public class AdminServiceImpl implements AdminService {
             .orElse(null);
     }
 
+    /**
+     * Searches the profile user ids.
+     */
     private Set<UUID> searchProfileUserIds(String reporterQuery) {
         String normalized = normalizeReporterQuery(reporterQuery);
         if (normalized == null || normalized.isBlank()) {
@@ -1289,6 +1445,9 @@ public class AdminServiceImpl implements AdminService {
         return userIds;
     }
 
+    /**
+     * Fetches the profiles by user id.
+     */
     private Map<UUID, Map<String, Object>> fetchProfilesByUserId(Set<UUID> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Map.of();
@@ -1314,6 +1473,9 @@ public class AdminServiceImpl implements AdminService {
         return byUserId;
     }
 
+    /**
+     * Extracts the reported user ids.
+     */
     private Set<UUID> extractReportedUserIds(List<Map<String, Object>> rows) {
         Set<UUID> userIds = new HashSet<>();
         for (Map<String, Object> row : rows) {
@@ -1325,10 +1487,16 @@ public class AdminServiceImpl implements AdminService {
         return userIds;
     }
 
+    /**
+     * Handles join uuids.
+     */
     private String joinUuids(Set<UUID> userIds) {
         return userIds.stream().map(UUID::toString).collect(Collectors.joining(","));
     }
 
+    /**
+     * Resolves the pending flags for content.
+     */
     private List<Map<String, Object>> resolvePendingFlagsForContent(UUID contentId, UUID adminUserId) {
         OffsetDateTime resolvedAt = OffsetDateTime.now();
         return supabaseAdminRestClient.patchList(
@@ -1346,6 +1514,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Attaches the flag content creators.
+     */
     private void attachFlagContentCreators(List<Map<String, Object>> flags) {
         if (flags == null || flags.isEmpty()) {
             return;
@@ -1369,6 +1540,9 @@ public class AdminServiceImpl implements AdminService {
         }
     }
 
+    /**
+     * Patches the content review.
+     */
     private List<Map<String, Object>> patchContentReview(
         UUID contentId,
         List<String> candidateStatuses,
@@ -1405,6 +1579,9 @@ public class AdminServiceImpl implements AdminService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No content status candidate provided");
     }
 
+    /**
+     * Requires the admin.
+     */
     private String requireAdmin(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
         List<AppRole> roles = userService.getRoles(userId, token);
@@ -1414,6 +1591,9 @@ public class AdminServiceImpl implements AdminService {
         return token;
     }
 
+    /**
+     * Requires the access token.
+     */
     private String requireAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
@@ -1421,6 +1601,9 @@ public class AdminServiceImpl implements AdminService {
         return accessToken;
     }
 
+    /**
+     * Builds the query.
+     */
     private String buildQuery(Map<String, String> params) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance();
         params.forEach(builder::queryParam);
@@ -1428,6 +1611,9 @@ public class AdminServiceImpl implements AdminService {
         return uri.startsWith("?") ? uri.substring(1) : uri;
     }
 
+    /**
+     * Replaces the tags.
+     */
     private void replaceTags(UUID contentId, List<String> tags) {
         if (tags == null || tags.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tags are required");
@@ -1454,6 +1640,9 @@ public class AdminServiceImpl implements AdminService {
         supabaseAdminRestClient.postList("content_tags", rows, TAG_LIST);
     }
 
+    /**
+     * Handles admin rest client delete tags.
+     */
     private void adminRestClientDeleteTags(UUID contentId) {
         supabaseAdminRestClient.deleteList(
             "content_tags",
@@ -1462,6 +1651,9 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
+    /**
+     * Handles sanitize required.
+     */
     private String sanitizeRequired(String value, int maxLength, String fieldName) {
         String sanitized = sanitizeText(value, maxLength);
         if (sanitized == null || sanitized.isBlank()) {
@@ -1470,6 +1662,9 @@ public class AdminServiceImpl implements AdminService {
         return sanitized;
     }
 
+    /**
+     * Handles sanitize tag.
+     */
     private String sanitizeTag(String value) {
         if (value == null) {
             return null;
@@ -1481,6 +1676,9 @@ public class AdminServiceImpl implements AdminService {
         return sanitizeText(trimmed, MAX_TAG);
     }
 
+    /**
+     * Handles sanitize text.
+     */
     private String sanitizeText(String value, int maxLength) {
         if (value == null) {
             return null;
@@ -1492,6 +1690,9 @@ public class AdminServiceImpl implements AdminService {
         return collapsed;
     }
     
+    /**
+     * Parses the uuid.
+     */
     private UUID parseUuid(Object value) {
         if (value == null) {
             return null;
@@ -1503,6 +1704,9 @@ public class AdminServiceImpl implements AdminService {
         }
     }
 
+    /**
+     * Parses the offset date time.
+     */
     private OffsetDateTime parseOffsetDateTime(Object value) {
         if (value == null) {
             return null;
@@ -1514,6 +1718,9 @@ public class AdminServiceImpl implements AdminService {
         }
     }
 
+    /**
+     * Converts the value into int.
+     */
     private int toInt(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
@@ -1528,6 +1735,9 @@ public class AdminServiceImpl implements AdminService {
         }
     }
 
+    /**
+     * Normalizes the reporter query.
+     */
     private String normalizeReporterQuery(String value) {
         String sanitized = sanitizeText(value, 80);
         if (sanitized == null) {
@@ -1537,10 +1747,16 @@ public class AdminServiceImpl implements AdminService {
         return normalized.isBlank() ? null : normalized;
     }
 
+    /**
+     * Converts the value into string or null.
+     */
     private String toStringOrNull(Object value) {
         return value == null ? null : value.toString();
     }
 
+    /**
+     * Normalizes the nullable text.
+     */
     private String normalizeNullableText(String value) {
         if (value == null) {
             return null;
@@ -1549,6 +1765,9 @@ public class AdminServiceImpl implements AdminService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    /**
+     * Parses the integer.
+     */
     private Integer parseInteger(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
@@ -1563,6 +1782,9 @@ public class AdminServiceImpl implements AdminService {
         }
     }
 
+    /**
+     * Parses the local date time.
+     */
     private LocalDateTime parseLocalDateTime(Object value) {
         if (value == null) {
             return null;
@@ -1574,6 +1796,9 @@ public class AdminServiceImpl implements AdminService {
         }
     }
 
+    /**
+     * Handles json text.
+     */
     private String jsonText(JsonNode node, String fieldName) {
         if (node == null || fieldName == null) {
             return null;
@@ -1586,6 +1811,9 @@ public class AdminServiceImpl implements AdminService {
         return text == null || text.isBlank() ? null : text;
     }
 
+    /**
+     * Normalizes the flag review period.
+     */
     private FlagReviewPeriod normalizeFlagReviewPeriod(Integer month, Integer year) {
         if (month == null && year == null) {
             return null;

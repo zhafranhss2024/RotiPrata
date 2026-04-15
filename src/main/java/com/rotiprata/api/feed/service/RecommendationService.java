@@ -27,6 +27,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+/**
+ * Implements the recommendation service workflows and persistence coordination used by the API layer.
+ */
 @Service
 public class RecommendationService {
     private static final Logger log = LoggerFactory.getLogger(RecommendationService.class);
@@ -76,6 +79,9 @@ public class RecommendationService {
     private final ContentLessonLinkService contentLessonLinkService;
     private final RecommendationScorer recommendationScorer;
 
+    /**
+     * Creates a recommendation service instance with its collaborators.
+     */
     public RecommendationService(
         SupabaseAdminRestClient supabaseAdminRestClient,
         ContentEngagementService contentEngagementService,
@@ -92,6 +98,9 @@ public class RecommendationService {
         this.recommendationScorer = recommendationScorer;
     }
 
+    /**
+     * Returns the feed.
+     */
     public FeedResponse getFeed(UUID userId, String accessToken, String cursor, Integer limit) {
         String token = requireAccessToken(accessToken);
         if (userId == null) {
@@ -114,6 +123,9 @@ public class RecommendationService {
         return new FeedResponse(hydrated, hasMore && nextCursor != null, nextCursor);
     }
 
+    /**
+     * Returns the recommendations.
+     */
     public RecommendationResponse getRecommendations(UUID userId, String accessToken, Integer limit) {
         String token = requireAccessToken(accessToken);
         if (userId == null) {
@@ -129,6 +141,9 @@ public class RecommendationService {
         return new RecommendationResponse(hydrated);
     }
 
+    /**
+     * Handles rank candidates.
+     */
     private List<ScoredRecommendation> rankCandidates(UUID userId, RecommendationSurface surface) {
         List<Map<String, Object>> candidatePool = fetchCandidatePool();
         if (candidatePool.isEmpty()) {
@@ -154,6 +169,9 @@ public class RecommendationService {
             .toList();
     }
 
+    /**
+     * Handles hydrate.
+     */
     private List<Map<String, Object>> hydrate(List<ScoredRecommendation> scored, UUID userId, String accessToken) {
         if (scored.isEmpty()) {
             return List.of();
@@ -171,6 +189,9 @@ public class RecommendationService {
         return enriched;
     }
 
+    /**
+     * Applies the cursor.
+     */
     private List<ScoredRecommendation> applyCursor(List<ScoredRecommendation> ranked, RecommendationCursor cursorKey) {
         if (cursorKey == null) {
             return ranked;
@@ -180,6 +201,9 @@ public class RecommendationService {
             .toList();
     }
 
+    /**
+     * Handles compare to cursor.
+     */
     private int compareToCursor(ScoredRecommendation item, RecommendationCursor cursorKey) {
         int scoreCompare = Double.compare(cursorKey.score(), item.score());
         if (scoreCompare != 0) {
@@ -202,6 +226,9 @@ public class RecommendationService {
         return cursorKey.contentId().compareTo(item.contentId());
     }
 
+    /**
+     * Fetches the candidate pool.
+     */
     private List<Map<String, Object>> fetchCandidatePool() {
         Map<String, String> recentParams = baseCandidateParams();
         recentParams.put("order", "created_at.desc,id.desc");
@@ -225,6 +252,9 @@ public class RecommendationService {
         return new ArrayList<>(deduped.values());
     }
 
+    /**
+     * Handles base candidate params.
+     */
     private Map<String, String> baseCandidateParams() {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("select", CONTENT_SELECT);
@@ -236,6 +266,9 @@ public class RecommendationService {
         return params;
     }
 
+    /**
+     * Fetches the content rows with media fallback.
+     */
     private List<Map<String, Object>> fetchContentRowsWithMediaFallback(Map<String, String> params) {
         try {
             return supabaseAdminRestClient.getList("content", buildQuery(params), MAP_LIST);
@@ -249,6 +282,9 @@ public class RecommendationService {
         }
     }
 
+    /**
+     * Attaches the tags.
+     */
     private void attachTags(List<Map<String, Object>> items) {
         Set<UUID> contentIds = items.stream()
             .map(item -> parseUuid(item.get("id")))
@@ -282,6 +318,9 @@ public class RecommendationService {
         }
     }
 
+    /**
+     * Handles log impressions.
+     */
     private void logImpressions(UUID userId, RecommendationSurface surface, List<ScoredRecommendation> ranked) {
         if (ranked.isEmpty()) {
             return;
@@ -323,6 +362,9 @@ public class RecommendationService {
         }
     }
 
+    /**
+     * Attaches the stream fields.
+     */
     private void attachStreamFields(Map<String, Object> item) {
         if (item == null) {
             return;
@@ -336,6 +378,9 @@ public class RecommendationService {
         item.put("stream_type", lower.contains(".m3u8") ? "hls" : "file");
     }
 
+    /**
+     * Requires the access token.
+     */
     private String requireAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
@@ -343,6 +388,9 @@ public class RecommendationService {
         return accessToken;
     }
 
+    /**
+     * Normalizes the feed limit.
+     */
     private int normalizeFeedLimit(Integer limit) {
         if (limit == null || limit < 1) {
             return DEFAULT_FEED_LIMIT;
@@ -350,6 +398,9 @@ public class RecommendationService {
         return Math.min(MAX_FEED_LIMIT, limit);
     }
 
+    /**
+     * Normalizes the recommendation limit.
+     */
     private int normalizeRecommendationLimit(Integer limit) {
         if (limit == null || limit < 1) {
             return DEFAULT_RECOMMENDATION_LIMIT;
@@ -357,11 +408,17 @@ public class RecommendationService {
         return Math.min(MAX_RECOMMENDATION_LIMIT, limit);
     }
 
+    /**
+     * Handles encode cursor.
+     */
     private String encodeCursor(ScoredRecommendation item) {
         String payload = item.score() + "|" + item.createdAt() + "|" + item.contentId();
         return Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Handles decode cursor.
+     */
     private RecommendationCursor decodeCursor(String cursor) {
         if (cursor == null || cursor.isBlank()) {
             return null;
@@ -382,6 +439,9 @@ public class RecommendationService {
         }
     }
 
+    /**
+     * Handles should retry without media status.
+     */
     private boolean shouldRetryWithoutMediaStatus(ResponseStatusException ex) {
         String reason = ex.getReason();
         if (reason == null) {
@@ -391,6 +451,9 @@ public class RecommendationService {
         return normalized.contains("media_status") || normalized.contains("pgrst204");
     }
 
+    /**
+     * Handles should ignore missing impressions table.
+     */
     private boolean shouldIgnoreMissingImpressionsTable(ResponseStatusException ex) {
         String reason = ex.getReason();
         if (reason == null) {
@@ -402,6 +465,9 @@ public class RecommendationService {
             || normalized.contains("does not exist");
     }
 
+    /**
+     * Builds the query.
+     */
     private String buildQuery(Map<String, String> params) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance();
         params.forEach(builder::queryParam);
@@ -409,6 +475,9 @@ public class RecommendationService {
         return uri.startsWith("?") ? uri.substring(1) : uri;
     }
 
+    /**
+     * Parses the uuid.
+     */
     private UUID parseUuid(Object value) {
         if (value == null) {
             return null;
@@ -420,10 +489,16 @@ public class RecommendationService {
         }
     }
 
+    /**
+     * Extracts a string value from a mixed payload field.
+     */
     private String stringValue(Object value) {
         return value == null ? null : value.toString();
     }
 
+    /**
+     * Normalizes the tag.
+     */
     private String normalizeTag(Object value) {
         String text = stringValue(value);
         if (text == null) {

@@ -20,6 +20,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers supabase storage client scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class SupabaseStorageClientTest {
 
@@ -29,6 +32,9 @@ class SupabaseStorageClientTest {
     private SupabaseProperties properties;
     private RestClient restClient;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         properties = new SupabaseProperties();
@@ -41,6 +47,9 @@ class SupabaseStorageClientTest {
         lenient().when(restClientBuilder.build()).thenReturn(restClient);
     }
 
+    /**
+     * Verifies that constructor should throw when url is missing.
+     */
     // Verifies constructor requires base Supabase URL.
     @Test
     void constructor_ShouldThrow_WhenUrlIsMissing() {
@@ -57,6 +66,9 @@ class SupabaseStorageClientTest {
         //verify
     }
 
+    /**
+     * Verifies that constructor should throw when service role key missing.
+     */
     // Verifies constructor requires service role key.
     @Test
     void constructor_ShouldThrow_WhenServiceRoleKeyMissing() {
@@ -73,6 +85,9 @@ class SupabaseStorageClientTest {
         //verify
     }
 
+    /**
+     * Verifies that upload object should upload bytes when cache control not provided.
+     */
     // Verifies uploadObject without cache-control delegates to overloaded method.
     @Test
     void uploadObject_ShouldUploadBytes_WhenCacheControlNotProvided() {
@@ -102,6 +117,9 @@ class SupabaseStorageClientTest {
         verify(responseSpec).toBodilessEntity();
     }
 
+    /**
+     * Verifies that upload object should set cache control when cache control provided.
+     */
     // Verifies uploadObject sends cache-control header when specified.
     @Test
     void uploadObject_ShouldSetCacheControl_WhenCacheControlProvided() {

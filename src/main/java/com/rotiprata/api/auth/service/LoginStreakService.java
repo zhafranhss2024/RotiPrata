@@ -1,4 +1,4 @@
-package com.rotiprata.application;
+package com.rotiprata.api.auth.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.auth.response.LoginStreakTouchResponse;
@@ -18,6 +18,9 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+/**
+ * Implements the login streak service application workflow.
+ */
 @Service
 public class LoginStreakService {
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
@@ -25,10 +28,16 @@ public class LoginStreakService {
 
     private final SupabaseRestClient supabaseRestClient;
 
+    /**
+     * Creates a login streak service instance with its collaborators.
+     */
     public LoginStreakService(SupabaseRestClient supabaseRestClient) {
         this.supabaseRestClient = supabaseRestClient;
     }
 
+    /**
+     * Converts the value into uch login streak.
+     */
     public LoginStreakTouchResponse touchLoginStreak(UUID userId, String accessToken, String requestedTimezone) {
         String token = requireAccessToken(accessToken);
         if (userId == null) {
@@ -94,6 +103,9 @@ public class LoginStreakService {
         );
     }
 
+    /**
+     * Patches the profile with timezone fallback.
+     */
     private void patchProfileWithTimezoneFallback(String profileId, Map<String, Object> patch, String token) {
         try {
             supabaseRestClient.patchList(
@@ -122,6 +134,9 @@ public class LoginStreakService {
         }
     }
 
+    /**
+     * Checks whether missing timezone column.
+     */
     private boolean isMissingTimezoneColumn(ResponseStatusException ex) {
         if (!(ex.getCause() instanceof RestClientResponseException responseException)) {
             return false;
@@ -134,6 +149,9 @@ public class LoginStreakService {
         return normalized.contains("timezone") && normalized.contains("column");
     }
 
+    /**
+     * Resolves the timezone.
+     */
     private ZoneId resolveTimezone(String requestedTimezone, String storedTimezone) {
         ZoneId requested = parseZoneId(requestedTimezone);
         if (requested != null) {
@@ -146,11 +164,17 @@ public class LoginStreakService {
         return ZoneId.of(DEFAULT_TIMEZONE);
     }
 
+    /**
+     * Normalizes the timezone.
+     */
     private String normalizeTimezone(String timezone) {
         ZoneId zoneId = parseZoneId(timezone);
         return zoneId == null ? null : zoneId.getId();
     }
 
+    /**
+     * Parses the zone id.
+     */
     private ZoneId parseZoneId(String timezone) {
         String normalized = stringValue(timezone);
         if (normalized == null) {
@@ -163,6 +187,9 @@ public class LoginStreakService {
         }
     }
 
+    /**
+     * Extracts a string value from a mixed payload field.
+     */
     private String stringValue(Object value) {
         if (value == null) {
             return null;
@@ -171,6 +198,9 @@ public class LoginStreakService {
         return trimmed.isBlank() ? null : trimmed;
     }
 
+    /**
+     * Parses the integer.
+     */
     private Integer parseInteger(Object value) {
         if (value == null) {
             return null;
@@ -185,6 +215,9 @@ public class LoginStreakService {
         }
     }
 
+    /**
+     * Parses the local date.
+     */
     private LocalDate parseLocalDate(Object value) {
         if (value == null) {
             return null;
@@ -199,6 +232,9 @@ public class LoginStreakService {
         }
     }
 
+    /**
+     * Builds the query.
+     */
     private String buildQuery(Map<String, String> params) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance();
         params.forEach(builder::queryParam);
@@ -206,6 +242,9 @@ public class LoginStreakService {
         return uri.startsWith("?") ? uri.substring(1) : uri;
     }
 
+    /**
+     * Requires the access token.
+     */
     private String requireAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw new ResponseStatusException(HttpStatusCode.valueOf(401), "Missing access token");

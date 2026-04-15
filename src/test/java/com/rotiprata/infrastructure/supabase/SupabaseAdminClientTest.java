@@ -29,6 +29,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers supabase admin client scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class SupabaseAdminClientTest {
 
@@ -38,6 +41,9 @@ class SupabaseAdminClientTest {
     private SupabaseProperties properties;
     private RestClient restClient;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         properties = new SupabaseProperties();
@@ -50,6 +56,9 @@ class SupabaseAdminClientTest {
         lenient().when(restClientBuilder.build()).thenReturn(restClient);
     }
 
+    /**
+     * Verifies that constructor should throw when service role key is missing.
+     */
     // Verifies constructor rejects missing service role key.
     @Test
     void constructor_ShouldThrow_WhenServiceRoleKeyIsMissing() {
@@ -66,6 +75,9 @@ class SupabaseAdminClientTest {
         //verify
     }
 
+    /**
+     * Verifies that email exists should return false when email is blank.
+     */
     // Verifies blank emails short-circuit to false.
     @Test
     void emailExists_ShouldReturnFalse_WhenEmailIsBlank() {
@@ -81,6 +93,9 @@ class SupabaseAdminClientTest {
         //verify
     }
 
+    /**
+     * Verifies that email exists should return true when matching email exists.
+     */
     // Verifies email matching is case-insensitive and trimmed.
     @Test
     void emailExists_ShouldReturnTrue_WhenMatchingEmailExists() {
@@ -99,6 +114,9 @@ class SupabaseAdminClientTest {
         verify(restClient.get().uri("/users?page=1&per_page=1000").retrieve()).body(String.class);
     }
 
+    /**
+     * Verifies that email exists should throw service unavailable when unauthorized from supabase.
+     */
     // Verifies 401 from Supabase is mapped to service unavailable.
     @Test
     void emailExists_ShouldThrowServiceUnavailable_WhenUnauthorizedFromSupabase() {
@@ -120,6 +138,9 @@ class SupabaseAdminClientTest {
         //verify
     }
 
+    /**
+     * Verifies that list users should aggregate pages when batch size hits per page.
+     */
     // Verifies listUsers handles paginated array responses.
     @Test
     void listUsers_ShouldAggregatePages_WhenBatchSizeHitsPerPage() {
@@ -139,6 +160,9 @@ class SupabaseAdminClientTest {
         verify(restClient.get().uri("/users?page=2&per_page=1000").retrieve()).body(String.class);
     }
 
+    /**
+     * Verifies that list users should read users field when response is object.
+     */
     // Verifies listUsers supports object wrapper with users field.
     @Test
     void listUsers_ShouldReadUsersField_WhenResponseIsObject() {
@@ -156,6 +180,9 @@ class SupabaseAdminClientTest {
         //verify
     }
 
+    /**
+     * Verifies that get user should return json node when supabase returns body.
+     */
     // Verifies getUser returns parsed json payload.
     @Test
     void getUser_ShouldReturnJsonNode_WhenSupabaseReturnsBody() {
@@ -174,6 +201,9 @@ class SupabaseAdminClientTest {
         //verify
     }
 
+    /**
+     * Verifies that update user should return empty object when response body is blank.
+     */
     // Verifies updateUser sends put and parses empty body as object node.
     @Test
     void updateUser_ShouldReturnEmptyObject_WhenResponseBodyIsBlank() {
@@ -193,6 +223,9 @@ class SupabaseAdminClientTest {
         //verify
     }
 
+    /**
+     * Verifies that list users should throw bad gateway when response cannot be parsed.
+     */
     // Verifies parse failures are wrapped as bad gateway.
     @Test
     void listUsers_ShouldThrowBadGateway_WhenResponseCannotBeParsed() {

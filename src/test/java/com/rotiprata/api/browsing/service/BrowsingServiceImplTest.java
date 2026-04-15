@@ -25,6 +25,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Covers browsing service scenarios and regression behavior for the current branch changes.
+ */
 @DisplayName("BrowsingServiceImpl tests")
 class BrowsingServiceImplTest {
 
@@ -40,6 +43,9 @@ class BrowsingServiceImplTest {
     @InjectMocks
     private BrowsingServiceImpl service;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this); // Initialize mocks before each test
@@ -68,6 +74,9 @@ class BrowsingServiceImplTest {
         verify(lessonService, times(1)).searchLessons(anyString(), anyString());
     }
 
+    /**
+     * Verifies that search should return only videos when filter is video.
+     */
     @Test
     // Should return only video results when filter is "video"
     void search_ShouldReturnOnlyVideos_WhenFilterIsVideo() {
@@ -86,6 +95,9 @@ class BrowsingServiceImplTest {
         verify(contentService, times(1)).getFilteredContent(anyString(), eq("video"), anyString());
     }
 
+    /**
+     * Verifies that search should return only lessons when filter is lesson.
+     */
     @Test
     // Should return only lesson results when filter is "lesson"
     void search_ShouldReturnOnlyLessons_WhenFilterIsLesson() {
@@ -125,6 +137,9 @@ class BrowsingServiceImplTest {
         );
     }
 
+    /**
+     * Verifies that save history should skip when query empty.
+     */
     @Test
     // Should skip saving when search query is blank
     void saveHistory_ShouldSkip_WhenQueryEmpty() {
@@ -137,6 +152,9 @@ class BrowsingServiceImplTest {
         verifyNoInteractions(supabaseRestClient);
     }
 
+    /**
+     * Verifies that save history should throw runtime when upsert fails.
+     */
     @Test
     // Should throw RuntimeException if Supabase upsert fails
     void saveHistory_ShouldThrowRuntime_WhenUpsertFails() {
@@ -175,6 +193,9 @@ class BrowsingServiceImplTest {
         );
     }
 
+    /**
+     * Verifies that fetch history should throw runtime when client fails.
+     */
     @Test
     // Should throw RuntimeException if Supabase client fails
     void fetchHistory_ShouldThrowRuntime_WhenClientFails() {
@@ -206,6 +227,9 @@ class BrowsingServiceImplTest {
         );
     }
 
+    /**
+     * Verifies that delete history by id should skip when id blank.
+     */
     @Test
     // Should skip deletion when ID is blank
     void deleteHistoryById_ShouldSkip_WhenIdBlank() {
@@ -218,6 +242,9 @@ class BrowsingServiceImplTest {
         verifyNoInteractions(supabaseRestClient);
     }
 
+    /**
+     * Verifies that delete history by id should throw runtime when delete fails.
+     */
     @Test
     // Should throw RuntimeException if Supabase delete fails
     void deleteHistoryById_ShouldThrowRuntime_WhenDeleteFails() {
@@ -249,6 +276,9 @@ class BrowsingServiceImplTest {
         assertTrue(snippet.endsWith("..."));
     }
 
+    /**
+     * Verifies that build snippet should return original when short.
+     */
     @Test
     // Should return original description if short
     void buildSnippet_ShouldReturnOriginal_WhenShort() throws Exception {
@@ -280,6 +310,9 @@ class BrowsingServiceImplTest {
         assertEquals("42", result);
     }
 
+    /**
+     * Verifies that to string value should return null when value is null.
+     */
     @Test
     // Should return null when object is null
     void toStringValue_ShouldReturnNull_WhenValueIsNull() throws Exception {

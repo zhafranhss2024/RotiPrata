@@ -10,6 +10,9 @@ import java.util.Map;
 public interface ContentCreatorEnrichmentService {
 
     /**
+     * Handles information.
+     */
+    /**
      * Enriches a list of content items with creator profiles.
      *
      * Each item that contains a "creator_id" will have an additional "creator" map

@@ -18,6 +18,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+/**
+ * Covers tag service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TagServiceImpl tests")
 class TagServiceImplTest {
@@ -27,11 +30,17 @@ class TagServiceImplTest {
 
     private TagService tagService;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         tagService = new TagService(adminRestClient);
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies that searchTags returns unique and trimmed tags.
     @Test
     @SuppressWarnings("unchecked")
@@ -66,6 +75,9 @@ class TagServiceImplTest {
         verify(adminRestClient, times(1)).getList(eq("content_tags"), anyString(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies that searchTags skips null or blank tag values.
     @Test
     @SuppressWarnings("unchecked")
@@ -95,6 +107,9 @@ class TagServiceImplTest {
         verify(adminRestClient, times(1)).getList(eq("content_tags"), anyString(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies searchTags applies query normalization and escapes characters for ilike.
     @Test
     @SuppressWarnings("unchecked")
@@ -118,6 +133,9 @@ class TagServiceImplTest {
         verify(adminRestClient, times(1)).getList(eq("content_tags"), anyString(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies searchTags returns empty list when no rows are returned.
     @Test
     @SuppressWarnings("unchecked")
@@ -137,6 +155,9 @@ class TagServiceImplTest {
         verify(adminRestClient, times(1)).getList(eq("content_tags"), anyString(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that escape for ilike should remove special characters when input contains percent or asterisk.
+     */
     // Verifies that escapeForIlike removes % and * characters.
     @Test
     void escapeForIlike_ShouldRemoveSpecialCharacters_WhenInputContainsPercentOrAsterisk() throws Exception {
@@ -152,6 +173,9 @@ class TagServiceImplTest {
         assertEquals("HelloWorld", result);
     }
 
+    /**
+     * Verifies that build query should build query string when params provided.
+     */
     // Verifies buildQuery correctly encodes parameters.
     @Test
     void buildQuery_ShouldBuildQueryString_WhenParamsProvided() throws Exception {
@@ -169,6 +193,9 @@ class TagServiceImplTest {
         assertTrue(result.contains("limit=10"));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies searchTags applies limit and order parameters correctly.
     @Test
     @SuppressWarnings("unchecked")

@@ -1,4 +1,4 @@
-package com.rotiprata.application;
+package com.rotiprata.media.service;
 
 import com.rotiprata.config.MediaProcessingProperties;
 import com.rotiprata.config.SupabaseProperties;
@@ -17,6 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Covers media processing service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class MediaProcessingServiceImplTest {
 
@@ -29,6 +32,9 @@ class MediaProcessingServiceImplTest {
     private MediaProcessingProperties properties;
     private MediaProcessingServiceImpl service;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         properties = new MediaProcessingProperties();
@@ -44,6 +50,9 @@ class MediaProcessingServiceImplTest {
         );
     }
 
+    /**
+     * Verifies that build yt dlp download command should omit ffmpeg location when using bare executable name.
+     */
     @Test
     void buildYtDlpDownloadCommand_ShouldOmitFfmpegLocation_WhenUsingBareExecutableName() {
         properties.setFfmpegPath("ffmpeg");
@@ -56,6 +65,9 @@ class MediaProcessingServiceImplTest {
         assertEquals("yt-dlp", command.get(0));
     }
 
+    /**
+     * Verifies that build yt dlp download command should include ffmpeg location when using absolute linux path.
+     */
     @Test
     void buildYtDlpDownloadCommand_ShouldIncludeFfmpegLocation_WhenUsingAbsoluteLinuxPath() {
         properties.setFfmpegPath("/usr/local/bin/ffmpeg");
@@ -69,6 +81,9 @@ class MediaProcessingServiceImplTest {
         assertEquals("/usr/local/bin", command.get(locationIndex + 1));
     }
 
+    /**
+     * Verifies that build yt dlp download command should include ffmpeg location when using windows style path.
+     */
     @Test
     void buildYtDlpDownloadCommand_ShouldIncludeFfmpegLocation_WhenUsingWindowsStylePath() {
         properties.setFfmpegPath("C:\\tools\\ffmpeg.exe");

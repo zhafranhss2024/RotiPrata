@@ -28,6 +28,9 @@ import com.rotiprata.api.user.dto.UpdateProfileRequest;
 import com.rotiprata.api.user.dto.UserBadgeResponse;
 import com.rotiprata.api.user.service.UserService;
 
+/**
+ * Exposes REST endpoints for the user controller flows.
+ */
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -39,6 +42,9 @@ public class UserController {
     private final ChatService chatService;
     private final ContentService contentService;
 
+    /**
+     * Creates a user controller instance with its collaborators.
+     */
     public UserController(
             UserService userService,
             LessonService lessonService,
@@ -55,11 +61,17 @@ public class UserController {
         this.contentService = contentService;
     }
 
+    /**
+     * Handles me.
+     */
     @GetMapping("/me")
     public Profile me(@AuthenticationPrincipal Jwt jwt) {
         return userService.getOrCreateProfileFromJwt(jwt, SecurityUtils.getAccessToken());
     }
 
+    /**
+     * Handles roles.
+     */
     @GetMapping("/me/roles")
     public List<String> roles(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = SecurityUtils.getUserId(jwt);
@@ -69,6 +81,9 @@ public class UserController {
                 .toList();
     }
 
+    /**
+     * Handles theme preference.
+     */
     @GetMapping("/me/preferences")
     public String themePreference(@AuthenticationPrincipal Jwt jwt) {
         Profile profile =
@@ -78,6 +93,9 @@ public class UserController {
         return pref == null ? "system" : pref.name().toLowerCase();
     }
 
+    /**
+     * Updates the theme preference.
+     */
     @PutMapping("/me/preferences")
     public Profile updateThemePreference(
             @AuthenticationPrincipal Jwt jwt,
@@ -95,6 +113,9 @@ public class UserController {
         );
     }
 
+    /**
+     * Updates the profile.
+     */
     @PutMapping("/me")
     public Profile updateProfile(
             @AuthenticationPrincipal Jwt jwt,
@@ -109,6 +130,9 @@ public class UserController {
         );
     }
 
+    /**
+     * Saves the browsing history.
+     */
     @PostMapping("/me/history")
     public void saveBrowsingHistory(
             @RequestBody SaveHistoryRequestDTO request,
@@ -124,6 +148,9 @@ public class UserController {
         );
     }
 
+    /**
+     * Handles browsing history.
+     */
     @GetMapping("/me/history")
     public List<GetHistoryDTO> browsingHistory(
             @AuthenticationPrincipal Jwt jwt
@@ -136,6 +163,9 @@ public class UserController {
         );
     }
 
+    /**
+     * Handles clear browsing history.
+     */
     @DeleteMapping("/me/history/{id}")
     public void clearBrowsingHistory(
             @PathVariable("id") String id,
@@ -149,6 +179,9 @@ public class UserController {
         );
     }
 
+    /**
+     * Handles user stats.
+     */
     @GetMapping("/me/stats")
     public Map<String, Integer> userStats(
             @AuthenticationPrincipal Jwt jwt
@@ -160,12 +193,18 @@ public class UserController {
         );
     }
 
+    /**
+     * Handles badges.
+     */
     @GetMapping("/me/badges")
     public List<UserBadgeResponse> badges(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = SecurityUtils.getUserId(jwt);
         return userService.getUserBadges(userId, SecurityUtils.getAccessToken());
     }
 
+    /**
+     * Handles leaderboard.
+     */
     @GetMapping("/leaderboard")
     public LeaderboardResponse leaderboard(
         @AuthenticationPrincipal Jwt jwt,
@@ -177,6 +216,9 @@ public class UserController {
         return userService.getLeaderboard(userId, page, pageSize, query, SecurityUtils.getAccessToken());
     }
 
+    /**
+     * Handles profile content.
+     */
     @GetMapping("/me/content")
     public List<Map<String, Object>> profileContent(
         @AuthenticationPrincipal Jwt jwt,
@@ -186,6 +228,9 @@ public class UserController {
         return contentService.getProfileContentCollection(userId, SecurityUtils.getAccessToken(), collection);
     }
 
+    /**
+     * Handles lesson progress.
+     */
     @GetMapping("/me/lessons/progress")
     public Map<String, Integer> lessonProgress(
             @AuthenticationPrincipal Jwt jwt
@@ -197,6 +242,9 @@ public class UserController {
         );
     }
 
+    /**
+     * Handles hearts.
+     */
     @GetMapping("/me/hearts")
     public Map<String, Object> hearts(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = SecurityUtils.getUserId(jwt);
@@ -207,6 +255,9 @@ public class UserController {
         );
     }
 
+    /**
+     * Saves the messages.
+     */
     @PostMapping("/me/chat")
     public void saveMessages(
         @AuthenticationPrincipal Jwt jwt, 
@@ -215,12 +266,18 @@ public class UserController {
         chatService.saveMessages(SecurityUtils.getAccessToken(), dto.getMessage(), dto.getRole());
     }
 
+    /**
+     * Returns the message history.
+     */
     @GetMapping("/me/chat")
     public List<ChatbotMessageDTO> getMessageHistory (@AuthenticationPrincipal Jwt jwt) {
         String userId = jwt.getSubject();
         return chatService.getMessageHistory(SecurityUtils.getAccessToken(), userId);
     }
 
+    /**
+     * Deletes the message history.
+     */
     @DeleteMapping("/me/chat")
     public void deleteMessageHistory(
         @AuthenticationPrincipal Jwt jwt

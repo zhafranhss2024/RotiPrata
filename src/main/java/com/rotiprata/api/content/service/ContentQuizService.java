@@ -25,6 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+/**
+ * Implements the content quiz service workflows and persistence coordination used by the API layer.
+ */
 @Service
 public class ContentQuizService {
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
@@ -35,9 +38,15 @@ public class ContentQuizService {
     private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final UserService userService;
     private final ObjectMapper objectMapper = new ObjectMapper()
+        /**
+         * Handles set property naming strategy.
+         */
         .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
         .findAndRegisterModules();
 
+    /**
+     * Creates a content quiz service instance with its collaborators.
+     */
     public ContentQuizService(
         SupabaseRestClient supabaseRestClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
@@ -48,6 +57,9 @@ public class ContentQuizService {
         this.userService = userService;
     }
 
+    /**
+     * Returns the content quiz.
+     */
     public ContentQuizResponse getContentQuiz(UUID userId, UUID contentId, String accessToken) {
         String token = requireAccessToken(accessToken);
         if (userId == null) {
@@ -67,6 +79,9 @@ public class ContentQuizService {
         return toQuizResponse(quiz, questions);
     }
 
+    /**
+     * Submits the content quiz.
+     */
     public ContentQuizSubmitResponse submitContentQuiz(
         UUID userId,
         UUID contentId,
@@ -129,6 +144,9 @@ public class ContentQuizService {
         return new ContentQuizSubmitResponse(earnedScore, maxScore, percentage, passed);
     }
 
+    /**
+     * Returns the admin content quiz.
+     */
     public List<ContentQuizQuestionResponse> getAdminContentQuiz(
         UUID adminUserId,
         UUID contentId,
@@ -147,6 +165,9 @@ public class ContentQuizService {
         return toQuestionResponses(questions);
     }
 
+    /**
+     * Replaces the admin content quiz.
+     */
     public List<ContentQuizQuestionResponse> replaceAdminContentQuiz(
         UUID adminUserId,
         UUID contentId,
@@ -208,6 +229,9 @@ public class ContentQuizService {
         return toQuestionResponses(inserted);
     }
 
+    /**
+     * Finds the active content quiz.
+     */
     private Map<String, Object> findActiveContentQuiz(UUID contentId, String token) {
         List<Map<String, Object>> quizzes = supabaseRestClient.getList(
             "quizzes",
@@ -225,6 +249,9 @@ public class ContentQuizService {
         return quizzes.isEmpty() ? null : quizzes.get(0);
     }
 
+    /**
+     * Ensures the approved content exists.
+     */
     private void ensureApprovedContentExists(UUID contentId) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "content",
@@ -241,6 +268,9 @@ public class ContentQuizService {
         }
     }
 
+    /**
+     * Finds the active content quiz admin.
+     */
     private Map<String, Object> findActiveContentQuizAdmin(UUID contentId) {
         List<Map<String, Object>> quizzes = supabaseAdminRestClient.getList(
             "quizzes",
@@ -257,6 +287,9 @@ public class ContentQuizService {
         return quizzes.isEmpty() ? null : quizzes.get(0);
     }
 
+    /**
+     * Archives the active content quiz.
+     */
     private void archiveActiveContentQuiz(UUID contentId) {
         Map<String, Object> quiz = findActiveContentQuizAdmin(contentId);
         if (quiz == null) {
@@ -278,6 +311,9 @@ public class ContentQuizService {
         );
     }
 
+    /**
+     * Fetches the content metadata.
+     */
     private Map<String, Object> fetchContentMetadata(UUID contentId) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "content",
@@ -291,6 +327,9 @@ public class ContentQuizService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * Fetches the quiz questions.
+     */
     private List<Map<String, Object>> fetchQuizQuestions(String quizId, String token) {
         if (quizId == null) {
             return List.of();
@@ -307,6 +346,9 @@ public class ContentQuizService {
         );
     }
 
+    /**
+     * Fetches the quiz questions admin.
+     */
     private List<Map<String, Object>> fetchQuizQuestionsAdmin(String quizId) {
         if (quizId == null) {
             return List.of();
@@ -322,6 +364,9 @@ public class ContentQuizService {
         );
     }
 
+    /**
+     * Converts the value into quiz response.
+     */
     private ContentQuizResponse toQuizResponse(Map<String, Object> quiz, List<Map<String, Object>> questions) {
         List<ContentQuizQuestionResponse> questionResponses = toQuestionResponses(questions);
         return new ContentQuizResponse(
@@ -342,6 +387,9 @@ public class ContentQuizService {
         );
     }
 
+    /**
+     * Converts the value into question responses.
+     */
     private List<ContentQuizQuestionResponse> toQuestionResponses(List<Map<String, Object>> questions) {
         List<ContentQuizQuestionResponse> responses = new ArrayList<>();
         for (Map<String, Object> question : questions) {
@@ -365,6 +413,9 @@ public class ContentQuizService {
         return responses;
     }
 
+    /**
+     * Extracts the options.
+     */
     private Map<String, Object> extractOptions(Object value) {
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> options = new LinkedHashMap<>();
@@ -392,6 +443,9 @@ public class ContentQuizService {
         return new LinkedHashMap<>();
     }
 
+    /**
+     * Handles validate question.
+     */
     private void validateQuestion(AdminContentQuizQuestionRequest question) {
         if (question == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Question is required");
@@ -410,6 +464,9 @@ public class ContentQuizService {
         }
     }
 
+    /**
+     * Normalizes the correct answer.
+     */
     private String normalizeCorrectAnswer(String value) {
         String trimmed = value == null ? "" : value.trim();
         if (trimmed.isEmpty()) {
@@ -418,6 +475,9 @@ public class ContentQuizService {
         return trimmed.toUpperCase();
     }
 
+    /**
+     * Normalizes the points.
+     */
     private Integer normalizePoints(Integer points) {
         if (points == null || points < 1) {
             return DEFAULT_POINTS;
@@ -425,6 +485,9 @@ public class ContentQuizService {
         return points;
     }
 
+    /**
+     * Normalizes the required.
+     */
     private String normalizeRequired(String value, String fieldName) {
         String normalized = normalizeOptional(value);
         if (normalized == null || normalized.isBlank()) {
@@ -433,6 +496,9 @@ public class ContentQuizService {
         return normalized;
     }
 
+    /**
+     * Normalizes the optional.
+     */
     private String normalizeOptional(String value) {
         if (value == null) {
             return null;
@@ -441,6 +507,9 @@ public class ContentQuizService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    /**
+     * Handles serialize answers.
+     */
     private String serializeAnswers(Map<String, String> answers) {
         if (answers == null) {
             return null;
@@ -452,6 +521,9 @@ public class ContentQuizService {
         }
     }
 
+    /**
+     * Requires the admin.
+     */
     private String requireAdmin(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
         if (userId == null) {
@@ -464,6 +536,9 @@ public class ContentQuizService {
         return token;
     }
 
+    /**
+     * Requires the access token.
+     */
     private String requireAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
@@ -471,6 +546,9 @@ public class ContentQuizService {
         return accessToken;
     }
 
+    /**
+     * Builds the query.
+     */
     private String buildQuery(Map<String, String> params) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance();
         params.forEach(builder::queryParam);
@@ -478,10 +556,16 @@ public class ContentQuizService {
         return uri.startsWith("?") ? uri.substring(1) : uri;
     }
 
+    /**
+     * Extracts a string value from a mixed payload field.
+     */
     private String stringValue(Object value) {
         return value == null ? null : value.toString();
     }
 
+    /**
+     * Parses the integer or null.
+     */
     private Integer parseIntegerOrNull(Object value) {
         if (value instanceof Number n) {
             return n.intValue();
@@ -493,11 +577,17 @@ public class ContentQuizService {
         }
     }
 
+    /**
+     * Parses the integer.
+     */
     private int parseInteger(Object value, int fallback) {
         Integer parsed = parseIntegerOrNull(value);
         return parsed == null ? fallback : parsed;
     }
 
+    /**
+     * Parses the boolean or null.
+     */
     private Boolean parseBooleanOrNull(Object value) {
         if (value instanceof Boolean b) {
             return b;

@@ -42,6 +42,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
+/**
+ * Covers user controller scenarios and regression behavior for the current branch changes.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 class UserControllerMockIntegrationTest {
@@ -72,12 +75,18 @@ class UserControllerMockIntegrationTest {
 
     private MockMvcRequestSpecification auth;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
         auth = given().auth().with(jwt().jwt(j -> j.subject(USER_ID.toString()).tokenValue(TOKEN)));
     }
 
+    /**
+     * Verifies that me should return profile when jwt provided.
+     */
     /** Verifies the current user's profile is returned. */
     @Test
     void me_ShouldReturnProfile_WhenJwtProvided() {
@@ -96,6 +105,9 @@ class UserControllerMockIntegrationTest {
         verify(userService).getOrCreateProfileFromJwt(any(), eq(TOKEN));
     }
 
+    /**
+     * Verifies that roles should return lowercase roles when roles exist.
+     */
     /** Verifies roles are normalized to lowercase strings. */
     @Test
     void roles_ShouldReturnLowercaseRoles_WhenRolesExist() {
@@ -112,6 +124,9 @@ class UserControllerMockIntegrationTest {
         verify(userService).getRoles(eq(USER_ID), eq(TOKEN));
     }
 
+    /**
+     * Verifies that theme preference should return theme when profile has theme preference.
+     */
     /** Verifies a stored theme preference is returned in lowercase. */
     @Test
     void themePreference_ShouldReturnTheme_WhenProfileHasThemePreference() {
@@ -130,6 +145,9 @@ class UserControllerMockIntegrationTest {
         verify(userService).getOrCreateProfileFromJwt(any(), eq(TOKEN));
     }
 
+    /**
+     * Verifies that theme preference should return system when profile theme preference is null.
+     */
     /** Verifies system theme is returned when profile preference is null. */
     @Test
     void themePreference_ShouldReturnSystem_WhenProfileThemePreferenceIsNull() {
@@ -148,6 +166,9 @@ class UserControllerMockIntegrationTest {
         verify(userService).getOrCreateProfileFromJwt(any(), eq(TOKEN));
     }
 
+    /**
+     * Verifies that update theme preference should return updated profile when request is valid.
+     */
     /** Verifies theme updates are delegated and updated profile is returned. */
     @Test
     void updateThemePreference_ShouldReturnUpdatedProfile_WhenRequestIsValid() {
@@ -166,6 +187,9 @@ class UserControllerMockIntegrationTest {
         verify(userService).updateThemePreference(eq(USER_ID), eq(ThemePreference.LIGHT), eq(TOKEN));
     }
 
+    /**
+     * Verifies that update profile should return updated profile when request is valid.
+     */
     /** Verifies profile updates are delegated and returned. */
     @Test
     void updateProfile_ShouldReturnUpdatedProfile_WhenRequestIsValid() {
@@ -185,6 +209,9 @@ class UserControllerMockIntegrationTest {
         verify(userService).updateProfile(eq(USER_ID), eq("new_name"), eq(true), eq(TOKEN));
     }
 
+    /**
+     * Verifies that save browsing history should return ok when request is valid.
+     */
     /** Verifies browsing history save delegates query and timestamp correctly. */
     @Test
     void saveBrowsingHistory_ShouldReturnOk_WhenRequestIsValid() {
@@ -201,6 +228,9 @@ class UserControllerMockIntegrationTest {
         verify(browsingService).saveHistory(eq(USER_ID.toString()), eq("grammar"), eq(Instant.parse("2026-04-08T00:00:00Z")), eq(TOKEN));
     }
 
+    /**
+     * Verifies that browsing history should return history when history exists.
+     */
     /** Verifies browsing history list is returned for the user. */
     @Test
     void browsingHistory_ShouldReturnHistory_WhenHistoryExists() {
@@ -218,6 +248,9 @@ class UserControllerMockIntegrationTest {
         verify(browsingService).fetchHistory(eq(USER_ID.toString()), eq(TOKEN));
     }
 
+    /**
+     * Verifies that clear browsing history should return ok when id provided.
+     */
     /** Verifies deleting one browsing history entry delegates to service. */
     @Test
     void clearBrowsingHistory_ShouldReturnOk_WhenIdProvided() {
@@ -234,6 +267,9 @@ class UserControllerMockIntegrationTest {
         verify(browsingService).deleteHistoryById(eq(historyId), eq(USER_ID.toString()), eq(TOKEN));
     }
 
+    /**
+     * Verifies that user stats should return stats when requested.
+     */
     /** Verifies user stats map is returned for the authenticated user. */
     @Test
     void userStats_ShouldReturnStats_WhenRequested() {
@@ -250,6 +286,9 @@ class UserControllerMockIntegrationTest {
         verify(lessonService).getUserStats(eq(USER_ID), eq(TOKEN));
     }
 
+    /**
+     * Verifies that badges should return badges when requested.
+     */
     /** Verifies earned badges are returned for the authenticated user. */
     @Test
     void badges_ShouldReturnBadges_WhenRequested() {
@@ -268,6 +307,9 @@ class UserControllerMockIntegrationTest {
         verify(userService).getUserBadges(eq(USER_ID), eq(TOKEN));
     }
 
+    /**
+     * Verifies that leaderboard should return leaderboard when request is valid.
+     */
     /** Verifies leaderboard results are returned using request pagination and query. */
     @Test
     void leaderboard_ShouldReturnLeaderboard_WhenRequestIsValid() {
@@ -285,6 +327,9 @@ class UserControllerMockIntegrationTest {
         verify(userService).getLeaderboard(eq(USER_ID), eq(2), eq(10), eq("ali"), eq(TOKEN));
     }
 
+    /**
+     * Verifies that profile content should return content list when collection provided.
+     */
     /** Verifies profile content is fetched by requested collection type. */
     @Test
     void profileContent_ShouldReturnContentList_WhenCollectionProvided() {
@@ -302,6 +347,9 @@ class UserControllerMockIntegrationTest {
         verify(contentService).getProfileContentCollection(eq(USER_ID), eq(TOKEN), eq("liked"));
     }
 
+    /**
+     * Verifies that lesson progress should return progress when requested.
+     */
     /** Verifies lesson progress summary is returned. */
     @Test
     void lessonProgress_ShouldReturnProgress_WhenRequested() {
@@ -318,6 +366,9 @@ class UserControllerMockIntegrationTest {
         verify(lessonService).getUserLessonProgress(eq(USER_ID), eq(TOKEN));
     }
 
+    /**
+     * Verifies that hearts should return hearts payload when requested.
+     */
     /** Verifies hearts endpoint maps service response into expected payload keys. */
     @Test
     void hearts_ShouldReturnHeartsPayload_WhenRequested() {
@@ -335,6 +386,9 @@ class UserControllerMockIntegrationTest {
         verify(lessonQuizService).getHeartsStatus(eq(USER_ID), eq(TOKEN));
     }
 
+    /**
+     * Verifies that save messages should return ok when request is valid.
+     */
     /** Verifies chat messages are persisted from request body. */
     @Test
     void saveMessages_ShouldReturnOk_WhenRequestIsValid() {
@@ -351,6 +405,9 @@ class UserControllerMockIntegrationTest {
         verify(chatService).saveMessages(eq(TOKEN), eq("hello"), eq("user"));
     }
 
+    /**
+     * Verifies that get message history should return messages when history exists.
+     */
     /** Verifies chat history is returned for the authenticated user. */
     @Test
     void getMessageHistory_ShouldReturnMessages_WhenHistoryExists() {
@@ -368,6 +425,9 @@ class UserControllerMockIntegrationTest {
         verify(chatService).getMessageHistory(eq(TOKEN), eq(USER_ID.toString()));
     }
 
+    /**
+     * Verifies that delete message history should return ok when requested.
+     */
     /** Verifies chat history deletion delegates with the authenticated user id. */
     @Test
     void deleteMessageHistory_ShouldReturnOk_WhenRequested() {

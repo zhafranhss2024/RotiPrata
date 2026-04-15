@@ -9,6 +9,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Represents the moderation queue state used by the feature layer.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

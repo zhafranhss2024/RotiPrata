@@ -22,7 +22,7 @@ import com.rotiprata.api.lesson.dto.LessonMediaStartResponse;
 import com.rotiprata.api.lesson.dto.LessonMediaStatusResponse;
 import com.rotiprata.api.lesson.dto.LessonProgressResponse;
 import com.rotiprata.api.lesson.utils.LessonFlowConstants;
-import com.rotiprata.application.MediaProcessingService;
+import com.rotiprata.media.service.MediaProcessingService;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;
@@ -44,6 +44,9 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+/**
+ * Implements the lesson service workflows and persistence coordination used by the API layer.
+ */
 @Service
 public class LessonServiceImpl implements LessonService {
     private static final int DEFAULT_LESSON_FEED_PAGE = 1;
@@ -86,6 +89,9 @@ public class LessonServiceImpl implements LessonService {
     private final MediaProcessingService mediaProcessingService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * Creates a lesson service impl instance with its collaborators.
+     */
     public LessonServiceImpl(
         SupabaseRestClient supabaseRestClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
@@ -100,6 +106,9 @@ public class LessonServiceImpl implements LessonService {
         this.mediaProcessingService = mediaProcessingService;
     }
 
+    /**
+     * Finds the lesson content that best matches the learner question embedding.
+     */
     @Override
     public String findRelevantLesson(String accessToken, String question) {
         float[] qVector = embeddingService.generateEmbedding(question);
@@ -136,6 +145,9 @@ public class LessonServiceImpl implements LessonService {
                 .collect(Collectors.joining("\n\n"));
     }
 
+    /**
+     * Returns the lessons.
+     */
     @Override
     public List<Map<String, Object>> getLessons(String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -153,6 +165,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Returns the lesson feed.
+     */
     @Override
     public LessonFeedResponse getLessonFeed(String accessToken, LessonFeedRequest request) {
         String token = requireAccessToken(accessToken);
@@ -184,6 +199,9 @@ public class LessonServiceImpl implements LessonService {
         return new LessonFeedResponse(items, hasMore, page, pageSize);
     }
 
+    /**
+     * Returns the lesson hub.
+     */
     @Override
     public LessonHubResponse getLessonHub(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -262,6 +280,9 @@ public class LessonServiceImpl implements LessonService {
     }
 
 
+    /**
+     * Returns the admin lessons.
+     */
     @Override
     public List<Map<String, Object>> getAdminLessons(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -277,6 +298,9 @@ public class LessonServiceImpl implements LessonService {
         ));
     }
 
+    /**
+     * Returns the admin lesson by id.
+     */
     @Override
     public Map<String, Object> getAdminLessonById(UUID userId, UUID lessonId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -284,6 +308,9 @@ public class LessonServiceImpl implements LessonService {
         return getAdminLessonById(lessonId);
     }
 
+    /**
+     * Creates the lesson draft.
+     */
     @Override
     public AdminLessonDraftResponse createLessonDraft(UUID userId, Map<String, Object> payload, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -313,6 +340,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Saves the lesson step.
+     */
     @Override
     public AdminStepSaveResponse saveLessonStep(
         UUID userId,
@@ -370,6 +400,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Publishes the lesson draft after running the full wizard validation checks.
+     */
     @Override
     public AdminPublishLessonResponse publishLessonWithValidation(
         UUID userId,
@@ -431,6 +464,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Searches lessons that match the supplied query filters.
+     */
     @Override
     public List<Map<String, Object>> searchLessons(String query, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -454,6 +490,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Returns the lesson by id.
+     */
     @Override
     public Map<String, Object> getLessonById(UUID lessonId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -475,6 +514,9 @@ public class LessonServiceImpl implements LessonService {
         return enrichLessonWithContentSections(lessons.get(0));
     }
 
+    /**
+     * Returns the admin lesson by id.
+     */
     private Map<String, Object> getAdminLessonById(UUID lessonId) {
         List<Map<String, Object>> lessons = supabaseAdminRestClient.getList(
             "lessons",
@@ -487,12 +529,18 @@ public class LessonServiceImpl implements LessonService {
         return enrichLessonWithContentSections(lessons.get(0));
     }
 
+    /**
+     * Returns the lesson sections.
+     */
     @Override
     public List<Map<String, Object>> getLessonSections(UUID lessonId, String accessToken) {
         Map<String, Object> lesson = getLessonById(lessonId, accessToken);
         return buildLessonSections(lesson);
     }
 
+    /**
+     * Starts the lesson media upload.
+     */
     @Override
     public LessonMediaStartResponse startLessonMediaUpload(
         UUID userId,
@@ -526,6 +574,9 @@ public class LessonServiceImpl implements LessonService {
         return new LessonMediaStartResponse(assetId, "processing", buildLessonMediaPollUrl(lessonId, assetId));
     }
 
+    /**
+     * Starts the lesson media link.
+     */
     @Override
     public LessonMediaStartResponse startLessonMediaLink(
         UUID userId,
@@ -559,6 +610,9 @@ public class LessonServiceImpl implements LessonService {
         return new LessonMediaStartResponse(assetId, "processing", buildLessonMediaPollUrl(lessonId, assetId));
     }
 
+    /**
+     * Returns the lesson media status.
+     */
     @Override
     public LessonMediaStatusResponse getLessonMediaStatus(
         UUID userId,
@@ -579,6 +633,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Creates the lesson.
+     */
     @Override
     public Map<String, Object> createLesson(UUID userId, Map<String, Object> payload, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -658,6 +715,9 @@ public class LessonServiceImpl implements LessonService {
     }
 
 
+    /**
+     * Updates the lesson.
+     */
     @Override
     public Map<String, Object> updateLesson(UUID userId, UUID lessonId, Map<String, Object> payload, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -733,6 +793,9 @@ public class LessonServiceImpl implements LessonService {
         return enrichLessonWithContentSections(updatedLesson);
     }
 
+    /**
+     * Moves the lesson to category.
+     */
     @Override
     public AdminLessonCategoryMoveResponse moveLessonToCategory(
         UUID userId,
@@ -778,6 +841,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Deletes the lesson.
+     */
     @Override
     public void deleteLesson(UUID userId, UUID lessonId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -801,6 +867,9 @@ public class LessonServiceImpl implements LessonService {
         archiveActiveQuiz(lessonId);
     }
 
+    /**
+     * Creates the lesson quiz.
+     */
     @Override
     public Map<String, Object> createLessonQuiz(UUID userId, UUID lessonId, Map<String, Object> payload, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -815,6 +884,9 @@ public class LessonServiceImpl implements LessonService {
         return quiz;
     }
 
+    /**
+     * Returns the active lesson quiz questions.
+     */
     @Override
     public List<Map<String, Object>> getActiveLessonQuizQuestions(UUID userId, UUID lessonId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -822,6 +894,9 @@ public class LessonServiceImpl implements LessonService {
         return getActiveLessonQuizQuestionsInternal(lessonId);
     }
 
+    /**
+     * Returns the admin quiz question types.
+     */
     @Override
     public List<Map<String, Object>> getAdminQuizQuestionTypes(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -834,6 +909,9 @@ public class LessonServiceImpl implements LessonService {
         return types;
     }
 
+    /**
+     * Replaces the lesson quiz.
+     */
     @Override
     public List<Map<String, Object>> replaceLessonQuiz(
         UUID userId,
@@ -849,6 +927,9 @@ public class LessonServiceImpl implements LessonService {
         return getActiveLessonQuizQuestionsInternal(lessonId);
     }
 
+    /**
+     * Replaces the lesson quiz internal.
+     */
     private Map<String, Object> replaceLessonQuizInternal(
         UUID userId,
         UUID lessonId,
@@ -876,6 +957,9 @@ public class LessonServiceImpl implements LessonService {
         return createQuizWithQuestions(userId, lesson, questions);
     }
 
+    /**
+     * Returns the active lesson quiz questions internal.
+     */
     private List<Map<String, Object>> getActiveLessonQuizQuestionsInternal(UUID lessonId) {
         Map<String, Object> activeQuiz = findActiveLessonQuiz(lessonId);
         if (activeQuiz == null || activeQuiz.get("id") == null) {
@@ -893,6 +977,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Finds the active lesson quiz.
+     */
     private Map<String, Object> findActiveLessonQuiz(UUID lessonId) {
         List<Map<String, Object>> quizzes = supabaseAdminRestClient.getList(
             "quizzes",
@@ -912,6 +999,9 @@ public class LessonServiceImpl implements LessonService {
         return quizzes.get(0);
     }
 
+    /**
+     * Archives the active quiz.
+     */
     private void archiveActiveQuiz(UUID lessonId) {
         Map<String, Object> activeQuiz = findActiveLessonQuiz(lessonId);
         if (activeQuiz == null || activeQuiz.get("id") == null) {
@@ -920,6 +1010,9 @@ public class LessonServiceImpl implements LessonService {
         archiveQuizById(activeQuiz.get("id"));
     }
 
+    /**
+     * Archives the quiz by id.
+     */
     private void archiveQuizById(Object quizId) {
         if (quizId == null) {
             return;
@@ -936,6 +1029,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Returns the lesson progress.
+     */
     @Override
     public LessonProgressResponse getLessonProgress(UUID userId, UUID lessonId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -953,6 +1049,9 @@ public class LessonServiceImpl implements LessonService {
         return buildProgressResponse(state, sections, metadata);
     }
 
+    /**
+     * Completes the lesson section.
+     */
     @Override
     public LessonProgressResponse completeLessonSection(UUID userId, UUID lessonId, String sectionId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -962,6 +1061,9 @@ public class LessonServiceImpl implements LessonService {
         return completeLessonSectionInternal(userId, lessonId, sectionId, sections, state, token);
     }
 
+    /**
+     * Enrolls the lesson.
+     */
     @Override
     public void enrollLesson(UUID userId, UUID lessonId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -1009,6 +1111,9 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Updates the lesson progress.
+     */
     @Override
     public void updateLessonProgress(UUID userId, UUID lessonId, int progress, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -1056,6 +1161,9 @@ public class LessonServiceImpl implements LessonService {
         completeLessonSectionInternal(userId, lessonId, nextSectionId, sections, state, token);
     }
 
+    /**
+     * Saves the lesson.
+     */
     @Override
     public void saveLesson(UUID userId, UUID lessonId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -1074,6 +1182,9 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Returns the user lesson progress.
+     */
     @Override
     public Map<String, Integer> getUserLessonProgress(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -1097,6 +1208,9 @@ public class LessonServiceImpl implements LessonService {
         return progress;
     }
 
+    /**
+     * Returns the user stats.
+     */
     @Override
     public Map<String, Integer> getUserStats(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -1145,6 +1259,9 @@ public class LessonServiceImpl implements LessonService {
         return stats;
     }
 
+    /**
+     * Ensures the admin.
+     */
     private void ensureAdmin(UUID userId, String accessToken) {
         List<Map<String, Object>> roles = supabaseAdminRestClient.getList(
             "user_roles",
@@ -1162,6 +1279,9 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Builds the lesson sections.
+     */
     private List<Map<String, Object>> buildLessonSections(Map<String, Object> lesson) {
         UUID lessonId = parseUuid(lesson.get("id"));
         if (lessonId != null) {
@@ -1180,6 +1300,9 @@ public class LessonServiceImpl implements LessonService {
         return sections;
     }
 
+    /**
+     * Completes the lesson section internal.
+     */
     private LessonProgressResponse completeLessonSectionInternal(
         UUID userId,
         UUID lessonId,
@@ -1279,6 +1402,9 @@ public class LessonServiceImpl implements LessonService {
         return buildProgressResponse(updatedState, sections, metadata);
     }
 
+    /**
+     * Loads the lesson progress state.
+     */
     private LessonProgressState loadLessonProgressState(
         UUID userId,
         UUID lessonId,
@@ -1333,6 +1459,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Builds the progress response.
+     */
     private LessonProgressResponse buildProgressResponse(
         LessonProgressState state,
         List<Map<String, Object>> sections,
@@ -1372,6 +1501,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Computes the completed sections.
+     */
     private int computeCompletedSections(int progressPercentage, String currentSection, List<Map<String, Object>> sections) {
         int totalSections = sections.size();
         if (totalSections == 0) {
@@ -1387,6 +1519,9 @@ public class LessonServiceImpl implements LessonService {
         return Math.max(0, Math.min(totalSections, Math.max(byProgress, byCurrent)));
     }
 
+    /**
+     * Converts the value into progress percentage.
+     */
     private int toProgressPercentage(int completedSections, int totalSections) {
         if (totalSections <= 0 || completedSections <= 0) {
             return 0;
@@ -1397,6 +1532,9 @@ public class LessonServiceImpl implements LessonService {
         return (int) Math.round((completedSections * 100.0) / totalSections);
     }
 
+    /**
+     * Handles section index of.
+     */
     private int sectionIndexOf(List<Map<String, Object>> sections, String sectionId) {
         if (sectionId == null || sectionId.isBlank()) {
             return -1;
@@ -1410,6 +1548,9 @@ public class LessonServiceImpl implements LessonService {
         return -1;
     }
 
+    /**
+     * Handles section id at.
+     */
     private String sectionIdAt(List<Map<String, Object>> sections, int index) {
         if (index < 0 || index >= sections.size()) {
             return null;
@@ -1417,6 +1558,9 @@ public class LessonServiceImpl implements LessonService {
         return stringValue(sections.get(index).get("id"));
     }
 
+    /**
+     * Normalizes the stored status.
+     */
     private String normalizeStoredStatus(String status) {
         if (status == null) {
             return "not_started";
@@ -1425,6 +1569,9 @@ public class LessonServiceImpl implements LessonService {
         return Set.of("not_started", "in_progress", "completed").contains(normalized) ? normalized : "not_started";
     }
 
+    /**
+     * Resolves the progress status.
+     */
     private String resolveProgressStatus(String status, int progress, int completed, int totalSections, boolean quizPassed) {
         if (quizPassed) {
             return "completed";
@@ -1438,6 +1585,9 @@ public class LessonServiceImpl implements LessonService {
         return "not_started";
     }
 
+    /**
+     * Patches the progress row by id.
+     */
     private void patchProgressRowById(String progressRowId, Map<String, Object> patch, String token) {
         if (progressRowId == null || patch == null || patch.isEmpty()) {
             return;
@@ -1451,6 +1601,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Checks whether unique violation.
+     */
     private boolean isUniqueViolation(ResponseStatusException ex) {
         StringBuilder normalizedBuilder = new StringBuilder();
         if (ex.getReason() != null) {
@@ -1469,6 +1622,9 @@ public class LessonServiceImpl implements LessonService {
             || normalized.contains("on conflict");
     }
 
+    /**
+     * Parses the offset date time.
+     */
     private OffsetDateTime parseOffsetDateTime(Object value) {
         if (value == null) {
             return null;
@@ -1483,6 +1639,9 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Handles enrich lesson with content sections.
+     */
     private Map<String, Object> enrichLessonWithContentSections(Map<String, Object> lesson) {
         if (lesson == null) {
             return null;
@@ -1499,6 +1658,9 @@ public class LessonServiceImpl implements LessonService {
         return enriched;
     }
 
+    /**
+     * Fetches the structured lesson sections.
+     */
     private List<Map<String, Object>> fetchStructuredLessonSections(UUID lessonId) {
         if (lessonId == null) {
             return List.of();
@@ -1569,6 +1731,9 @@ public class LessonServiceImpl implements LessonService {
         return sections;
     }
 
+    /**
+     * Maps the lesson section block.
+     */
     private Map<String, Object> mapLessonSectionBlock(Map<String, Object> row) {
         Map<String, Object> block = new LinkedHashMap<>();
         block.put("id", stringValue(row.get("id")));
@@ -1587,6 +1752,9 @@ public class LessonServiceImpl implements LessonService {
         return block;
     }
 
+    /**
+     * Builds the legacy content sections.
+     */
     private List<Map<String, Object>> buildLegacyContentSections(Map<String, Object> lesson) {
         if (lesson == null) {
             return List.of();
@@ -1601,6 +1769,9 @@ public class LessonServiceImpl implements LessonService {
         return sections;
     }
 
+    /**
+     * Adds the content section from legacy.
+     */
     private void addContentSectionFromLegacy(
         List<Map<String, Object>> sections,
         String sectionKey,
@@ -1654,6 +1825,9 @@ public class LessonServiceImpl implements LessonService {
         sections.add(section);
     }
 
+    /**
+     * Normalizes the lesson payload.
+     */
     private Map<String, Object> normalizeLessonPayload(Map<String, Object> payload) {
         Map<String, Object> normalized = payload == null ? new LinkedHashMap<>() : new LinkedHashMap<>(payload);
         Object contentSectionsRaw = normalized.get("content_sections");
@@ -1665,11 +1839,17 @@ public class LessonServiceImpl implements LessonService {
         return normalized;
     }
 
+    /**
+     * Checks whether embedding relevant changes.
+     */
     private boolean hasEmbeddingRelevantChanges(Map<String, Object> normalizedPayload, Map<String, Object> patch) {
         return patch.keySet().stream().anyMatch(LESSON_EMBEDDING_FIELDS::contains)
             || normalizedPayload.containsKey("content_sections");
     }
 
+    /**
+     * Patches the lesson embedding.
+     */
     private void patchLessonEmbedding(UUID lessonId, Map<String, Object> lesson) {
         if (lessonId == null || lesson == null) {
             return;
@@ -1702,6 +1882,9 @@ public class LessonServiceImpl implements LessonService {
         lesson.put("embedding", vectorString);
     }
 
+    /**
+     * Handles persist content sections if provided.
+     */
     private void persistContentSectionsIfProvided(UUID lessonId, Object contentSectionsRaw) {
         if (lessonId == null || contentSectionsRaw == null) {
             return;
@@ -1772,6 +1955,9 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Normalizes the content sections payload.
+     */
     private List<Map<String, Object>> normalizeContentSectionsPayload(Object raw) {
         if (!(raw instanceof List<?> list)) {
             return List.of();
@@ -1800,6 +1986,9 @@ public class LessonServiceImpl implements LessonService {
         return normalizedSections;
     }
 
+    /**
+     * Normalizes the content blocks.
+     */
     private List<Map<String, Object>> normalizeContentBlocks(Object raw) {
         if (!(raw instanceof List<?> list)) {
             return List.of();
@@ -1831,6 +2020,9 @@ public class LessonServiceImpl implements LessonService {
         return blocks;
     }
 
+    /**
+     * Derives the legacy fields from content sections.
+     */
     private Map<String, Object> deriveLegacyFieldsFromContentSections(List<Map<String, Object>> sections) {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("origin_content", aggregateSectionText(sections, LessonFlowConstants.SECTION_INTRO, false));
@@ -1842,6 +2034,9 @@ public class LessonServiceImpl implements LessonService {
         return fields;
     }
 
+    /**
+     * Aggregates the section text.
+     */
     private String aggregateSectionText(List<Map<String, Object>> sections, String sectionKey, boolean nullable) {
         List<String> values = aggregateSectionTextList(sections, sectionKey);
         if (values.isEmpty()) {
@@ -1850,6 +2045,9 @@ public class LessonServiceImpl implements LessonService {
         return String.join("\n", values);
     }
 
+    /**
+     * Aggregates the section text list.
+     */
     private List<String> aggregateSectionTextList(List<Map<String, Object>> sections, String sectionKey) {
         for (Map<String, Object> section : sections) {
             String candidateKey = coalesceText(section.get("sectionKey"), section.get("section_key"), section.get("id"));
@@ -1868,6 +2066,9 @@ public class LessonServiceImpl implements LessonService {
         return List.of();
     }
 
+    /**
+     * Normalizes the block type.
+     */
     private String normalizeBlockType(Object raw) {
         String value = stringValue(raw);
         if (value == null) {
@@ -1877,6 +2078,9 @@ public class LessonServiceImpl implements LessonService {
         return Set.of("text", "image", "gif", "video").contains(normalized) ? normalized : null;
     }
 
+    /**
+     * Checks whether missing structured lesson tables.
+     */
     private boolean isMissingStructuredLessonTables(ResponseStatusException ex) {
         StringBuilder message = new StringBuilder();
         if (ex.getReason() != null) {
@@ -1895,6 +2099,9 @@ public class LessonServiceImpl implements LessonService {
             || normalized.contains("does not exist");
     }
 
+    /**
+     * Requires the lesson media asset.
+     */
     private Map<String, Object> requireLessonMediaAsset(UUID lessonId, UUID assetId) {
         List<Map<String, Object>> rows = supabaseAdminRestClient.getList(
             "lesson_media_assets",
@@ -1907,10 +2114,16 @@ public class LessonServiceImpl implements LessonService {
         return rows.get(0);
     }
 
+    /**
+     * Builds the lesson media poll url.
+     */
     private String buildLessonMediaPollUrl(UUID lessonId, UUID assetId) {
         return "/api/admin/lessons/" + lessonId + "/media/" + assetId;
     }
 
+    /**
+     * Detects the lesson media kind.
+     */
     private String detectLessonMediaKind(String contentType) {
         if (contentType == null || contentType.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing content type");
@@ -1928,6 +2141,9 @@ public class LessonServiceImpl implements LessonService {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image, GIF, or video uploads are supported");
     }
 
+    /**
+     * Normalizes the lesson media kind.
+     */
     private String normalizeLessonMediaKind(String mediaKind) {
         String normalized = stringValue(mediaKind);
         if (normalized == null) {
@@ -1940,6 +2156,9 @@ public class LessonServiceImpl implements LessonService {
         return normalized;
     }
 
+    /**
+     * Coalesces the text.
+     */
     private String coalesceText(Object... values) {
         if (values == null) {
             return null;
@@ -1953,6 +2172,9 @@ public class LessonServiceImpl implements LessonService {
         return null;
     }
 
+    /**
+     * Adds the section.
+     */
     private void addSection(List<Map<String, Object>> sections, String id, String title, Object rawContent, int order) {
         String content = stringify(rawContent);
         if (content == null || content.isBlank()) {
@@ -1980,6 +2202,9 @@ public class LessonServiceImpl implements LessonService {
         sections.add(section);
     }
 
+    /**
+     * Converts an arbitrary payload value into its string representation.
+     */
     private String stringify(Object value) {
         if (value == null) {
             return null;
@@ -1990,16 +2215,25 @@ public class LessonServiceImpl implements LessonService {
         return value.toString();
     }
 
+    /**
+     * Copies the if present.
+     */
     private void copyIfPresent(Map<?, ?> source, Map<String, Object> target, String key) {
         if (source.get(key) != null) {
             target.put(key, source.get(key));
         }
     }
 
+    /**
+     * Escapes the query.
+     */
     private String escapeQuery(String query) {
         return query.replace(",", " ").replace("(", " ").replace(")", " ");
     }
 
+    /**
+     * Applies the query filter.
+     */
     private void applyQueryFilter(String query, LinkedHashMap<String, String> params) {
         if (query == null || query.isBlank()) {
             return;
@@ -2016,6 +2250,9 @@ public class LessonServiceImpl implements LessonService {
         );
     }
 
+    /**
+     * Applies the difficulty filter.
+     */
     private void applyDifficultyFilter(String difficulty, LinkedHashMap<String, String> params) {
         String normalized = difficulty == null ? "all" : difficulty.trim().toLowerCase();
         switch (normalized) {
@@ -2029,6 +2266,9 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Applies the duration filter.
+     */
     private void applyDurationFilter(String duration, LinkedHashMap<String, String> params) {
         String normalized = duration == null ? "all" : duration.trim().toLowerCase();
         switch (normalized) {
@@ -2042,6 +2282,9 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Resolves the sort.
+     */
     private String resolveSort(String sort) {
         String normalized = sort == null ? "popular" : sort.trim().toLowerCase();
         return switch (normalized) {
@@ -2053,6 +2296,9 @@ public class LessonServiceImpl implements LessonService {
         };
     }
 
+    /**
+     * Normalizes the lesson feed page.
+     */
     private int normalizeLessonFeedPage(Integer page) {
         if (page == null || page < 1) {
             return DEFAULT_LESSON_FEED_PAGE;
@@ -2060,6 +2306,9 @@ public class LessonServiceImpl implements LessonService {
         return page;
     }
 
+    /**
+     * Normalizes the lesson feed page size.
+     */
     private int normalizeLessonFeedPageSize(Integer pageSize) {
         if (pageSize == null || pageSize < 1) {
             return DEFAULT_LESSON_FEED_PAGE_SIZE;
@@ -2067,12 +2316,18 @@ public class LessonServiceImpl implements LessonService {
         return Math.min(MAX_LESSON_FEED_PAGE_SIZE, pageSize);
     }
 
+    /**
+     * Handles validate lesson title.
+     */
     private void validateLessonTitle(Map<String, Object> lesson) {
         if (stringValue(lesson.get("title")) == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lesson title is required");
         }
     }
 
+    /**
+     * Handles validate lesson fields.
+     */
     private void validateLessonFields(Map<String, Object> lesson) {
         List<String> errors = collectLessonPublishErrors(lesson);
         if (!errors.isEmpty()) {
@@ -2083,6 +2338,9 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Handles validate questions.
+     */
     private void validateQuestions(List<Map<String, Object>> questions) {
         List<String> errors = collectQuestionErrors(questions, true);
         if (!errors.isEmpty()) {
@@ -2093,12 +2351,18 @@ public class LessonServiceImpl implements LessonService {
         }
     }
 
+    /**
+     * Ensures the lesson has questions.
+     */
     private void ensureLessonHasQuestions(UUID lessonId) {
         if (!hasLessonQuestions(lessonId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lesson has no quiz questions");
         }
     }
 
+    /**
+     * Checks whether lesson questions.
+     */
     private boolean hasLessonQuestions(UUID lessonId) {
         Map<String, Object> activeQuiz = findActiveLessonQuiz(lessonId);
         if (activeQuiz == null || activeQuiz.get("id") == null) {
@@ -2113,6 +2377,9 @@ public class LessonServiceImpl implements LessonService {
         return !questions.isEmpty();
     }
 
+    /**
+     * Collects the lesson publish errors.
+     */
     private List<String> collectLessonPublishErrors(Map<String, Object> lesson) {
         List<String> errors = new ArrayList<>();
 
@@ -2161,6 +2428,9 @@ public class LessonServiceImpl implements LessonService {
         return errors;
     }
 
+    /**
+     * Collects the content section errors.
+     */
     private List<String> collectContentSectionErrors(Object contentSectionsRaw) {
         List<Map<String, Object>> sections = normalizeContentSectionsPayload(contentSectionsRaw);
         List<String> errors = new ArrayList<>();
@@ -2228,6 +2498,9 @@ public class LessonServiceImpl implements LessonService {
         return errors;
     }
 
+    /**
+     * Collects the question errors.
+     */
     private List<String> collectQuestionErrors(List<Map<String, Object>> questions, boolean requireAtLeastOne) {
         if (questions == null || questions.isEmpty()) {
             return requireAtLeastOne ? List.of("questions") : List.of();

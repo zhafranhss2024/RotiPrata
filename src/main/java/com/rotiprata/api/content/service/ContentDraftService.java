@@ -10,7 +10,7 @@ import com.rotiprata.api.content.dto.ContentMediaStartResponse;
 import com.rotiprata.api.content.dto.ContentMediaStatusResponse;
 import com.rotiprata.api.content.dto.ContentSubmitRequest;
 import com.rotiprata.api.content.dto.ContentUpdateRequest;
-import com.rotiprata.application.MediaProcessingService;
+import com.rotiprata.media.service.MediaProcessingService;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import java.time.OffsetDateTime;
 import java.util.HashMap;

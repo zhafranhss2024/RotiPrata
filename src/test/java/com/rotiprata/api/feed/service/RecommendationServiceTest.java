@@ -46,6 +46,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers recommendation service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class RecommendationServiceTest {
 
@@ -67,6 +70,9 @@ class RecommendationServiceTest {
     private RecommendationService recommendationService;
     private UUID userId;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         recommendationService = new RecommendationService(
@@ -80,6 +86,9 @@ class RecommendationServiceTest {
         userId = UUID.randomUUID();
     }
 
+    /**
+     * Verifies that get feed should return unauthorized when access token is blank.
+     */
     /** Verifies the feed endpoint rejects blank access tokens before any recommendation work starts. */
     @Test
     void getFeed_ShouldReturnUnauthorized_WhenAccessTokenIsBlank() {
@@ -98,6 +107,9 @@ class RecommendationServiceTest {
         verifyNoInteractions(supabaseAdminRestClient, recommendationSignalService, contentLessonLinkService);
     }
 
+    /**
+     * Verifies that get recommendations should return unauthorized when access token is blank.
+     */
     /** Verifies the explore endpoint rejects blank access tokens before any recommendation work starts. */
     @Test
     void getRecommendations_ShouldReturnUnauthorized_WhenAccessTokenIsBlank() {
@@ -116,6 +128,9 @@ class RecommendationServiceTest {
         verifyNoInteractions(supabaseAdminRestClient, recommendationSignalService, contentLessonLinkService);
     }
 
+    /**
+     * Verifies that get feed should return unauthorized when user is missing.
+     */
     /** Verifies the feed endpoint rejects requests when the authenticated user is missing. */
     @Test
     void getFeed_ShouldReturnUnauthorized_WhenUserIsMissing() {
@@ -134,6 +149,9 @@ class RecommendationServiceTest {
         verifyNoInteractions(supabaseAdminRestClient, recommendationSignalService, contentLessonLinkService);
     }
 
+    /**
+     * Verifies that get recommendations should return unauthorized when user is missing.
+     */
     /** Verifies the explore endpoint rejects requests when the authenticated user is missing. */
     @Test
     void getRecommendations_ShouldReturnUnauthorized_WhenUserIsMissing() {
@@ -152,6 +170,9 @@ class RecommendationServiceTest {
         verifyNoInteractions(supabaseAdminRestClient, recommendationSignalService, contentLessonLinkService);
     }
 
+    /**
+     * Verifies that get feed should reject cursor when cursor is not base64.
+     */
     /** Verifies malformed Base64 cursors are rejected before ranking runs. */
     @Test
     void getFeed_ShouldRejectCursor_WhenCursorIsNotBase64() {
@@ -170,6 +191,9 @@ class RecommendationServiceTest {
         verifyNoInteractions(supabaseAdminRestClient, recommendationSignalService, contentLessonLinkService);
     }
 
+    /**
+     * Verifies that get feed should reject cursor when decoded payload has wrong parts.
+     */
     /** Verifies decoded cursors must contain score, timestamp, and content id parts. */
     @Test
     void getFeed_ShouldRejectCursor_WhenDecodedPayloadHasWrongParts() {
@@ -190,6 +214,9 @@ class RecommendationServiceTest {
         verifyNoInteractions(supabaseAdminRestClient, recommendationSignalService, contentLessonLinkService);
     }
 
+    /**
+     * Verifies that get recommendations should return empty when candidate pool is empty.
+     */
     /** Verifies the explore endpoint short-circuits when both candidate queries return no rows. */
     @Test
     void getRecommendations_ShouldReturnEmpty_WhenCandidatePoolIsEmpty() {
@@ -211,6 +238,9 @@ class RecommendationServiceTest {
         verifyNoInteractions(recommendationSignalService, contentLessonLinkService, contentEngagementService, contentCreatorEnrichmentService);
     }
 
+    /**
+     * Verifies that get feed should use default feed limit when limit is null.
+     */
     /** Verifies the feed endpoint falls back to the default page size when no limit is provided. */
     @Test
     void getFeed_ShouldUseDefaultFeedLimit_WhenLimitIsNull() {
@@ -244,6 +274,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should use default recommendation limit when limit is negative.
+     */
     /** Verifies the explore endpoint falls back to the default size when a negative limit is provided. */
     @Test
     void getRecommendations_ShouldUseDefaultRecommendationLimit_WhenLimitIsNegative() {
@@ -274,6 +307,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get feed should cap feed limit when limit exceeds maximum.
+     */
     /** Verifies the feed endpoint caps oversized limits at the configured maximum. */
     @Test
     void getFeed_ShouldCapFeedLimit_WhenLimitExceedsMaximum() {
@@ -304,6 +340,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should cap recommendation limit when limit exceeds maximum.
+     */
     /** Verifies the explore endpoint caps oversized limits at the configured maximum. */
     @Test
     void getRecommendations_ShouldCapRecommendationLimit_WhenLimitExceedsMaximum() {
@@ -333,6 +372,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get feed should paginate without duplicating items when cursor advances.
+     */
     /** Verifies feed pagination advances with a stable cursor and does not duplicate items across pages. */
     @Test
     void getFeed_ShouldPaginateWithoutDuplicatingItems_WhenCursorAdvances() {
@@ -370,6 +412,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient, times(2)).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get feed should return no cursor when page is empty.
+     */
     /** Verifies feed pagination returns an empty page and no next cursor when all items are already behind the cursor. */
     @Test
     void getFeed_ShouldReturnNoCursor_WhenPageIsEmpty() {
@@ -399,6 +444,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient, never()).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get feed should return remaining items without has more when candidates do not exceed limit.
+     */
     /** Verifies the feed endpoint returns all remaining items without fabricating another page cursor. */
     @Test
     void getFeed_ShouldReturnRemainingItemsWithoutHasMore_WhenCandidatesDoNotExceedLimit() {
@@ -430,6 +478,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get feed should handle cursor comparison when item created at is null.
+     */
     /** Verifies the private cursor comparison returns the null-created-at branch result. */
     @Test
     void getFeed_ShouldHandleCursorComparison_WhenItemCreatedAtIsNull() {
@@ -448,6 +499,9 @@ class RecommendationServiceTest {
         assertDoesNotThrow(() -> invokeCompareToCursor(item, 12.0, cursorCreatedAt, contentId));
     }
 
+    /**
+     * Verifies that get feed should handle cursor comparison when content ids are null.
+     */
     /** Verifies items with invalid ids are treated as cursor-equal and excluded from later pages. */
     @Test
     void getFeed_ShouldHandleCursorComparison_WhenContentIdsAreNull() {
@@ -484,6 +538,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient, times(1)).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get feed should handle cursor comparison when cursor created at is null.
+     */
     /** Verifies the private cursor comparison branch treats null cursor timestamps as older than concrete items. */
     @Test
     void getFeed_ShouldHandleCursorComparison_WhenCursorCreatedAtIsNull() {
@@ -502,6 +559,9 @@ class RecommendationServiceTest {
         assertDoesNotThrow(() -> invokeCompareToCursor(item, 12.0, null, contentId));
     }
 
+    /**
+     * Verifies that get feed should compare created at when cursor timestamp differs from item timestamp.
+     */
     /** Verifies differing timestamps return the created-at comparison branch from the cursor comparator. */
     @Test
     void getFeed_ShouldCompareCreatedAt_WhenCursorTimestampDiffersFromItemTimestamp() {
@@ -521,6 +581,9 @@ class RecommendationServiceTest {
         assertDoesNotThrow(() -> invokeCompareToCursor(item, 12.0, cursorCreatedAt, contentId));
     }
 
+    /**
+     * Verifies that get recommendations should retry without media status when schema error contains media status.
+     */
     /** Verifies schema-lag errors retry the content query without the media status filter. */
     @Test
     void getRecommendations_ShouldRetryWithoutMediaStatus_WhenSchemaErrorContainsMediaStatus() {
@@ -557,6 +620,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient, times(4)).getList(eq("content"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should rethrow when content fetch fails for non media status reason.
+     */
     /** Verifies non-schema content fetch failures are propagated immediately. */
     @Test
     void getRecommendations_ShouldRethrow_WhenContentFetchFailsForNonMediaStatusReason() {
@@ -578,6 +644,9 @@ class RecommendationServiceTest {
         verifyNoInteractions(recommendationSignalService, contentLessonLinkService, contentEngagementService, contentCreatorEnrichmentService);
     }
 
+    /**
+     * Verifies that get recommendations should rethrow when content fetch fails without reason.
+     */
     /** Verifies null content fetch reasons do not trigger the media-status fallback path. */
     @Test
     void getRecommendations_ShouldRethrow_WhenContentFetchFailsWithoutReason() {
@@ -598,6 +667,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient, times(1)).getList(eq("content"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should deduplicate candidate pool when recent and popular queries overlap.
+     */
     /** Verifies the merged candidate pool keeps only the first copy of each content id. */
     @Test
     void getRecommendations_ShouldDeduplicateCandidatePool_WhenRecentAndPopularQueriesOverlap() {
@@ -631,6 +703,9 @@ class RecommendationServiceTest {
         verify(contentLessonLinkService).resolveLinkedLessons(argThat(ids -> ids.size() == 2 && ids.contains(sharedId) && ids.contains(uniqueId)));
     }
 
+    /**
+     * Verifies that get recommendations should skip tag attachment when candidate ids are invalid.
+     */
     /** Verifies invalid candidate ids skip tag lookups while still allowing ranking and hydration. */
     @Test
     void getRecommendations_ShouldSkipTagAttachment_WhenCandidateIdsAreInvalid() {
@@ -662,6 +737,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient, never()).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should skip impression logging when ranked items have null content ids.
+     */
     /** Verifies impression logging is skipped when ranked items do not have valid content ids. */
     @Test
     void getRecommendations_ShouldSkipImpressionLogging_WhenRankedItemsHaveNullContentIds() {
@@ -688,6 +766,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient, never()).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should ignore missing impressions table when rollout table is missing.
+     */
     /** Verifies missing impression-table errors are ignored so recommendation delivery still succeeds. */
     @Test
     void getRecommendations_ShouldIgnoreMissingImpressionsTable_WhenRolloutTableIsMissing() {
@@ -717,6 +798,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should rethrow when impression insert fails for unexpected reason.
+     */
     /** Verifies unexpected impression insert failures are still surfaced to the caller. */
     @Test
     void getRecommendations_ShouldRethrow_WhenImpressionInsertFailsForUnexpectedReason() {
@@ -749,6 +833,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should rethrow when impression insert fails without reason.
+     */
     /** Verifies missing impression-table reasons are not suppressed when the exception reason is null. */
     @Test
     void getRecommendations_ShouldRethrow_WhenImpressionInsertFailsWithoutReason() {
@@ -781,6 +868,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).postList(eq("recommendation_impressions"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should set hls stream fields when media url uses playlist.
+     */
     /** Verifies HLS media urls are surfaced as stream metadata during hydration. */
     @Test
     void getRecommendations_ShouldSetHlsStreamFields_WhenMediaUrlUsesPlaylist() {
@@ -811,6 +901,9 @@ class RecommendationServiceTest {
         verify(contentCreatorEnrichmentService).enrichWithCreatorProfiles(any());
     }
 
+    /**
+     * Verifies that get recommendations should set file stream type when media url is not hls.
+     */
     /** Verifies regular media files are marked with the file stream type during hydration. */
     @Test
     void getRecommendations_ShouldSetFileStreamType_WhenMediaUrlIsNotHls() {
@@ -840,6 +933,9 @@ class RecommendationServiceTest {
         verify(contentEngagementService).decorateItemsWithUserEngagement(any(), eq(userId), eq("token"));
     }
 
+    /**
+     * Verifies that get recommendations should leave stream fields unset when media url is blank.
+     */
     /** Verifies blank media urls leave stream metadata unset during hydration. */
     @Test
     void getRecommendations_ShouldLeaveStreamFieldsUnset_WhenMediaUrlIsBlank() {
@@ -870,6 +966,9 @@ class RecommendationServiceTest {
         verify(contentCreatorEnrichmentService).enrichWithCreatorProfiles(any());
     }
 
+    /**
+     * Verifies that get recommendations should resolve linked lessons when candidate ids are valid.
+     */
     /** Verifies linked lesson metadata is passed to the scorer pipeline for recommendation ranking. */
     @Test
     void getRecommendations_ShouldResolveLinkedLessons_WhenCandidateIdsAreValid() {
@@ -904,6 +1003,9 @@ class RecommendationServiceTest {
         verify(contentLessonLinkService).resolveLinkedLessons(Set.of(contentId));
     }
 
+    /**
+     * Verifies that get recommendations should attach normalized tags when tag rows contain mixed validity.
+     */
     /** Verifies tag hydration keeps valid normalized tags and skips rows with null or blank tag metadata. */
     @Test
     void getRecommendations_ShouldAttachNormalizedTags_WhenTagRowsContainMixedValidity() {
@@ -945,6 +1047,9 @@ class RecommendationServiceTest {
         verify(supabaseAdminRestClient).getList(eq("content_tags"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Verifies that get recommendations should return null enriched items when enrichment produces null rows.
+     */
     /** Verifies hydration tolerates null enriched entries and leaves them untouched. */
     @Test
     void getRecommendations_ShouldReturnNullEnrichedItems_WhenEnrichmentProducesNullRows() {
@@ -974,6 +1079,9 @@ class RecommendationServiceTest {
         verify(contentCreatorEnrichmentService).enrichWithCreatorProfiles(any());
     }
 
+    /**
+     * Verifies that parse uuid should return null when value is null.
+     */
     /** Verifies private UUID parsing returns null when recommendation metadata is absent. */
     @Test
     void parseUuid_ShouldReturnNull_WhenValueIsNull() {
@@ -989,6 +1097,9 @@ class RecommendationServiceTest {
         assertDoesNotThrow(() -> invokeParseUuid(null));
     }
 
+    /**
+     * Handles empty signals.
+     */
     private RecommendationSignals emptySignals() {
         return new RecommendationSignals(
             Map.of(),
@@ -1005,6 +1116,9 @@ class RecommendationServiceTest {
         );
     }
 
+    /**
+     * Builds the candidates.
+     */
     private List<Map<String, Object>> buildCandidates(int count, int offsetDays) {
         List<Map<String, Object>> rows = new ArrayList<>();
         for (int index = 0; index < count; index++) {
@@ -1016,11 +1130,17 @@ class RecommendationServiceTest {
         return rows;
     }
 
+    /**
+     * Handles encode cursor.
+     */
     private String encodeCursor(double score, OffsetDateTime createdAt, UUID contentId) {
         String payload = score + "|" + createdAt + "|" + contentId;
         return Base64.getUrlEncoder().withoutPadding().encodeToString(payload.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * Handles invoke compare to cursor.
+     */
     private int invokeCompareToCursor(ScoredRecommendation item, double score, OffsetDateTime createdAt, UUID contentId) {
         try {
             Class<?> cursorClass = Class.forName("com.rotiprata.api.feed.service.RecommendationService$RecommendationCursor");
@@ -1035,6 +1155,9 @@ class RecommendationServiceTest {
         }
     }
 
+    /**
+     * Handles invoke parse uuid.
+     */
     private UUID invokeParseUuid(Object value) {
         try {
             Method method = RecommendationService.class.getDeclaredMethod("parseUuid", Object.class);
@@ -1045,10 +1168,16 @@ class RecommendationServiceTest {
         }
     }
 
+    /**
+     * Checks whether didate.
+     */
     private Map<String, Object> candidate(UUID contentId, OffsetDateTime createdAt) {
         return candidate(contentId, createdAt, "https://cdn.example.com/" + contentId + ".mp4");
     }
 
+    /**
+     * Checks whether didate.
+     */
     private Map<String, Object> candidate(Object contentId, OffsetDateTime createdAt, String mediaUrl) {
         Map<String, Object> candidate = new LinkedHashMap<>();
         candidate.put("id", contentId == null ? null : contentId.toString());

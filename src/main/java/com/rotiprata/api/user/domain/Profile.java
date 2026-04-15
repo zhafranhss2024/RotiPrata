@@ -12,6 +12,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Represents the profile state used by the feature layer.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

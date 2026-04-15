@@ -33,12 +33,15 @@ import com.rotiprata.api.auth.request.LoginRequest;
 import com.rotiprata.api.auth.response.LoginStreakTouchResponse;
 import com.rotiprata.api.auth.request.RegisterRequest;
 import com.rotiprata.api.auth.request.ResetPasswordRequest;
-import com.rotiprata.application.LoginStreakService;
+import com.rotiprata.api.auth.service.LoginStreakService;
 
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import io.restassured.module.mockmvc.specification.MockMvcRequestSpecification;
 
+/**
+ * Covers auth controller scenarios and regression behavior for the current branch changes.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @DisplayName("AuthController Mock Integration Tests")
@@ -61,6 +64,9 @@ class AuthControllerMockIntegrationTest {
 
     private MockMvcRequestSpecification authenticated;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
@@ -72,6 +78,9 @@ class AuthControllerMockIntegrationTest {
             ));
     }
 
+    /**
+     * Verifies that login should return auth session when credentials are valid.
+     */
     /** Verifies login delegates to authService and returns the auth session payload. */
     @Test
     void login_ShouldReturnAuthSession_WhenCredentialsAreValid() {
@@ -110,6 +119,9 @@ class AuthControllerMockIntegrationTest {
         verify(authService).login(any(LoginRequest.class));
     }
 
+    /**
+     * Verifies that register should return auth session when request is valid.
+     */
     /** Verifies register delegates to authService and returns the newly created auth session payload. */
     @Test
     void register_ShouldReturnAuthSession_WhenRequestIsValid() {
@@ -148,6 +160,9 @@ class AuthControllerMockIntegrationTest {
         verify(authService).register(any(RegisterRequest.class));
     }
 
+    /**
+     * Verifies that forgot password should return no content when request is valid.
+     */
     /** Verifies forgot-password triggers a password reset request and responds with 204. */
     @Test
     void forgotPassword_ShouldReturnNoContent_WhenRequestIsValid() {
@@ -171,6 +186,9 @@ class AuthControllerMockIntegrationTest {
         verify(authService).requestPasswordReset(any(ForgotPasswordRequest.class));
     }
 
+    /**
+     * Verifies that reset password should return no content when request is valid.
+     */
     /** Verifies reset-password delegates to authService and responds with 204. */
     @Test
     void resetPassword_ShouldReturnNoContent_WhenRequestIsValid() {
@@ -195,6 +213,9 @@ class AuthControllerMockIntegrationTest {
         verify(authService).resetPassword(any(ResetPasswordRequest.class));
     }
 
+    /**
+     * Verifies that logout should pass raw header when authorization header is not bearer.
+     */
     /** Verifies logout passes through non-Bearer Authorization values unchanged. */
     @Test
     void logout_ShouldPassRawHeader_WhenAuthorizationHeaderIsNotBearer() {
@@ -213,6 +234,9 @@ class AuthControllerMockIntegrationTest {
         verify(authService).logout(eq("ApiKey abc-123"));
     }
 
+    /**
+     * Verifies that logout should pass null when authorization header is missing.
+     */
     /** Verifies logout passes null when Authorization header is absent. */
     @Test
     void logout_ShouldPassNull_WhenAuthorizationHeaderIsMissing() {
@@ -230,6 +254,9 @@ class AuthControllerMockIntegrationTest {
         verify(authService).logout(eq(null));
     }
 
+    /**
+     * Verifies that logout should pass null when authorization header is blank.
+     */
     /** Verifies logout passes null when Authorization header is blank. */
     @Test
     void logout_ShouldPassNull_WhenAuthorizationHeaderIsBlank() {
@@ -248,6 +275,9 @@ class AuthControllerMockIntegrationTest {
         verify(authService).logout(eq(null));
     }
 
+    /**
+     * Verifies that touch login streak should return touch response when request contains timezone.
+     */
     /** Verifies streak touch uses JWT subject, access token, and request timezone. */
     @Test
     void touchLoginStreak_ShouldReturnTouchResponse_WhenRequestContainsTimezone() {
@@ -278,6 +308,9 @@ class AuthControllerMockIntegrationTest {
         verify(loginStreakService).touchLoginStreak(eq(userId), eq("mocked-access-token"), eq("Asia/Singapore"));
     }
 
+    /**
+     * Verifies that touch login streak should pass null timezone when request body is missing.
+     */
     /** Verifies streak touch accepts an empty request body and passes a null timezone. */
     @Test
     void touchLoginStreak_ShouldPassNullTimezone_WhenRequestBodyIsMissing() {
@@ -299,6 +332,9 @@ class AuthControllerMockIntegrationTest {
         verify(loginStreakService).touchLoginStreak(eq(userId), eq("mocked-access-token"), eq(null));
     }
 
+    /**
+     * Verifies that username available should return available with normalized value when display name provided.
+     */
     /** Verifies username availability prefers displayName when it is provided and non-blank. */
     @Test
     void usernameAvailable_ShouldReturnAvailableWithNormalizedValue_WhenDisplayNameProvided() {
@@ -325,6 +361,9 @@ class AuthControllerMockIntegrationTest {
         verify(userService).isDisplayNameTaken("dot.user");
     }
 
+    /**
+     * Verifies that username available should use username fallback when display name is blank.
+     */
     /** Verifies username availability falls back to username when displayName is blank. */
     @Test
     void usernameAvailable_ShouldUseUsernameFallback_WhenDisplayNameIsBlank() {
@@ -351,6 +390,9 @@ class AuthControllerMockIntegrationTest {
         verify(userService).isDisplayNameTaken("fallback_user");
     }
 
+    /**
+     * Verifies that username available should return bad request when both display name and username are missing.
+     */
     /** Verifies username availability rejects requests missing both displayName and username. */
     @Test
     void usernameAvailable_ShouldReturnBadRequest_WhenBothDisplayNameAndUsernameAreMissing() {
@@ -367,6 +409,9 @@ class AuthControllerMockIntegrationTest {
         //verify
     }
 
+    /**
+     * Verifies that username available should return bad request when display name format is invalid.
+     */
     /** Verifies username availability rejects malformed display names. */
     @Test
     void usernameAvailable_ShouldReturnBadRequest_WhenDisplayNameFormatIsInvalid() {
@@ -386,6 +431,9 @@ class AuthControllerMockIntegrationTest {
         verify(userService).isDisplayNameFormatValid("bad name!!");
     }
 
+    /**
+     * Verifies that legacy auth aliases should still work.
+     */
     @Test
     void legacyAuthAliases_ShouldStillWork() {
         AuthSessionResponse response = new AuthSessionResponse(

@@ -6,7 +6,7 @@ import com.rotiprata.api.content.domain.ContentMedia;
 import com.rotiprata.api.content.domain.ContentType;
 import com.rotiprata.api.content.dto.ContentSubmitRequest;
 import com.rotiprata.api.content.dto.ContentUpdateRequest;
-import com.rotiprata.application.MediaProcessingService;
+import com.rotiprata.media.service.MediaProcessingService;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import java.util.List;
 import java.util.Map;

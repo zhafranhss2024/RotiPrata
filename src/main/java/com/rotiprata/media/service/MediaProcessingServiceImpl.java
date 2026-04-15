@@ -1,4 +1,4 @@
-package com.rotiprata.application;
+package com.rotiprata.media.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,6 +26,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.beans.factory.annotation.Qualifier;
 
+/**
+ * Implements the media processing service application workflow.
+ */
 @Service
 public class MediaProcessingServiceImpl implements MediaProcessingService {
     private static final Logger log = LoggerFactory.getLogger(MediaProcessingServiceImpl.class);
@@ -40,6 +43,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
     private final SupabaseStorageClient storageClient;
     private final TaskExecutor mediaTaskExecutor;
 
+    /**
+     * Creates a media processing service impl instance with its collaborators.
+     */
     public MediaProcessingServiceImpl(
         MediaProcessingProperties properties,
         SupabaseProperties supabaseProperties,
@@ -55,6 +61,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         maybeUpdateYtDlp();
     }
 
+    /**
+     * Handles process upload.
+     */
     @Override
     public void processUpload(UUID contentId, ContentType contentType, MultipartFile file) {
         Path tempFile;
@@ -87,6 +96,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         });
     }
 
+    /**
+     * Handles process link.
+     */
     @Override
     public void processLink(UUID contentId, String sourceUrl) {
     mediaTaskExecutor.execute(() -> {
@@ -129,6 +141,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
     });
 }
 
+    /**
+     * Handles process lesson upload.
+     */
     @Override
     public void processLessonUpload(UUID assetId, String mediaKind, MultipartFile file) {
         Path tempFile;
@@ -163,6 +178,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         });
     }
 
+    /**
+     * Handles process lesson link.
+     */
     @Override
     public void processLessonLink(UUID assetId, String mediaKind, String sourceUrl) {
         String normalizedKind = normalizeLessonMediaKind(mediaKind, null);
@@ -197,6 +215,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         });
     }
 
+    /**
+     * Handles process video to hls.
+     */
     private void processVideoToHls(UUID contentId, Path input, String sourceUrl) throws IOException, InterruptedException {
         long start = System.nanoTime();
         long stepStart = System.nanoTime();
@@ -227,6 +248,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         log.info("TIMING content {} hls total {}s", contentId, elapsedSeconds(start));
     }
 
+    /**
+     * Handles process lesson video to hls.
+     */
     private void processLessonVideoToHls(UUID assetId, Path input) throws IOException, InterruptedException {
         MediaProbe probe = probeMedia(input);
         validateDurationSeconds(probe.durationSeconds());
@@ -243,6 +267,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         }
     }
 
+    /**
+     * Handles process image.
+     */
     private void processImage(UUID contentId, Path input) throws IOException {
         long start = System.nanoTime();
         String bucket = supabaseProperties.getStorage().getContentMedia();
@@ -284,6 +311,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         log.info("TIMING content {} image total {}s", contentId, elapsedSeconds(start));
     }
 
+    /**
+     * Handles process lesson image.
+     */
     private void processLessonImage(UUID assetId, Path input, String mediaKind, String sourceMimeType) throws IOException {
         String bucket = lessonMediaBucket();
         String extension = guessSuffix(input.getFileName().toString());
@@ -303,6 +333,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         patchLessonMediaAsset(assetId, patch);
     }
 
+    /**
+     * Handles validate upload size.
+     */
     private void validateUploadSize(long sizeBytes) {
         long maxBytes = properties.getMaxUploadMb() * 1024L * 1024L;
         if (sizeBytes > maxBytes) {
@@ -310,12 +343,18 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         }
     }
 
+    /**
+     * Handles validate duration seconds.
+     */
     private void validateDurationSeconds(int durationSeconds) {
         if (durationSeconds > properties.getMaxDurationSeconds()) {
             throw new IllegalArgumentException("DURATION_LIMIT");
         }
     }
 
+    /**
+     * Saves the temp file.
+     */
     private Path saveTempFile(MultipartFile file) throws IOException {
         String suffix = guessSuffix(file.getOriginalFilename());
         Path tempFile = Files.createTempFile(resolveTempDir(), "upload-", suffix);
@@ -323,6 +362,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return tempFile;
     }
 
+    /**
+     * Handles guess suffix.
+     */
     private String guessSuffix(String filename) {
         if (filename == null || !filename.contains(".")) {
             return ".bin";
@@ -330,6 +372,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return filename.substring(filename.lastIndexOf('.'));
     }
 
+    /**
+     * Resolves the temp dir.
+     */
     private Path resolveTempDir() throws IOException {
         if (properties.getTempDir() != null && !properties.getTempDir().isBlank()) {
             return Path.of(properties.getTempDir());
@@ -337,6 +382,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return Path.of(System.getProperty("java.io.tmpdir"));
     }
 
+    /**
+     * Handles generate hls variants.
+     */
     private void generateHlsVariants(Path input, Path outputDir, boolean hasAudio, int hlsTimeSeconds) throws IOException, InterruptedException {
         List<Variant> variants = List.of(
             new Variant("1080", 1080, 4500),
@@ -393,6 +441,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         writeMasterPlaylist(outputDir, variants);
     }
 
+    /**
+     * Handles write master playlist.
+     */
     private void writeMasterPlaylist(Path outputDir, List<Variant> variants) throws IOException {
         List<String> lines = new ArrayList<>();
         lines.add("#EXTM3U");
@@ -410,6 +461,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         Files.write(outputDir.resolve("master.m3u8"), lines, StandardCharsets.UTF_8);
     }
 
+    /**
+     * Handles generate poster.
+     */
     private Path generatePoster(Path input, Path outputDir) throws IOException, InterruptedException {
         Path poster = outputDir.resolve("poster.jpg");
         List<String> command = List.of(
@@ -427,6 +481,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return poster;
     }
 
+    /**
+     * Handles probe media.
+     */
     private MediaProbe probeMedia(Path input) throws IOException, InterruptedException {
         List<String> command = List.of(
             properties.getFfprobePath(),
@@ -458,6 +515,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return new MediaProbe(durationSeconds, width, height, hasAudio);
     }
 
+    /**
+     * Handles upload hls outputs.
+     */
     private void uploadHlsOutputs(UUID contentId, Path outputDir, Path posterPath) throws IOException {
         String bucket = supabaseProperties.getStorage().getContentMedia();
         if (bucket == null || bucket.isBlank()) {
@@ -532,6 +592,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         }
     }
 
+    /**
+     * Handles upload lesson hls outputs.
+     */
     private void uploadLessonHlsOutputs(UUID assetId, Path outputDir, Path posterPath) throws IOException {
         String bucket = lessonMediaBucket();
         Path master = outputDir.resolve("master.m3u8");
@@ -581,6 +644,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         }
     }
 
+    /**
+     * Handles choose segment duration.
+     */
     private int chooseSegmentDuration(int durationSeconds) {
         if (durationSeconds <= 0) {
             return 4;
@@ -597,6 +663,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return 15;
     }
 
+    /**
+     * Handles cache control for filename.
+     */
     private String cacheControlForFilename(String filename) {
         if (filename == null) {
             return CACHE_CONTROL_PLAYLIST;
@@ -614,6 +683,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return CACHE_CONTROL_PLAYLIST;
     }
 
+    /**
+     * Handles mark ready.
+     */
     private void markReady(UUID contentId, MediaProbe probe) {
         String publicUrlBase = normalizeBaseUrl();
         String bucket = supabaseProperties.getStorage().getContentMedia();
@@ -645,6 +717,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         );
     }
 
+    /**
+     * Handles mark failed.
+     */
     private void markFailed(UUID contentId, String errorCode) {
         patchContentSafely(
             contentId,
@@ -665,6 +740,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         );
     }
 
+    /**
+     * Handles mark lesson video ready.
+     */
     private void markLessonVideoReady(UUID assetId, MediaProbe probe) {
         String publicUrlBase = normalizeBaseUrl();
         String bucket = lessonMediaBucket();
@@ -684,6 +762,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         patchLessonMediaAsset(assetId, patch);
     }
 
+    /**
+     * Handles mark lesson ready from link.
+     */
     private void markLessonReadyFromLink(UUID assetId, String mediaKind, String sourceUrl) {
         Map<String, Object> patch = new LinkedHashMap<>();
         patch.put("status", "ready");
@@ -694,6 +775,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         patchLessonMediaAsset(assetId, patch);
     }
 
+    /**
+     * Handles mark lesson failed.
+     */
     private void markLessonFailed(UUID assetId, String errorCode) {
         Map<String, Object> patch = new LinkedHashMap<>();
         patch.put("status", "failed");
@@ -702,6 +786,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         patchLessonMediaAsset(assetId, patch);
     }
 
+    /**
+     * Patches the content safely.
+     */
     private void patchContentSafely(UUID contentId, Map<String, Object> patch) {
         try {
             adminRestClient.patchList(
@@ -728,6 +815,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         }
     }
 
+    /**
+     * Patches the lesson media asset.
+     */
     private void patchLessonMediaAsset(UUID assetId, Map<String, Object> patch) {
         adminRestClient.patchList(
             "lesson_media_assets",
@@ -737,6 +827,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         );
     }
 
+    /**
+     * Handles should retry without column.
+     */
     private boolean shouldRetryWithoutColumn(org.springframework.web.server.ResponseStatusException ex, String column) {
         String reason = ex.getReason();
         String message = ex.getMessage();
@@ -754,6 +847,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return false;
     }
 
+    /**
+     * Normalizes the base url.
+     */
     private String normalizeBaseUrl() {
         String base = supabaseProperties.getUrl();
         if (base == null) {
@@ -762,6 +858,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
+    /**
+     * Handles lesson media bucket.
+     */
     private String lessonMediaBucket() {
         String bucket = supabaseProperties.getStorage().getLessonMedia();
         if (bucket == null || bucket.isBlank()) {
@@ -770,6 +869,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return bucket;
     }
 
+    /**
+     * Normalizes the lesson media kind.
+     */
     private String normalizeLessonMediaKind(String mediaKind, String contentType) {
         String normalizedType = mediaKind == null ? "" : mediaKind.trim().toLowerCase();
         if (normalizedType.isBlank() && contentType != null) {
@@ -788,6 +890,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return normalizedType;
     }
 
+    /**
+     * Normalizes the image content type.
+     */
     private String normalizeImageContentType(String mediaKind, String extension, String sourceMimeType) {
         if ("gif".equals(mediaKind)) {
             return "image/gif";
@@ -798,6 +903,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return extension.equalsIgnoreCase(".png") ? "image/png" : "image/jpeg";
     }
 
+    /**
+     * Handles validate link.
+     */
     private void validateLink(String sourceUrl) {
         String lower = sourceUrl.toLowerCase();
         boolean supported = lower.contains("tiktok.com")
@@ -808,6 +916,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         }
     }
 
+    /**
+     * Fetches the yt dlp info.
+     */
     private YtDlpInfo fetchYtDlpInfo(String url) throws IOException, InterruptedException {
         List<String> command = new ArrayList<>();
         command.add(properties.getYtdlpPath());
@@ -827,10 +938,16 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return new YtDlpInfo(duration);
     }
 
+    /**
+     * Handles download with yt dlp.
+     */
     private void downloadWithYtDlp(String url, Path output) throws IOException, InterruptedException {
         runProcess(buildYtDlpDownloadCommand(url, output), "yt-dlp-download");
     }
 
+    /**
+     * Builds the yt dlp download command.
+     */
     List<String> buildYtDlpDownloadCommand(String url, Path output) {
         List<String> command = new ArrayList<>();
         command.add(properties.getYtdlpPath());
@@ -850,6 +967,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return command;
     }
 
+    /**
+     * Resolves the executable directory.
+     */
     private String resolveExecutableDirectory(String executablePath) {
         if (executablePath == null || executablePath.isBlank()) {
             return null;
@@ -867,6 +987,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return executablePath.substring(0, separatorIndex);
     }
 
+    /**
+     * Handles maybe update yt dlp.
+     */
     private void maybeUpdateYtDlp() {
         if (!properties.isAutoUpdateYtdlp()) {
             return;
@@ -884,6 +1007,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         }
     }
 
+    /**
+     * Handles looks like pip managed yt dlp.
+     */
     private boolean looksLikePipManagedYtDlp(String message) {
         if (message == null) {
             return false;
@@ -894,6 +1020,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
             || lower.contains("use that to update");
     }
 
+    /**
+     * Handles try pip update yt dlp.
+     */
     private boolean tryPipUpdateYtDlp() {
         List<List<String>> commands = List.of(
             List.of("python", "-m", "pip", "install", "-U", "yt-dlp"),
@@ -910,6 +1039,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return false;
     }
 
+    /**
+     * Handles run process.
+     */
     private ProcessResult runProcess(List<String> command, String label) throws IOException, InterruptedException {
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.redirectErrorStream(true);
@@ -928,6 +1060,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return new ProcessResult(exit, output.toString());
     }
 
+    /**
+     * Parses the json from yt dlp output.
+     */
     private JsonNode parseJsonFromYtDlpOutput(String output) throws IOException {
         if (output == null) {
             throw new IOException("yt-dlp returned empty output");
@@ -952,6 +1087,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         }
     }
 
+    /**
+     * Handles safe snippet.
+     */
     private String safeSnippet(String output) {
         if (output == null) {
             return "";
@@ -964,6 +1102,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return normalized.substring(0, limit) + "...";
     }
 
+    /**
+     * Handles classify error.
+     */
     private String classifyError(String message) {
         if (message == null) {
             return "UNKNOWN";
@@ -984,6 +1125,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
         return "PROCESSING_FAILED";
     }
 
+    /**
+     * Deletes the directory.
+     */
     private void deleteDirectory(Path dir) {
         try {
             if (dir == null || !Files.exists(dir)) {
@@ -1011,6 +1155,9 @@ public class MediaProcessingServiceImpl implements MediaProcessingService {
 
     private record ProcessResult(int exitCode, String output) {}
 
+    /**
+     * Handles elapsed seconds.
+     */
     private long elapsedSeconds(long startNanos) {
         return Math.max(0L, (System.nanoTime() - startNanos) / 1_000_000_000L);
     }

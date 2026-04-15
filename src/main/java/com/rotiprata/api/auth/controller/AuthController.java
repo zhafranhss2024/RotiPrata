@@ -10,7 +10,7 @@ import com.rotiprata.api.auth.request.LoginStreakTouchRequest;
 import com.rotiprata.api.auth.response.LoginStreakTouchResponse;
 import com.rotiprata.api.auth.request.RegisterRequest;
 import com.rotiprata.api.auth.request.ResetPasswordRequest;
-import com.rotiprata.application.LoginStreakService;
+import com.rotiprata.api.auth.service.LoginStreakService;
 import com.rotiprata.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
@@ -29,6 +29,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Exposes REST endpoints for the auth controller flows.
+ */
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -36,6 +39,9 @@ public class AuthController {
     private final LoginStreakService loginStreakService;
     private final UserService userService;
 
+    /**
+     * Creates a auth controller instance with its collaborators.
+     */
     public AuthController(
         AuthService authService,
         LoginStreakService loginStreakService,
@@ -46,11 +52,17 @@ public class AuthController {
         this.userService = userService;
     }
 
+    /**
+     * Creates the session.
+     */
     @PostMapping("/sessions")
     public AuthSessionResponse createSession(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
     }
 
+    /**
+     * Handles login.
+     */
     @Hidden
     @Deprecated
     @PostMapping("/login")
@@ -58,11 +70,17 @@ public class AuthController {
         return createSession(request);
     }
 
+    /**
+     * Creates the registration.
+     */
     @PostMapping("/registrations")
     public AuthSessionResponse createRegistration(@Valid @RequestBody RegisterRequest request) {
         return authService.register(request);
     }
 
+    /**
+     * Handles register.
+     */
     @Hidden
     @Deprecated
     @PostMapping("/register")
@@ -70,12 +88,18 @@ public class AuthController {
         return createRegistration(request);
     }
 
+    /**
+     * Creates the password reset request.
+     */
     @PostMapping("/password-reset-requests")
     public ResponseEntity<Void> createPasswordResetRequest(@Valid @RequestBody ForgotPasswordRequest request) {
         authService.requestPasswordReset(request);
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Handles forgot password.
+     */
     @Hidden
     @Deprecated
     @PostMapping("/forgot-password")
@@ -83,12 +107,18 @@ public class AuthController {
         return createPasswordResetRequest(request);
     }
 
+    /**
+     * Updates the password.
+     */
     @PutMapping("/password")
     public ResponseEntity<Void> updatePassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Handles reset password.
+     */
     @Hidden
     @Deprecated
     @PostMapping("/reset-password")
@@ -96,6 +126,9 @@ public class AuthController {
         return updatePassword(request);
     }
 
+    /**
+     * Deletes the session.
+     */
     @DeleteMapping("/session")
     public ResponseEntity<Void> deleteSession(
         @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authHeader
@@ -105,6 +138,9 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Handles logout.
+     */
     @Hidden
     @Deprecated
     @PostMapping("/logout")
@@ -114,6 +150,9 @@ public class AuthController {
         return deleteSession(authHeader);
     }
 
+    /**
+     * Updates the login streak.
+     */
     @PutMapping("/login-streak")
     public LoginStreakTouchResponse updateLoginStreak(
         @AuthenticationPrincipal Jwt jwt,
@@ -126,6 +165,9 @@ public class AuthController {
         );
     }
 
+    /**
+     * Converts the value into uch login streak.
+     */
     @Hidden
     @Deprecated
     @PostMapping("/streak/touch")
@@ -136,6 +178,9 @@ public class AuthController {
         return updateLoginStreak(jwt, request);
     }
 
+    /**
+     * Handles display name availability.
+     */
     @GetMapping("/display-name-availability")
     public DisplayNameAvailabilityResponse displayNameAvailability(
         @RequestParam(value = "displayName", required = false) String displayName,
@@ -159,6 +204,9 @@ public class AuthController {
         return new DisplayNameAvailabilityResponse(available, normalized);
     }
 
+    /**
+     * Handles username available.
+     */
     @Hidden
     @Deprecated
     @GetMapping("/username-available")
@@ -169,6 +217,9 @@ public class AuthController {
         return displayNameAvailability(displayName, username);
     }
 
+    /**
+     * Extracts the bearer token.
+     */
     private String extractBearerToken(String authHeader) {
         if (authHeader == null || authHeader.isBlank()) {
             return null;

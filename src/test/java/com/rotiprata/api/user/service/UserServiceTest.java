@@ -39,6 +39,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Covers user service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserService tests")
 class UserServiceTest {
@@ -51,11 +54,17 @@ class UserServiceTest {
 
     private UserService service;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         service = new UserService(supabaseRestClient, supabaseAdminRestClient);
     }
 
+    /**
+     * Handles profile.
+     */
     private static Profile profile(UUID userId, String displayName, Integer xp, Integer streak) {
         Profile profile = new Profile();
         profile.setUserId(userId);
@@ -65,6 +74,9 @@ class UserServiceTest {
         return profile;
     }
 
+    /**
+     * Verifies that get profile should return first profile when profile exists.
+     */
     // Verifies getProfile returns first profile when a match is found.
     @Test
     void getProfile_ShouldReturnFirstProfile_WhenProfileExists() {
@@ -84,6 +96,9 @@ class UserServiceTest {
         verify(supabaseRestClient, times(1)).getList(eq("profiles"), anyString(), eq("token"), any());
     }
 
+    /**
+     * Verifies that get profile should throw not found when profile does not exist.
+     */
     // Verifies getProfile throws not found when Supabase returns no rows.
     @Test
     void getProfile_ShouldThrowNotFound_WhenProfileDoesNotExist() {
@@ -102,6 +117,9 @@ class UserServiceTest {
         verify(supabaseRestClient, times(1)).getList(eq("profiles"), anyString(), eq("token"), any());
     }
 
+    /**
+     * Verifies that is display name taken should return false when display name is blank.
+     */
     // Verifies display-name check returns false for blank input.
     @Test
     void isDisplayNameTaken_ShouldReturnFalse_WhenDisplayNameIsBlank() {
@@ -117,6 +135,9 @@ class UserServiceTest {
         verify(supabaseRestClient, never()).getList(anyString(), anyString(), any(), any());
     }
 
+    /**
+     * Verifies that is display name taken should return true when registry contains name.
+     */
     // Verifies display-name check returns true when a registry row exists.
     @Test
     void isDisplayNameTaken_ShouldReturnTrue_WhenRegistryContainsName() {
@@ -135,6 +156,9 @@ class UserServiceTest {
         verify(supabaseRestClient).getList(eq("display_name_registry"), anyString(), eq(null), any());
     }
 
+    /**
+     * Verifies that is display name taken should return false when rls blocks query.
+     */
     // Verifies RLS authorization errors are gracefully treated as available.
     @Test
     void isDisplayNameTaken_ShouldReturnFalse_WhenRlsBlocksQuery() {
@@ -152,6 +176,9 @@ class UserServiceTest {
         verify(supabaseRestClient).getList(eq("display_name_registry"), anyString(), eq(null), any());
     }
 
+    /**
+     * Verifies that get or create profile from jwt should create profile when profile missing.
+     */
     // Verifies JWT claims are used to create a profile when none exists.
     @Test
     void getOrCreateProfileFromJwt_ShouldCreateProfile_WhenProfileMissing() {
@@ -186,6 +213,9 @@ class UserServiceTest {
         verify(supabaseRestClient).postList(eq("user_roles"), anyMap(), eq("token"), any());
     }
 
+    /**
+     * Verifies that ensure profile should patch profile when existing profile needs changes.
+     */
     // Verifies ensureProfile updates mutable fields when existing profile differs.
     @Test
     void ensureProfile_ShouldPatchProfile_WhenExistingProfileNeedsChanges() {
@@ -215,6 +245,9 @@ class UserServiceTest {
         verify(supabaseRestClient, never()).postList(eq("user_roles"), anyMap(), eq("token"), any());
     }
 
+    /**
+     * Verifies that ensure profile should insert user role when role is missing.
+     */
     // Verifies ensureProfile inserts default user role when no role row exists.
     @Test
     void ensureProfile_ShouldInsertUserRole_WhenRoleIsMissing() {
@@ -237,6 +270,9 @@ class UserServiceTest {
         verify(supabaseRestClient).postList(eq("user_roles"), anyMap(), eq("token"), any());
     }
 
+    /**
+     * Verifies that ensure profile with service role should retry with suffix when create conflicts and allow suffix.
+     */
     // Verifies service-role profile creation retries with suffix on conflict.
     @Test
     void ensureProfileWithServiceRole_ShouldRetryWithSuffix_WhenCreateConflictsAndAllowSuffix() {
@@ -282,6 +318,9 @@ class UserServiceTest {
         verify(supabaseRestClient).getList(eq("user_roles"), anyString(), eq("token"), any());
     }
 
+    /**
+     * Verifies that update theme preference should throw not found when profile missing.
+     */
     // Verifies theme preference update fails when no profile is updated.
     @Test
     void updateThemePreference_ShouldThrowNotFound_WhenProfileMissing() {
@@ -303,6 +342,9 @@ class UserServiceTest {
         verify(supabaseRestClient).patchList(eq("profiles"), anyString(), anyMap(), eq("token"), any());
     }
 
+    /**
+     * Verifies that update profile should return current profile when no changes provided.
+     */
     // Verifies profile update returns current profile when patch body is empty.
     @Test
     void updateProfile_ShouldReturnCurrentProfile_WhenNoChangesProvided() {
@@ -323,6 +365,9 @@ class UserServiceTest {
         verify(supabaseRestClient, never()).patchList(eq("profiles"), anyString(), anyMap(), eq("token"), any());
     }
 
+    /**
+     * Verifies that update profile should throw bad request when display name format is invalid.
+     */
     // Verifies profile update rejects invalid display-name format.
     @Test
     void updateProfile_ShouldThrowBadRequest_WhenDisplayNameFormatIsInvalid() {
@@ -345,6 +390,9 @@ class UserServiceTest {
         verify(supabaseRestClient, never()).patchList(eq("profiles"), anyString(), anyMap(), eq("token"), any());
     }
 
+    /**
+     * Verifies that update profile should throw conflict when display name already taken.
+     */
     // Verifies profile update blocks duplicate normalized display names.
     @Test
     void updateProfile_ShouldThrowConflict_WhenDisplayNameAlreadyTaken() {
@@ -369,6 +417,9 @@ class UserServiceTest {
         verify(supabaseRestClient, never()).patchList(eq("profiles"), anyString(), anyMap(), eq("token"), any());
     }
 
+    /**
+     * Verifies that update profile should patch and return updated profile when valid changes provided.
+     */
     // Verifies profile update patches and returns new profile when valid changes exist.
     @Test
     void updateProfile_ShouldPatchAndReturnUpdatedProfile_WhenValidChangesProvided() {
@@ -393,6 +444,9 @@ class UserServiceTest {
         verify(supabaseRestClient).patchList(eq("profiles"), anyString(), anyMap(), eq("token"), any());
     }
 
+    /**
+     * Verifies that get user badges should return earned then locked badges when data exists.
+     */
     // Verifies getUserBadges combines earned and locked badges with stable sorting.
     @Test
     void getUserBadges_ShouldReturnEarnedThenLockedBadges_WhenDataExists() {
@@ -425,6 +479,9 @@ class UserServiceTest {
         verify(supabaseAdminRestClient, times(2)).getList(eq("lessons"), anyString(), any());
     }
 
+    /**
+     * Verifies that get leaderboard should exclude admins and compute ranks when profiles exist.
+     */
     // Verifies leaderboard excludes admins and computes rank ties correctly.
     @Test
     void getLeaderboard_ShouldExcludeAdminsAndComputeRanks_WhenProfilesExist() {
@@ -462,6 +519,9 @@ class UserServiceTest {
         verify(supabaseAdminRestClient).getList(eq("profiles"), anyString(), any());
     }
 
+    /**
+     * Verifies that get leaderboard should normalize paging when page size is invalid.
+     */
     // Verifies leaderboard normalizes page size and handles empty query filter.
     @Test
     void getLeaderboard_ShouldNormalizePaging_WhenPageSizeIsInvalid() {
@@ -484,6 +544,9 @@ class UserServiceTest {
         verify(supabaseAdminRestClient).getList(eq("profiles"), anyString(), any());
     }
 
+    /**
+     * Verifies that is display name format valid should return expected result when input varies.
+     */
     // Verifies display-name format validation enforces length and characters.
     @Test
     void isDisplayNameFormatValid_ShouldReturnExpectedResult_WhenInputVaries() {
@@ -504,6 +567,9 @@ class UserServiceTest {
         //verify
     }
 
+    /**
+     * Verifies that normalize display name should trim and lowercase when input has whitespace and case.
+     */
     // Verifies display-name normalization trims and lowercases values.
     @Test
     void normalizeDisplayName_ShouldTrimAndLowercase_WhenInputHasWhitespaceAndCase() {
@@ -518,6 +584,9 @@ class UserServiceTest {
         //verify
     }
 
+    /**
+     * Verifies that get roles should throw unauthorized when access token missing.
+     */
     // Verifies access-token validation fails early for secure methods.
     @Test
     void getRoles_ShouldThrowUnauthorized_WhenAccessTokenMissing() {
@@ -535,6 +604,9 @@ class UserServiceTest {
         verify(supabaseRestClient, never()).getList(eq("user_roles"), anyString(), anyString(), any());
     }
 
+    /**
+     * Verifies that ensure profile with service role should patch existing profile when values differ.
+     */
     // Verifies ensureProfileWithServiceRole updates existing profile when values differ.
     @Test
     void ensureProfileWithServiceRole_ShouldPatchExistingProfile_WhenValuesDiffer() {
@@ -560,6 +632,9 @@ class UserServiceTest {
         verify(supabaseAdminRestClient).patchList(eq("profiles"), anyString(), anyMap(), any());
     }
 
+    /**
+     * Verifies that get or create profile should default display name when hint and email are missing.
+     */
     // Verifies ensureProfile creates fallback display name when hint is blank.
     @Test
     void getOrCreateProfile_ShouldDefaultDisplayName_WhenHintAndEmailAreMissing() {

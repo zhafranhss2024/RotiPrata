@@ -23,6 +23,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers admin content lesson link scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class AdminContentLessonLinkTest {
 
@@ -51,6 +54,9 @@ class AdminContentLessonLinkTest {
     private UUID adminUserId;
     private UUID contentId;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         adminService = new AdminServiceImpl(
@@ -67,6 +73,9 @@ class AdminContentLessonLinkTest {
         when(userService.getRoles(adminUserId, "token")).thenReturn(List.of(AppRole.ADMIN));
     }
 
+    /**
+     * Verifies that update content metadata should sync lesson concept links when lesson ids are provided.
+     */
     /** Verifies admin metadata updates also sync recommendation lesson links when lesson ids are supplied. */
     @Test
     void updateContentMetadata_ShouldSyncLessonConceptLinks_WhenLessonIdsAreProvided() {

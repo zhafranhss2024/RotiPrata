@@ -12,6 +12,9 @@ import java.util.List;
 public interface BrowsingService {
 
     /**
+     * Handles search.
+     */
+    /**
      * Searches for content and lessons based on a query and optional filter.
      * If filter is "video", only video content is returned.
      * If filter is "lesson", only lessons are returned.
@@ -26,6 +29,9 @@ public interface BrowsingService {
     List<ContentSearchDTO> search(String query, String filter, String accessToken);
 
     /**
+     * Handles search.
+     */
+    /**
      * Saves a search query to the user's search history.
      * If the query already exists, updates the timestamp instead of creating a duplicate.
      *
@@ -38,6 +44,9 @@ public interface BrowsingService {
     void saveHistory(String userId, String query, Instant searchedAt, String accessToken);
 
     /**
+     * Fetches the history.
+     */
+    /**
      * Fetches the last 5 search history entries for a user, sorted by most recent first.
      *
      * @param userId      the user's ID
@@ -47,6 +56,9 @@ public interface BrowsingService {
      */
     List<GetHistoryDTO> fetchHistory(String userId, String accessToken);
 
+    /**
+     * Deletes the history by id.
+     */
     /**
      * Deletes a search history entry by its ID for a specific user.
      *

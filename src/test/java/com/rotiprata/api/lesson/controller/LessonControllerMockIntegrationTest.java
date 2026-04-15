@@ -45,6 +45,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
+/**
+ * Covers lesson controller scenarios and regression behavior for the current branch changes.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 class LessonControllerMockIntegrationTest {
@@ -70,6 +73,9 @@ class LessonControllerMockIntegrationTest {
 
     private MockMvcRequestSpecification auth;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
@@ -80,6 +86,9 @@ class LessonControllerMockIntegrationTest {
             ));
     }
 
+    /**
+     * Verifies that lessons should return lesson list when authenticated.
+     */
     /** Verifies lessons endpoint returns service results for authenticated users. */
     @Test
     void lessons_ShouldReturnLessonList_WhenAuthenticated() {
@@ -96,6 +105,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessons(eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson feed should return feed response when request is valid.
+     */
     /** Verifies lesson feed endpoint maps query params and returns paged data. */
     @Test
     void lessonFeed_ShouldReturnFeedResponse_WhenRequestIsValid() {
@@ -120,6 +132,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonFeed(eq(ACCESS_TOKEN), any());
     }
 
+    /**
+     * Verifies that lesson hub should return hub response when authenticated.
+     */
     /** Verifies lesson hub endpoint returns user-specific hub details. */
     @Test
     void lessonHub_ShouldReturnHubResponse_WhenAuthenticated() {
@@ -137,6 +152,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonHub(eq(USER_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that search lessons should return search results when query provided.
+     */
     /** Verifies lesson search endpoint passes query string to service. */
     @Test
     void searchLessons_ShouldReturnSearchResults_WhenQueryProvided() {
@@ -153,6 +171,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).searchLessons(eq("bon"), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson by id should return lesson when lesson exists.
+     */
     /** Verifies lesson by id endpoint returns lesson payload. */
     @Test
     void lessonById_ShouldReturnLesson_WhenLessonExists() {
@@ -169,6 +190,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonById(eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson sections should return section list when lesson exists.
+     */
     /** Verifies lesson sections endpoint returns section list. */
     @Test
     void lessonSections_ShouldReturnSectionList_WhenLessonExists() {
@@ -185,6 +209,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonSections(eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson progress should return progress when authenticated.
+     */
     /** Verifies lesson progress endpoint returns progress snapshot. */
     @Test
     void lessonProgress_ShouldReturnProgress_WhenAuthenticated() {
@@ -202,6 +229,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonProgress(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson quiz state should return quiz state when authenticated.
+     */
     /** Verifies quiz state endpoint returns active attempt state. */
     @Test
     void lessonQuizState_ShouldReturnQuizState_WhenAuthenticated() {
@@ -219,6 +249,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonQuizService).getQuizState(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that answer lesson quiz should return answer response when payload is valid.
+     */
     /** Verifies answer quiz endpoint forwards answer payload and returns grading result. */
     @Test
     void answerLessonQuiz_ShouldReturnAnswerResponse_WhenPayloadIsValid() throws Exception {
@@ -240,6 +273,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonQuizService).answerQuestion(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that restart lesson quiz should return quiz state when mode provided.
+     */
     /** Verifies restart quiz endpoint supports custom restart mode. */
     @Test
     void restartLessonQuiz_ShouldReturnQuizState_WhenModeProvided() {
@@ -257,6 +293,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonQuizService).restartQuiz(eq(USER_ID), eq(LESSON_ID), eq("retry_wrong"), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that complete lesson section should return wrapped progress when section completed.
+     */
     /** Verifies complete section endpoint wraps progress inside SectionCompleteResponse. */
     @Test
     void completeLessonSection_ShouldReturnWrappedProgress_WhenSectionCompleted() {
@@ -274,6 +313,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).completeLessonSection(eq(USER_ID), eq(LESSON_ID), eq("usage"), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that complete lesson section post completion should return wrapped progress when section completed.
+     */
     /** Verifies legacy POST completion alias still wraps progress inside SectionCompleteResponse. */
     @Test
     void completeLessonSectionPostCompletion_ShouldReturnWrappedProgress_WhenSectionCompleted() {
@@ -291,6 +333,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).completeLessonSection(eq(USER_ID), eq(LESSON_ID), eq("usage"), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that enroll lesson should return ok when enrollment succeeds.
+     */
     /** Verifies enroll endpoint delegates enrollment to service. */
     @Test
     void enrollLesson_ShouldReturnOk_WhenEnrollmentSucceeds() {
@@ -306,6 +351,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).enrollLesson(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that save lesson should return ok when save succeeds.
+     */
     /** Verifies save endpoint delegates bookmark/save action to service. */
     @Test
     void saveLesson_ShouldReturnOk_WhenSaveSucceeds() {
@@ -321,6 +369,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).saveLesson(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that update progress should return ok when payload is valid.
+     */
     /** Verifies progress update endpoint forwards bounded progress payload. */
     @Test
     void updateProgress_ShouldReturnOk_WhenPayloadIsValid() throws Exception {
@@ -340,6 +391,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).updateLessonProgress(eq(USER_ID), eq(LESSON_ID), eq(80), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that admin lessons should return lesson list when authenticated.
+     */
     /** Verifies admin lessons endpoint returns admin lesson list. */
     @Test
     void adminLessons_ShouldReturnLessonList_WhenAuthenticated() {
@@ -356,6 +410,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getAdminLessons(eq(USER_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that admin lesson by id should return lesson when lesson exists.
+     */
     /** Verifies admin lesson by id endpoint returns lesson details. */
     @Test
     void adminLessonById_ShouldReturnLesson_WhenLessonExists() {
@@ -372,6 +429,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getAdminLessonById(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that create lesson draft should return draft response when payload provided.
+     */
     /** Verifies draft creation endpoint handles nullable payload and returns draft info. */
     @Test
     void createLessonDraft_ShouldReturnDraftResponse_WhenPayloadProvided() throws Exception {
@@ -393,6 +453,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).createLessonDraft(eq(USER_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that save lesson draft step should return step response when payload provided.
+     */
     /** Verifies draft step save endpoint persists requested draft step. */
     @Test
     void saveLessonDraftStep_ShouldReturnStepResponse_WhenPayloadProvided() throws Exception {
@@ -414,6 +477,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).saveLessonStep(eq(USER_ID), eq(LESSON_ID), eq("metadata"), any(AdminStepSaveRequest.class), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that publish lesson should return publish response when request provided.
+     */
     /** Verifies publish endpoint validates and publishes a lesson draft. */
     @Test
     void publishLesson_ShouldReturnPublishResponse_WhenRequestProvided() throws Exception {
@@ -435,6 +501,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).publishLessonWithValidation(eq(USER_ID), eq(LESSON_ID), any(AdminStepSaveRequest.class), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that create lesson should return created lesson when payload provided.
+     */
     /** Verifies admin create lesson endpoint returns created lesson payload. */
     @Test
     void createLesson_ShouldReturnCreatedLesson_WhenPayloadProvided() throws Exception {
@@ -455,6 +524,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).createLesson(eq(USER_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that update lesson should return updated lesson when payload provided.
+     */
     /** Verifies admin update lesson endpoint returns updated lesson payload. */
     @Test
     void updateLesson_ShouldReturnUpdatedLesson_WhenPayloadProvided() throws Exception {
@@ -475,6 +547,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).updateLesson(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that delete lesson should return ok when deletion succeeds.
+     */
     /** Verifies admin delete lesson endpoint delegates deletion to service. */
     @Test
     void deleteLesson_ShouldReturnOk_WhenDeletionSucceeds() {
@@ -490,6 +565,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).deleteLesson(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that move lesson to category should return move response when request is valid.
+     */
     /** Verifies move category endpoint forwards source and target category ids. */
     @Test
     void moveLessonToCategory_ShouldReturnMoveResponse_WhenRequestIsValid() throws Exception {
@@ -511,6 +589,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).moveLessonToCategory(eq(USER_ID), eq(LESSON_ID), any(AdminLessonCategoryMoveRequest.class), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that get lesson quiz should return quiz questions when lesson has quiz.
+     */
     /** Verifies admin quiz endpoint returns active quiz questions. */
     @Test
     void getLessonQuiz_ShouldReturnQuizQuestions_WhenLessonHasQuiz() {
@@ -527,6 +608,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getActiveLessonQuizQuestions(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that get admin quiz question types should return types when authenticated.
+     */
     /** Verifies admin question types endpoint returns available quiz question types. */
     @Test
     void getAdminQuizQuestionTypes_ShouldReturnTypes_WhenAuthenticated() {
@@ -543,6 +627,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getAdminQuizQuestionTypes(eq(USER_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that create lesson quiz should return quiz payload when payload provided.
+     */
     /** Verifies admin create quiz endpoint returns created quiz payload. */
     @Test
     void createLessonQuiz_ShouldReturnQuizPayload_WhenPayloadProvided() throws Exception {
@@ -563,6 +650,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).createLessonQuiz(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that replace lesson quiz should return quiz list when payload provided.
+     */
     /** Verifies admin replace quiz endpoint returns replacement question list. */
     @Test
     void replaceLessonQuiz_ShouldReturnQuizList_WhenPayloadProvided() throws Exception {
@@ -583,6 +673,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).replaceLessonQuiz(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that start lesson media upload should return media start response when file provided.
+     */
     /** Verifies media upload endpoint accepts multipart file and returns polling details. */
     @Test
     void startLessonMediaUpload_ShouldReturnMediaStartResponse_WhenFileProvided() throws Exception {
@@ -606,6 +699,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).startLessonMediaUpload(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that start lesson media link should return media start response when payload is valid.
+     */
     /** Verifies media link endpoint validates link payload and returns upload metadata. */
     @Test
     void startLessonMediaLink_ShouldReturnMediaStartResponse_WhenPayloadIsValid() throws Exception {
@@ -627,6 +723,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).startLessonMediaLink(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson media status should return status response when asset exists.
+     */
     /** Verifies media status endpoint returns latest processing status for an asset. */
     @Test
     void lessonMediaStatus_ShouldReturnStatusResponse_WhenAssetExists() {
@@ -644,6 +743,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonMediaStatus(eq(USER_ID), eq(LESSON_ID), eq(ASSET_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that legacy lesson aliases should still work.
+     */
     @Test
     void legacyLessonAliases_ShouldStillWork() throws Exception {
         when(lessonQuizService.restartQuiz(any(), any(), anyString(), anyString()))

@@ -25,6 +25,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers supabase admin rest client scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class SupabaseAdminRestClientTest {
 
@@ -34,6 +37,9 @@ class SupabaseAdminRestClientTest {
     private SupabaseProperties properties;
     private RestClient restClient;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         properties = new SupabaseProperties();
@@ -46,6 +52,9 @@ class SupabaseAdminRestClientTest {
         lenient().when(restClientBuilder.build()).thenReturn(restClient);
     }
 
+    /**
+     * Verifies that constructor should throw when rest url is missing.
+     */
     // Verifies constructor fails when rest url is blank.
     @Test
     void constructor_ShouldThrow_WhenRestUrlIsMissing() {
@@ -62,6 +71,9 @@ class SupabaseAdminRestClientTest {
         //verify
     }
 
+    /**
+     * Verifies that get list should return rows when response has json.
+     */
     // Verifies GET responses are parsed into list values.
     @Test
     void getList_ShouldReturnRows_WhenResponseHasJson() {
@@ -80,6 +92,9 @@ class SupabaseAdminRestClientTest {
         //verify
     }
 
+    /**
+     * Verifies that post list should return empty when response body is blank.
+     */
     // Verifies postList handles blank responses as empty lists.
     @Test
     void postList_ShouldReturnEmpty_WhenResponseBodyIsBlank() {
@@ -103,6 +118,9 @@ class SupabaseAdminRestClientTest {
         assertEquals(0, rows.size());
     }
 
+    /**
+     * Verifies that patch list should normalize query when query starts with question mark.
+     */
     // Verifies patchList supports query starting with '?'.
     @Test
     void patchList_ShouldNormalizeQuery_WhenQueryStartsWithQuestionMark() {
@@ -128,9 +146,15 @@ class SupabaseAdminRestClientTest {
         assertEquals(1, rows.size());
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies deleteList delegates to DELETE pipeline.
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
+    /**
+     * Verifies that delete list should return rows when delete succeeds.
+     */
     void deleteList_ShouldReturnRows_WhenDeleteSucceeds() {
         // arrange
         SupabaseAdminRestClient client = new SupabaseAdminRestClient(properties, restClientBuilder);
@@ -151,6 +175,9 @@ class SupabaseAdminRestClientTest {
         assertEquals(1, rows.size());
     }
 
+    /**
+     * Verifies that rpc list should return rows when rpc succeeds.
+     */
     // Verifies rpcList posts to rpc endpoint.
     @Test
     void rpcList_ShouldReturnRows_WhenRpcSucceeds() {
@@ -178,9 +205,15 @@ class SupabaseAdminRestClientTest {
         verify(postSpec).uri("rpc/run_me");
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies RestClient errors propagate response body message.
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
+    /**
+     * Verifies that get list should throw response status exception when rest client throws.
+     */
     void getList_ShouldThrowResponseStatusException_WhenRestClientThrows() {
         // arrange
         SupabaseAdminRestClient client = new SupabaseAdminRestClient(properties, restClientBuilder);
@@ -216,9 +249,15 @@ class SupabaseAdminRestClientTest {
     }
 
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies malformed json triggers parse failure mapping.
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
+    /**
+     * Verifies that get list should throw internal server error when response cannot be parsed.
+     */
     void getList_ShouldThrowInternalServerError_WhenResponseCannotBeParsed() {
         // arrange
         SupabaseAdminRestClient client = new SupabaseAdminRestClient(properties, restClientBuilder);

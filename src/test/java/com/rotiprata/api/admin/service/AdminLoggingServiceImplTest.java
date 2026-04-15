@@ -24,6 +24,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+/**
+ * Covers admin logging service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AdminLoggingServiceImpl tests")
 class AdminLoggingServiceImplTest {
@@ -37,12 +40,18 @@ class AdminLoggingServiceImplTest {
     private UUID adminId;
     private UUID targetId;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         adminId = UUID.randomUUID();
         targetId = UUID.randomUUID();
     }
 
+    /**
+     * Verifies that log admin action should call supabase successfully when called with valid arguments.
+     */
     @Test
     // Verifies that Supabase postList is called when logging a valid admin action
     void logAdminAction_ShouldCallSupabaseSuccessfully_WhenCalledWithValidArguments() {
@@ -64,6 +73,9 @@ class AdminLoggingServiceImplTest {
                 .postList(eq("audit_logs"), anyList(), any());
     }
 
+    /**
+     * Verifies that log admin action should not throw when supabase throws exception.
+     */
     @Test
     // Ensures exceptions from Supabase do not propagate
     void logAdminAction_ShouldNotThrow_WhenSupabaseThrowsException() {
@@ -86,6 +98,9 @@ class AdminLoggingServiceImplTest {
                 .postList(eq("audit_logs"), anyList(), any());
     }
 
+    /**
+     * Verifies that log admin action should drop description when description contains bearer token.
+     */
     @Test
     @SuppressWarnings("unchecked")
     // Clears description if it contains a Bearer-like token
@@ -110,6 +125,9 @@ class AdminLoggingServiceImplTest {
         assertNull(rows.get(0).get("description"));
     }
 
+    /**
+     * Verifies that log admin action should truncate description when description is too long.
+     */
     @Test
     @SuppressWarnings("unchecked")
     // Truncates descriptions exceeding 500 characters
@@ -134,6 +152,9 @@ class AdminLoggingServiceImplTest {
         assertEquals(500, savedDesc.length());
     }
 
+    /**
+     * Verifies that log admin action should not throw and set description null when description is null.
+     */
     @Test
     @SuppressWarnings("unchecked")
     // Handles null descriptions gracefully
@@ -156,6 +177,9 @@ class AdminLoggingServiceImplTest {
         assertNull(row.get("description"));
     }
 
+    /**
+     * Verifies that log admin action should set description null when description is blank.
+     */
     @Test
     @SuppressWarnings("unchecked")
     // Converts blank or whitespace-only descriptions to null
@@ -178,6 +202,9 @@ class AdminLoggingServiceImplTest {
         assertNull(row.get("description"));
     }
 
+    /**
+     * Verifies that log admin action should normalize whitespace in description when description has extra spaces.
+     */
     @Test
     @SuppressWarnings("unchecked")
     // Normalizes multiple spaces in description
@@ -200,6 +227,9 @@ class AdminLoggingServiceImplTest {
         assertEquals("This has multiple spaces", row.get("description"));
     }
 
+    /**
+     * Verifies that log admin action should keep safe short description when description is valid.
+     */
     @Test
     @SuppressWarnings("unchecked")
     // Keeps short safe descriptions unchanged

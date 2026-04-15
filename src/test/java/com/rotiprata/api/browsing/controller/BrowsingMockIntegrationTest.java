@@ -24,6 +24,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
+/**
+ * Covers browsing scenarios and regression behavior for the current branch changes.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @DisplayName("BrowsingController Mock Integration Tests")
@@ -37,6 +40,9 @@ class BrowsingControllerMockIntegrationTest {
 
     private MockMvcRequestSpecification userAuth;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
@@ -46,6 +52,9 @@ class BrowsingControllerMockIntegrationTest {
         ));
     }
 
+    /**
+     * Verifies that search should return all results when filter empty.
+     */
     @Test
     void search_ShouldReturnAllResults_WhenFilterEmpty() {
         List<ContentSearchDTO> mockResults = List.of(
@@ -67,6 +76,9 @@ class BrowsingControllerMockIntegrationTest {
             .body("[1].content_type", equalTo("lesson"));
     }
 
+    /**
+     * Verifies that search should return only videos when filter video.
+     */
     @Test
     void search_ShouldReturnOnlyVideos_WhenFilterVideo() {
         List<ContentSearchDTO> mockResults = List.of(
@@ -86,6 +98,9 @@ class BrowsingControllerMockIntegrationTest {
             .body("[0].content_type", equalTo("video"));
     }
 
+    /**
+     * Verifies that search should return only lessons when filter lesson.
+     */
     @Test
     void search_ShouldReturnOnlyLessons_WhenFilterLesson() {
         List<ContentSearchDTO> mockResults = List.of(
@@ -105,6 +120,9 @@ class BrowsingControllerMockIntegrationTest {
             .body("[0].content_type", equalTo("lesson"));
     }
 
+    /**
+     * Verifies that search should return empty list when query null.
+     */
     @Test
     void search_ShouldReturnEmptyList_WhenQueryNull() {
         when(browsingService.search(anyString(), anyString(), anyString())).thenReturn(List.of());
@@ -118,6 +136,9 @@ class BrowsingControllerMockIntegrationTest {
             .body("$", hasSize(0));
     }
 
+    /**
+     * Verifies that legacy search alias should still work.
+     */
     @Test
     void legacySearchAlias_ShouldStillWork() {
         when(browsingService.search(anyString(), any(), anyString()))

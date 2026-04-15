@@ -6,6 +6,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Represents the admin user summary response payload exchanged by the feature layer.
+ */
 public record AdminUserSummaryResponse(
     UUID userId,
     String displayName,

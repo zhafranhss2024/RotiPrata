@@ -25,6 +25,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers content creator enrichment service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ContentCreatorEnrichmentServiceImpl tests")
 class ContentCreatorEnrichmentServiceImplTest {
@@ -32,6 +35,9 @@ class ContentCreatorEnrichmentServiceImplTest {
     @Mock
     private SupabaseAdminRestClient supabaseAdminRestClient;
 
+    /**
+     * Handles suppress warnings.
+     */
     // Service enriches list items with matched creator profile records.
     @Test
     @SuppressWarnings("unchecked")
@@ -79,6 +85,9 @@ class ContentCreatorEnrichmentServiceImplTest {
         verify(supabaseAdminRestClient).getList(eq("profiles"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Service should skip lookup when the input list is null.
     @Test
     @SuppressWarnings("unchecked")
@@ -96,6 +105,9 @@ class ContentCreatorEnrichmentServiceImplTest {
         verify(supabaseAdminRestClient, never()).getList(eq("profiles"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Service should skip lookup when the input list has no items.
     @Test
     @SuppressWarnings("unchecked")
@@ -115,6 +127,9 @@ class ContentCreatorEnrichmentServiceImplTest {
         verify(supabaseAdminRestClient, never()).getList(eq("profiles"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Service should skip lookup when all creator identifiers are invalid or missing.
     @Test
     @SuppressWarnings("unchecked")
@@ -140,6 +155,9 @@ class ContentCreatorEnrichmentServiceImplTest {
         verify(supabaseAdminRestClient, never()).getList(eq("profiles"), any(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Service should preserve first profile row for duplicate user IDs and ignore null items.
     @Test
     @SuppressWarnings("unchecked")

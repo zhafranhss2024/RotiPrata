@@ -14,6 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers feed service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class FeedServiceTest {
 
@@ -22,11 +25,17 @@ class FeedServiceTest {
 
     private FeedService feedService;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         feedService = new FeedService(recommendationService);
     }
 
+    /**
+     * Verifies that get feed should delegate to recommendation service when feed is requested.
+     */
     /** Verifies the feed facade delegates directly to the recommendation service. */
     @Test
     void getFeed_ShouldDelegateToRecommendationService_WhenFeedIsRequested() {

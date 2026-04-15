@@ -18,12 +18,18 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+/**
+ * Configures the security config components used by the application context.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
     private final AuthRateLimitFilter authRateLimitFilter;
     private final String allowedOrigins;
 
+    /**
+     * Creates a security config instance with its collaborators.
+     */
     public SecurityConfig(
         AuthRateLimitFilter authRateLimitFilter,
         @Value("${ALLOWED_ORIGINS:}") String allowedOrigins
@@ -32,6 +38,9 @@ public class SecurityConfig {
         this.allowedOrigins = allowedOrigins;
     }
 
+    /**
+     * Handles security filter chain.
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http

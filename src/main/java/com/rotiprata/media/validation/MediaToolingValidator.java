@@ -1,4 +1,4 @@
-package com.rotiprata.application;
+package com.rotiprata.media.validation;
 
 import com.rotiprata.config.MediaProcessingProperties;
 import jakarta.annotation.PostConstruct;

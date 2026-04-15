@@ -36,6 +36,9 @@ public class AuthServiceImpl implements AuthService {
     private final UserService userService;
     private final String frontendUrl;
 
+    /**
+     * Creates a auth service impl instance with its collaborators.
+     */
     // Inject dependencies and frontend URL
     public AuthServiceImpl(SupabaseAuthClient supabaseAuthClient,
                            SupabaseAdminClient supabaseAdminClient,
@@ -47,6 +50,9 @@ public class AuthServiceImpl implements AuthService {
         this.frontendUrl = frontendUrl;
     }
 
+    /**
+     * Handles login.
+     */
     // Authenticate user and return session
     @Override
     public AuthSessionResponse login(LoginRequest request) {
@@ -70,6 +76,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * Handles register.
+     */
     // Register user with Supabase and create internal profile
     @Override
     public AuthSessionResponse register(RegisterRequest request) {
@@ -128,6 +137,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * Handles request password reset.
+     */
     // Request password reset email
     @Override
     public void requestPasswordReset(ForgotPasswordRequest request) {
@@ -143,6 +155,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * Handles reset password.
+     */
     // Reset password using token
     @Override
     public void resetPassword(ResetPasswordRequest request) {
@@ -154,6 +169,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * Handles logout.
+     */
     // Logout user and invalidate session
     @Override
     public void logout(String accessToken) {
@@ -166,6 +184,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * Converts the value into auth response.
+     */
     // Convert Supabase session into internal response
     private AuthSessionResponse toAuthResponse(SupabaseSessionResponse session, boolean requiresEmailConfirmation, String message) {
         SupabaseUser user = session.getUser();
@@ -173,6 +194,9 @@ public class AuthServiceImpl implements AuthService {
         return new AuthSessionResponse(session.getAccessToken(), session.getRefreshToken(), session.getTokenType(), session.getExpiresIn(), userId, user != null ? user.getEmail() : null, requiresEmailConfirmation, message);
     }
 
+    /**
+     * Resolves the redirect to.
+     */
     // Build redirect URL for frontend
     private String resolveRedirectTo(String redirectTo, String path) {
         if (redirectTo != null && !redirectTo.isBlank()) return redirectTo;
@@ -182,11 +206,17 @@ public class AuthServiceImpl implements AuthService {
         return base + suffix;
     }
 
+    /**
+     * Returns the status code.
+     */
     // Extract HTTP status code from exception
     private int getStatusCode(RestClientResponseException ex) {
         return ex.getStatusCode().value();
     }
 
+    /**
+     * Checks whether email already registered.
+     */
     // Detect duplicate email from response
     private boolean isEmailAlreadyRegistered(RestClientResponseException ex) {
         String body = ex.getResponseBodyAsString();

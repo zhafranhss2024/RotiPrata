@@ -18,6 +18,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers embedding service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("EmbeddingServiceImpl tests")
 class EmbeddingServiceImplTest {
@@ -27,11 +30,17 @@ class EmbeddingServiceImplTest {
 
     private EmbeddingServiceImpl service;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         service = new EmbeddingServiceImpl(embeddingModel);
     }
 
+    /**
+     * Verifies that generate embedding should return model embedding when text provided.
+     */
     // Verifies embeddings are delegated to OpenAI model and returned unchanged.
     @Test
     void generateEmbedding_ShouldReturnModelEmbedding_WhenTextProvided() {
@@ -50,6 +59,9 @@ class EmbeddingServiceImplTest {
         verify(embeddingModel, times(1)).embed(text);
     }
 
+    /**
+     * Verifies that to pg vector should format bracketed comma separated values when vector has multiple elements.
+     */
     // Verifies vectors are formatted as comma-separated values wrapped in brackets.
     @Test
     void toPgVector_ShouldFormatBracketedCommaSeparatedValues_WhenVectorHasMultipleElements() {
@@ -67,6 +79,9 @@ class EmbeddingServiceImplTest {
         assertEquals(']', result.charAt(result.length() - 1));
     }
 
+    /**
+     * Verifies that generate embedding should throw bad request when text is null.
+     */
     // Verifies that generateEmbedding throws ResponseStatusException when text is null.
     @Test
     void generateEmbedding_ShouldThrowBadRequest_WhenTextIsNull() {
@@ -84,6 +99,9 @@ class EmbeddingServiceImplTest {
         // nothing additional to verify for exception
     }
 
+    /**
+     * Verifies that generate embedding should throw bad request when text is blank.
+     */
     // Verifies that generateEmbedding throws ResponseStatusException when text is blank.
     @Test
     void generateEmbedding_ShouldThrowBadRequest_WhenTextIsBlank() {
@@ -101,6 +119,9 @@ class EmbeddingServiceImplTest {
         // nothing additional to verify for exception
     }
 
+    /**
+     * Verifies that generate embedding should throw runtime exception when model fails.
+     */
     // Verifies that generateEmbedding throws RuntimeException when the embedding model fails.
     @Test
     void generateEmbedding_ShouldThrowRuntimeException_WhenModelFails() {
@@ -120,6 +141,9 @@ class EmbeddingServiceImplTest {
         verify(embeddingModel, times(1)).embed(text);
     }
 
+    /**
+     * Verifies that to pg vector should throw illegal argument exception when vector is null.
+     */
     // Verifies that toPgVector throws IllegalArgumentException when vector is null.
     @Test
     void toPgVector_ShouldThrowIllegalArgumentException_WhenVectorIsNull() {
@@ -136,6 +160,9 @@ class EmbeddingServiceImplTest {
         // nothing additional to verify for exception
     }
 
+    /**
+     * Verifies that to pg vector should throw illegal argument exception when vector is empty.
+     */
     // Verifies that toPgVector throws IllegalArgumentException when vector is empty.
     @Test
     void toPgVector_ShouldThrowIllegalArgumentException_WhenVectorIsEmpty() {

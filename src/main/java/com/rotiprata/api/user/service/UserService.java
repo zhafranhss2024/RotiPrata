@@ -31,6 +31,9 @@ import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import com.rotiprata.security.SecurityUtils;
 
+/**
+ * Implements the user service workflows and persistence coordination used by the API layer.
+ */
 @Service
 public class UserService {
     private static final TypeReference<List<Profile>> PROFILE_LIST = new TypeReference<>() {};
@@ -43,11 +46,17 @@ public class UserService {
     private final SupabaseRestClient supabaseRestClient;
     private final SupabaseAdminRestClient supabaseAdminRestClient;
 
+    /**
+     * Creates a user service instance with its collaborators.
+     */
     public UserService(SupabaseRestClient supabaseRestClient, SupabaseAdminRestClient supabaseAdminRestClient) {
         this.supabaseRestClient = supabaseRestClient;
         this.supabaseAdminRestClient = supabaseAdminRestClient;
     }
 
+    /**
+     * Returns the profile.
+     */
     public Profile getProfile(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
         List<Profile> profiles = supabaseRestClient.getList(
@@ -62,6 +71,9 @@ public class UserService {
         return profiles.get(0);
     }
 
+    /**
+     * Checks whether display name taken.
+     */
     public boolean isDisplayNameTaken(String displayName) {
         if (displayName == null || displayName.isBlank()) {
             return false;
@@ -88,6 +100,9 @@ public class UserService {
         }
     }
 
+    /**
+     * Returns the or create profile from jwt.
+     */
     public Profile getOrCreateProfileFromJwt(org.springframework.security.oauth2.jwt.Jwt jwt, String accessToken) {
         UUID userId = SecurityUtils.getUserId(jwt);
         String email = jwt.getClaimAsString("email");
@@ -116,6 +131,9 @@ public class UserService {
         return getOrCreateProfile(userId, email, displayName, isGenAlpha, accessToken);
     }
 
+    /**
+     * Returns the or create profile.
+     */
     public Profile getOrCreateProfile(UUID userId, String email, String displayNameHint, Boolean isGenAlpha, String accessToken) {
         String token = requireAccessToken(accessToken);
         List<Profile> profiles = supabaseRestClient.getList(
@@ -134,6 +152,9 @@ public class UserService {
         return created;
     }
 
+    /**
+     * Ensures the profile.
+     */
     public Profile ensureProfile(
         UUID userId,
         String displayName,
@@ -179,6 +200,9 @@ public class UserService {
         return created;
     }
 
+    /**
+     * Ensures the profile with service role.
+     */
     public Profile ensureProfileWithServiceRole(UUID userId, String displayName, Boolean isGenAlpha, boolean allowSuffix) {
         List<Profile> existing = supabaseAdminRestClient.getList(
             "profiles",
@@ -216,6 +240,9 @@ public class UserService {
     }
 
 
+    /**
+     * Returns the roles.
+     */
     public List<AppRole> getRoles(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
         List<UserRole> roles = supabaseRestClient.getList(
@@ -230,6 +257,9 @@ public class UserService {
         return roles.stream().map(UserRole::getRole).toList();
     }
 
+    /**
+     * Updates the theme preference.
+     */
     public Profile updateThemePreference(UUID userId, ThemePreference preference, String accessToken) {
         String token = requireAccessToken(accessToken);
         Map<String, Object> patch = new HashMap<>();
@@ -247,6 +277,9 @@ public class UserService {
         return updated.get(0);
     }
 
+    /**
+     * Updates the profile.
+     */
     public Profile updateProfile(UUID userId, String displayName, Boolean isGenAlpha, String accessToken) {
         String token = requireAccessToken(accessToken);
         Profile current = getProfile(userId, token);
@@ -285,6 +318,9 @@ public class UserService {
         return updated.get(0);
     }
 
+    /**
+     * Returns the user badges.
+     */
     public List<UserBadgeResponse> getUserBadges(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
 
@@ -379,6 +415,9 @@ public class UserService {
         return allBadges;
     }
 
+    /**
+     * Returns the leaderboard.
+     */
     public LeaderboardResponse getLeaderboard(UUID currentUserId, int page, int pageSize, String query, String accessToken) {
         requireAccessToken(accessToken);
 
@@ -446,10 +485,16 @@ public class UserService {
         );
     }
 
+    /**
+     * Creates the profile.
+     */
     private Profile createProfile(UUID userId, String displayName, Boolean isGenAlpha, String accessToken) {
         return createProfile(userId, displayName, isGenAlpha, accessToken, true);
     }
 
+    /**
+     * Creates the profile with service role.
+     */
     private Profile createProfileWithServiceRole(UUID userId, String displayName, Boolean isGenAlpha, boolean allowSuffix) {
         String candidate = displayName;
         try {
@@ -466,6 +511,9 @@ public class UserService {
         }
     }
 
+    /**
+     * Creates the profile.
+     */
     private Profile createProfile(
         UUID userId,
         String displayName,
@@ -488,6 +536,9 @@ public class UserService {
         }
     }
 
+    /**
+     * Handles insert profile.
+     */
     private Profile insertProfile(UUID userId, String displayName, Boolean isGenAlpha, String accessToken) {
         Map<String, Object> insert = new HashMap<>();
         insert.put("user_id", userId);
@@ -503,6 +554,9 @@ public class UserService {
         return created.get(0);
     }
 
+    /**
+     * Ensures the user role.
+     */
     private void ensureUserRole(UUID userId, String accessToken) {
         List<UserRole> roles = supabaseRestClient.getList(
             "user_roles",
@@ -522,6 +576,9 @@ public class UserService {
         supabaseRestClient.postList("user_roles", insert, accessToken, USER_ROLE_LIST);
     }
 
+    /**
+     * Handles insert profile with service role.
+     */
     private Profile insertProfileWithServiceRole(UUID userId, String displayName, Boolean isGenAlpha) {
         Map<String, Object> insert = new HashMap<>();
         insert.put("user_id", userId);
@@ -537,6 +594,9 @@ public class UserService {
         return created.get(0);
     }
 
+    /**
+     * Ensures the user role with service role.
+     */
     private void ensureUserRoleWithServiceRole(UUID userId) {
         List<UserRole> roles = supabaseAdminRestClient.getList(
             "user_roles",
@@ -556,6 +616,9 @@ public class UserService {
     }
 
 
+    /**
+     * Builds the unique display name.
+     */
     private String buildUniqueDisplayName(String displayNameHint, String email) {
         String base = null;
         if (displayNameHint != null && !displayNameHint.isBlank()) {
@@ -576,6 +639,9 @@ public class UserService {
         return base;
     }
 
+    /**
+     * Checks whether display name format valid.
+     */
     public boolean isDisplayNameFormatValid(String displayName) {
         if (displayName == null) {
             return false;
@@ -587,6 +653,9 @@ public class UserService {
         return trimmed.matches("^[a-zA-Z0-9._-]+$");
     }
 
+    /**
+     * Normalizes the display name.
+     */
     public String normalizeDisplayName(String displayName) {
         if (displayName == null) {
             return null;
@@ -594,6 +663,9 @@ public class UserService {
         return displayName.trim().toLowerCase();
     }
 
+    /**
+     * Builds the query.
+     */
     private String buildQuery(Map<String, String> params) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance();
         params.forEach(builder::queryParam);
@@ -601,6 +673,9 @@ public class UserService {
         return uri.startsWith("?") ? uri.substring(1) : uri;
     }
 
+    /**
+     * Requires the access token.
+     */
     private String requireAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
@@ -608,6 +683,9 @@ public class UserService {
         return accessToken;
     }
 
+    /**
+     * Fetches the admin user ids.
+     */
     private Set<UUID> fetchAdminUserIds() {
         List<UserRole> roles = supabaseAdminRestClient.getList(
             "user_roles",
@@ -626,6 +704,9 @@ public class UserService {
         return adminUserIds;
     }
 
+    /**
+     * Handles leaderboard profile comparator.
+     */
     private Comparator<Profile> leaderboardProfileComparator() {
         return Comparator
             .comparingInt((Profile profile) -> normalizedXp(profile.getReputationPoints()))
@@ -637,6 +718,9 @@ public class UserService {
             .thenComparing(profile -> profile.getUserId().toString());
     }
 
+    /**
+     * Handles matches leaderboard query.
+     */
     private boolean matchesLeaderboardQuery(LeaderboardEntryResponse entry, String normalizedQuery) {
         if (normalizedQuery == null || normalizedQuery.isBlank()) {
             return true;
@@ -645,6 +729,9 @@ public class UserService {
         return displayName != null && displayName.toLowerCase().contains(normalizedQuery);
     }
 
+    /**
+     * Normalizes the leaderboard display name.
+     */
     private String normalizeLeaderboardDisplayName(String value) {
         if (value == null) {
             return null;
@@ -653,6 +740,9 @@ public class UserService {
         return trimmed.isBlank() ? null : trimmed;
     }
 
+    /**
+     * Normalizes the leaderboard page size.
+     */
     private int normalizeLeaderboardPageSize(int pageSize) {
         if (pageSize <= 0) {
             return DEFAULT_LEADERBOARD_PAGE_SIZE;
@@ -660,6 +750,9 @@ public class UserService {
         return Math.min(pageSize, MAX_LEADERBOARD_PAGE_SIZE);
     }
 
+    /**
+     * Normalizes the leaderboard query.
+     */
     private String normalizeLeaderboardQuery(String query) {
         if (query == null) {
             return null;
@@ -671,10 +764,16 @@ public class UserService {
         return trimmed.isBlank() ? null : trimmed;
     }
 
+    /**
+     * Normalizes the d xp.
+     */
     private int normalizedXp(Integer value) {
         return value == null ? 0 : Math.max(0, value);
     }
 
+    /**
+     * Fetches the lessons by ids.
+     */
     private Map<String, Map<String, Object>> fetchLessonsByIds(Set<String> lessonIds) {
         if (lessonIds == null || lessonIds.isEmpty()) {
             return Map.of();
@@ -697,10 +796,16 @@ public class UserService {
         return byId;
     }
 
+    /**
+     * Extracts a string value from a mixed payload field.
+     */
     private String stringValue(Object value) {
         return value == null ? null : value.toString();
     }
 
+    /**
+     * Parses the uuid.
+     */
     private UUID parseUuid(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -712,6 +817,9 @@ public class UserService {
         }
     }
 
+    /**
+     * Parses the offset date time.
+     */
     private OffsetDateTime parseOffsetDateTime(Object value) {
         if (value == null) {
             return null;

@@ -26,6 +26,9 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+/**
+ * Implements the lesson quiz service workflows and persistence coordination used by the API layer.
+ */
 @Service
 public class LessonQuizServiceImpl implements LessonQuizService {
     private static final TypeReference<List<Map<String, Object>>> MAP_LIST = new TypeReference<>() {};
@@ -36,6 +39,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
     private final SupabaseAdminRestClient supabaseAdminRestClient;
     private final LessonQuizGraderRegistry graderRegistry;
 
+    /**
+     * Creates a lesson quiz service impl instance with its collaborators.
+     */
     public LessonQuizServiceImpl(
         SupabaseRestClient supabaseRestClient,
         SupabaseAdminRestClient supabaseAdminRestClient,
@@ -46,6 +52,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         this.graderRegistry = graderRegistry;
     }
 
+    /**
+     * Returns the progress metadata.
+     */
     @Override
     public ProgressMetadata getProgressMetadata(
         UUID userId,
@@ -155,6 +164,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Returns the quiz state.
+     */
     @Override
     public LessonQuizStateResponse getQuizState(UUID userId, UUID lessonId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -271,11 +283,17 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return buildStateResponse(activeAttempt, orderedQuestions, hearts, status, !blocked, false);
     }
 
+    /**
+     * Checks whether active lesson quiz.
+     */
     @Override
     public boolean hasActiveLessonQuiz(UUID lessonId) {
         return findActiveLessonQuiz(lessonId) != null;
     }
 
+    /**
+     * Returns the hearts status.
+     */
     @Override
     public LessonHeartsStatusResponse getHeartsStatus(UUID userId, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -283,6 +301,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return new LessonHeartsStatusResponse(hearts.heartsRemaining(), hearts.refillAt());
     }
 
+    /**
+     * Handles answer question.
+     */
     @Override
     public LessonQuizAnswerResponse answerQuestion(
         UUID userId,
@@ -439,6 +460,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Handles restart quiz.
+     */
     @Override
     public LessonQuizStateResponse restartQuiz(UUID userId, UUID lessonId, String mode, String accessToken) {
         String token = requireAccessToken(accessToken);
@@ -499,6 +523,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Loads the quiz context.
+     */
     private QuizContext loadQuizContext(UUID userId, UUID lessonId, String token) {
         Map<String, Object> lesson = getLearnerLesson(lessonId, token);
         List<Map<String, Object>> sections = buildLessonSections(lesson);
@@ -527,6 +554,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return new QuizContext(lesson, sections, quiz, questions, maxScore);
     }
 
+    /**
+     * Returns the learner lesson.
+     */
     private Map<String, Object> getLearnerLesson(UUID lessonId, String token) {
         List<Map<String, Object>> lessons = supabaseRestClient.getList(
             "lessons",
@@ -546,6 +576,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return lessons.get(0);
     }
 
+    /**
+     * Finds the active lesson quiz.
+     */
     private Map<String, Object> findActiveLessonQuiz(UUID lessonId) {
         List<Map<String, Object>> quizzes = supabaseAdminRestClient.getList(
             "quizzes",
@@ -562,6 +595,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return quizzes.isEmpty() ? null : quizzes.get(0);
     }
 
+    /**
+     * Returns the quiz questions.
+     */
     private List<Map<String, Object>> getQuizQuestions(String quizId) {
         return supabaseAdminRestClient.getList(
             "quiz_questions",
@@ -574,6 +610,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Ensures the hearts state.
+     */
     private HeartsState ensureHeartsState(UUID userId, String token) {
         List<Map<String, Object>> rows = fetchHeartsRows(userId, token);
         OffsetDateTime now = OffsetDateTime.now();
@@ -634,6 +673,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return new HeartsState(hearts, refillAt);
     }
 
+    /**
+     * Handles consume heart.
+     */
     private HeartsState consumeHeart(UUID userId, HeartsState hearts, String token) {
         OffsetDateTime now = OffsetDateTime.now();
         int nextHearts = Math.max(0, hearts.heartsRemaining() - 1);
@@ -664,6 +706,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return persisted;
     }
 
+    /**
+     * Fetches the hearts rows.
+     */
     private List<Map<String, Object>> fetchHeartsRows(UUID userId, String token) {
         return supabaseRestClient.getList(
             "user_quiz_hearts",
@@ -673,6 +718,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Handles hearts state from row.
+     */
     private HeartsState heartsStateFromRow(Map<String, Object> row) {
         Integer parsedHearts = parseInteger(row.get("hearts_remaining"));
         int heartsRemaining = parsedHearts == null
@@ -684,10 +732,16 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Handles next scheduled refill at.
+     */
     private OffsetDateTime nextScheduledRefillAt(OffsetDateTime now) {
         return now.plusHours(24);
     }
 
+    /**
+     * Fetches the persisted hearts state.
+     */
     private HeartsState fetchPersistedHeartsState(UUID userId, String token) {
         List<Map<String, Object>> rows = fetchHeartsRows(userId, token);
         if (rows.isEmpty()) {
@@ -696,6 +750,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return heartsStateFromRow(rows.get(0));
     }
 
+    /**
+     * Creates the attempt.
+     */
     private Map<String, Object> createAttempt(
         UUID userId,
         UUID lessonId,
@@ -734,6 +791,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return created.get(0);
     }
 
+    /**
+     * Finds the attempt by id.
+     */
     private Map<String, Object> findAttemptById(UUID userId, UUID lessonId, String attemptId, String token) {
         List<Map<String, Object>> rows = supabaseRestClient.getList(
             "user_lesson_quiz_attempts",
@@ -750,6 +810,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * Finds the active attempt.
+     */
     private Map<String, Object> findActiveAttempt(UUID userId, UUID lessonId, String token) {
         List<Map<String, Object>> rows = supabaseRestClient.getList(
             "user_lesson_quiz_attempts",
@@ -767,6 +830,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * Finds the latest attempt.
+     */
     private Map<String, Object> findLatestAttempt(UUID userId, UUID lessonId, String token) {
         List<Map<String, Object>> rows = supabaseRestClient.getList(
             "user_lesson_quiz_attempts",
@@ -783,6 +849,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    /**
+     * Patches the attempt.
+     */
     private Map<String, Object> patchAttempt(Map<String, Object> attempt, Map<String, Object> patch, String token) {
         String attemptId = stringValue(attempt.get("id"));
         List<Map<String, Object>> updated = supabaseRestClient.patchList(
@@ -795,6 +864,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return updated.isEmpty() ? attempt : updated.get(0);
     }
 
+    /**
+     * Patches the attempt for answer.
+     */
     private Map<String, Object> patchAttemptForAnswer(
         Map<String, Object> attempt,
         int expectedQuestionIndex,
@@ -822,6 +894,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return updated.isEmpty() ? null : updated.get(0);
     }
 
+    /**
+     * Saves the quiz result.
+     */
     private void saveQuizResult(
         UUID userId,
         QuizContext context,
@@ -843,6 +918,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         supabaseRestClient.postList("user_quiz_results", insert, token, MAP_LIST);
     }
 
+    /**
+     * Completes the lesson and grant rewards.
+     */
     private void completeLessonAndGrantRewards(UUID userId, UUID lessonId, QuizContext context, String token) {
         OffsetDateTime now = OffsetDateTime.now();
         String lastSection = context.sections().isEmpty() ? null : sectionIdAt(context.sections(), context.sections().size() - 1);
@@ -901,6 +979,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         incrementLessonCompletionCount(lessonId);
     }
 
+    /**
+     * Handles award lesson reward.
+     */
     private boolean awardLessonReward(UUID userId, UUID lessonId, int xpReward, String badgeName, String token) {
         List<Map<String, Object>> existingRewards = supabaseAdminRestClient.getList(
             "user_lesson_rewards",
@@ -945,6 +1026,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         }
     }
 
+    /**
+     * Handles increment profile xp.
+     */
     private void incrementProfileXp(UUID userId, int xpReward, String token) {
         List<Map<String, Object>> profiles = supabaseRestClient.getList(
             "profiles",
@@ -970,6 +1054,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Handles insert badge achievement.
+     */
     private void insertBadgeAchievement(UUID userId, String badgeName, String token) {
         Map<String, Object> insert = Map.of(
             "user_id", userId,
@@ -1000,6 +1087,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         }
     }
 
+    /**
+     * Handles increment lesson completion count.
+     */
     private void incrementLessonCompletionCount(UUID lessonId) {
         List<Map<String, Object>> lessons = supabaseAdminRestClient.getList(
             "lessons",
@@ -1021,6 +1111,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Builds the state response.
+     */
     private LessonQuizStateResponse buildStateResponse(
         Map<String, Object> attempt,
         List<Map<String, Object>> questions,
@@ -1053,6 +1146,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Converts the value into question response.
+     */
     private LessonQuizQuestionResponse toQuestionResponse(Map<String, Object> question) {
         String questionType = questionTypeOf(question);
         LessonQuizQuestionGrader grader = graderRegistry.require(questionType);
@@ -1070,6 +1166,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         );
     }
 
+    /**
+     * Resolves the questions for attempt.
+     */
     private List<Map<String, Object>> resolveQuestionsForAttempt(
         List<Map<String, Object>> allQuestions,
         Map<String, Object> attempt
@@ -1088,6 +1187,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return filtered;
     }
 
+    /**
+     * Handles filter questions by ids.
+     */
     private List<Map<String, Object>> filterQuestionsByIds(List<Map<String, Object>> allQuestions, List<String> questionIds) {
         Map<String, Map<String, Object>> questionById = new LinkedHashMap<>();
         for (Map<String, Object> question : allQuestions) {
@@ -1106,6 +1208,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return filtered;
     }
 
+    /**
+     * Computes the max score.
+     */
     private int computeMaxScore(List<Map<String, Object>> questions) {
         return questions.stream()
             .map(question -> parseInteger(question.get("points")))
@@ -1113,20 +1218,32 @@ public class LessonQuizServiceImpl implements LessonQuizService {
             .sum();
     }
 
+    /**
+     * Handles question ids from attempt.
+     */
     private List<String> questionIdsFromAttempt(Map<String, Object> attempt) {
         Map<String, Object> answers = normalizeAnswers(attempt.get("answers"));
         return metadataIdsFromAnswers(answers, ATTEMPT_META_QUESTION_IDS);
     }
 
+    /**
+     * Handles wrong question ids from attempt.
+     */
     private List<String> wrongQuestionIdsFromAttempt(Map<String, Object> attempt) {
         Map<String, Object> answers = normalizeAnswers(attempt.get("answers"));
         return wrongQuestionIdsFromAnswers(answers);
     }
 
+    /**
+     * Handles wrong question ids from answers.
+     */
     private List<String> wrongQuestionIdsFromAnswers(Map<String, Object> answers) {
         return metadataIdsFromAnswers(answers, ATTEMPT_META_WRONG_QUESTION_IDS);
     }
 
+    /**
+     * Adds the wrong question id.
+     */
     private void addWrongQuestionId(Map<String, Object> answers, String questionId) {
         if (questionId == null) {
             return;
@@ -1138,6 +1255,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         answers.put(ATTEMPT_META_WRONG_QUESTION_IDS, wrongIds);
     }
 
+    /**
+     * Handles metadata ids from answers.
+     */
     private List<String> metadataIdsFromAnswers(Map<String, Object> answers, String key) {
         Object value = answers.get(key);
         if (!(value instanceof List<?> list)) {
@@ -1153,6 +1273,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return ids;
     }
 
+    /**
+     * Handles strip attempt metadata.
+     */
     private Map<String, Object> stripAttemptMetadata(Map<String, Object> answers) {
         Map<String, Object> sanitized = new LinkedHashMap<>();
         for (Map.Entry<String, Object> entry : answers.entrySet()) {
@@ -1168,6 +1291,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return sanitized;
     }
 
+    /**
+     * Handles order questions for attempt.
+     */
     private List<Map<String, Object>> orderQuestionsForAttempt(List<Map<String, Object>> questions, String attemptId) {
         List<Map<String, Object>> ordered = new ArrayList<>(questions);
         if (ordered.size() <= 1 || attemptId == null || attemptId.isBlank()) {
@@ -1180,6 +1306,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return ordered;
     }
 
+    /**
+     * Handles stable question seed.
+     */
     private long stableQuestionSeed(String attemptId, Map<String, Object> question) {
         String questionId = stringValue(question.get("id"));
         String material = attemptId + "|" + (questionId == null ? "" : questionId);
@@ -1191,6 +1320,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return hash;
     }
 
+    /**
+     * Loads the progress state.
+     */
     private LessonProgressState loadProgressState(
         UUID userId,
         UUID lessonId,
@@ -1219,6 +1351,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return new LessonProgressState(true, completed);
     }
 
+    /**
+     * Computes the completed sections.
+     */
     private int computeCompletedSections(int progressPercentage, String currentSection, List<Map<String, Object>> sections) {
         if (sections.isEmpty()) {
             return 0;
@@ -1235,6 +1370,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return Math.max(0, Math.min(sections.size(), Math.max(byProgress, byCurrent)));
     }
 
+    /**
+     * Builds the lesson sections.
+     */
     private List<Map<String, Object>> buildLessonSections(Map<String, Object> lesson) {
         List<Map<String, Object>> sections = new ArrayList<>();
         addSection(sections, LessonFlowConstants.SECTION_INTRO, "Origin", lesson.get("origin_content"), 1);
@@ -1246,6 +1384,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return sections;
     }
 
+    /**
+     * Adds the section.
+     */
     private void addSection(List<Map<String, Object>> sections, String id, String title, Object rawContent, int order) {
         String content = stringify(rawContent);
         if (content == null || content.isBlank()) {
@@ -1260,6 +1401,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         sections.add(section);
     }
 
+    /**
+     * Converts an arbitrary payload value into its string representation.
+     */
     private String stringify(Object value) {
         if (value == null) {
             return null;
@@ -1270,11 +1414,17 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return value.toString();
     }
 
+    /**
+     * Handles question type of.
+     */
     private String questionTypeOf(Map<String, Object> question) {
         String type = stringValue(question.get("question_type"));
         return type == null ? "multiple_choice" : type.toLowerCase();
     }
 
+    /**
+     * Normalizes the options.
+     */
     private Map<String, Object> normalizeOptions(Object value) {
         if (!(value instanceof Map<?, ?> map)) {
             return Map.of();
@@ -1293,6 +1443,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return normalized;
     }
 
+    /**
+     * Normalizes the answers.
+     */
     private Map<String, Object> normalizeAnswers(Object value) {
         if (!(value instanceof Map<?, ?> map)) {
             return new LinkedHashMap<>();
@@ -1307,6 +1460,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return normalized;
     }
 
+    /**
+     * Handles section id at.
+     */
     private String sectionIdAt(List<Map<String, Object>> sections, int index) {
         if (index < 0 || index >= sections.size()) {
             return null;
@@ -1314,6 +1470,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return stringValue(sections.get(index).get("id"));
     }
 
+    /**
+     * Extracts a string value from a mixed payload field.
+     */
     private String stringValue(Object value) {
         if (value == null) {
             return null;
@@ -1322,6 +1481,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return trimmed.isBlank() ? null : trimmed;
     }
 
+    /**
+     * Parses the integer.
+     */
     private Integer parseInteger(Object value) {
         if (value == null) {
             return null;
@@ -1336,6 +1498,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         }
     }
 
+    /**
+     * Parses the offset date time.
+     */
     private OffsetDateTime parseOffsetDateTime(Object value) {
         if (value == null) {
             return null;
@@ -1350,6 +1515,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         }
     }
 
+    /**
+     * Checks whether unique violation.
+     */
     private boolean isUniqueViolation(ResponseStatusException ex) {
         String normalized = normalizeSupabaseError(ex);
         return normalized.contains("duplicate key")
@@ -1358,6 +1526,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
             || normalized.contains("on conflict");
     }
 
+    /**
+     * Checks whether row level security violation.
+     */
     private boolean isRowLevelSecurityViolation(ResponseStatusException ex) {
         String normalized = normalizeSupabaseError(ex);
         return normalized.contains("row-level security")
@@ -1365,6 +1536,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
             || normalized.contains("\"code\":\"42501\"");
     }
 
+    /**
+     * Normalizes the supabase error.
+     */
     private String normalizeSupabaseError(ResponseStatusException ex) {
         StringBuilder normalizedBuilder = new StringBuilder();
         if (ex.getReason() != null) {
@@ -1379,6 +1553,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return normalizedBuilder.toString();
     }
 
+    /**
+     * Builds the query.
+     */
     private String buildQuery(Map<String, String> params) {
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance();
         params.forEach(builder::queryParam);
@@ -1386,6 +1563,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         return uri.startsWith("?") ? uri.substring(1) : uri;
     }
 
+    /**
+     * Requires the access token.
+     */
     private String requireAccessToken(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing access token");
