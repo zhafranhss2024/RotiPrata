@@ -19,7 +19,7 @@ import com.rotiprata.api.lesson.dto.LessonQuizAnswerResponse;
 import com.rotiprata.api.lesson.dto.LessonQuizStateResponse;
 import com.rotiprata.api.lesson.service.LessonQuizService;
 import com.rotiprata.api.lesson.service.LessonService;
-import com.rotiprata.api.zdto.SectionCompleteResponse;
+import com.rotiprata.api.lesson.response.SectionCompleteResponse;
 import com.rotiprata.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;

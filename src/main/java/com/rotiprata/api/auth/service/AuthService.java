@@ -1,10 +1,10 @@
 package com.rotiprata.api.auth.service;
 
 import com.rotiprata.api.auth.dto.AuthSessionResponse;
-import com.rotiprata.api.zdto.ForgotPasswordRequest;
-import com.rotiprata.api.zdto.LoginRequest;
-import com.rotiprata.api.zdto.RegisterRequest;
-import com.rotiprata.api.zdto.ResetPasswordRequest;
+import com.rotiprata.api.auth.request.ForgotPasswordRequest;
+import com.rotiprata.api.auth.request.LoginRequest;
+import com.rotiprata.api.auth.request.RegisterRequest;
+import com.rotiprata.api.auth.request.ResetPasswordRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 /**

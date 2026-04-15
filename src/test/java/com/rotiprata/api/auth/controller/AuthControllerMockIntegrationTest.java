@@ -28,11 +28,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.rotiprata.api.auth.dto.AuthSessionResponse;
 import com.rotiprata.api.auth.service.AuthService;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.api.zdto.ForgotPasswordRequest;
-import com.rotiprata.api.zdto.LoginRequest;
-import com.rotiprata.api.zdto.LoginStreakTouchResponse;
-import com.rotiprata.api.zdto.RegisterRequest;
-import com.rotiprata.api.zdto.ResetPasswordRequest;
+import com.rotiprata.api.auth.request.ForgotPasswordRequest;
+import com.rotiprata.api.auth.request.LoginRequest;
+import com.rotiprata.api.auth.response.LoginStreakTouchResponse;
+import com.rotiprata.api.auth.request.RegisterRequest;
+import com.rotiprata.api.auth.request.ResetPasswordRequest;
 import com.rotiprata.application.LoginStreakService;
 
 import io.restassured.http.ContentType;

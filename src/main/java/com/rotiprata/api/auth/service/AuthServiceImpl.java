@@ -13,10 +13,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import com.rotiprata.api.auth.dto.AuthSessionResponse;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.api.zdto.ForgotPasswordRequest;
-import com.rotiprata.api.zdto.LoginRequest;
-import com.rotiprata.api.zdto.RegisterRequest;
-import com.rotiprata.api.zdto.ResetPasswordRequest;
+import com.rotiprata.api.auth.request.ForgotPasswordRequest;
+import com.rotiprata.api.auth.request.LoginRequest;
+import com.rotiprata.api.auth.request.RegisterRequest;
+import com.rotiprata.api.auth.request.ResetPasswordRequest;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminClient;
 import com.rotiprata.infrastructure.supabase.SupabaseAuthClient;
 import com.rotiprata.infrastructure.supabase.SupabaseSessionResponse;

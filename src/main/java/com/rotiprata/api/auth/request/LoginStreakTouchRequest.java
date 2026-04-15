@@ -1,4 +1,4 @@
-package com.rotiprata.api.zdto;
+package com.rotiprata.api.auth.request;
 
 public record LoginStreakTouchRequest(
     String timezone

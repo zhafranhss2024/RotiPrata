@@ -1,4 +1,4 @@
-package com.rotiprata.api.zdto;
+package com.rotiprata.api.auth.request;
 
 import jakarta.validation.constraints.NotBlank;
 import com.rotiprata.validation.PasswordPolicy;

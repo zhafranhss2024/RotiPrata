@@ -1,4 +1,4 @@
-package com.rotiprata.api.zdto;
+package com.rotiprata.api.auth.request;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.rotiprata.validation.PasswordPolicy;

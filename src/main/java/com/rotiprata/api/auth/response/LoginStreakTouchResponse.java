@@ -1,4 +1,4 @@
-package com.rotiprata.api.zdto;
+package com.rotiprata.api.auth.response;
 
 import java.time.LocalDate;
 

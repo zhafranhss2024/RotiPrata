@@ -1,6 +1,6 @@
 package com.rotiprata.api.exception;
 
-import com.rotiprata.api.zdto.ApiErrorResponse;
+import com.rotiprata.api.common.response.ApiErrorResponse;
 import com.rotiprata.security.RateLimitExceededException;
 import java.util.HashMap;
 import java.util.Map;

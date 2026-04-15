@@ -1,6 +1,6 @@
 package com.rotiprata.api.feed.service;
 
-import com.rotiprata.api.zdto.FeedResponse;
+import com.rotiprata.api.feed.response.FeedResponse;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 

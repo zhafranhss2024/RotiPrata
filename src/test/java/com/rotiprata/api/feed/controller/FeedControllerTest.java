@@ -2,8 +2,8 @@ package com.rotiprata.api.feed.controller;
 
 import com.rotiprata.api.feed.service.FeedService;
 import com.rotiprata.api.feed.service.RecommendationService;
-import com.rotiprata.api.zdto.FeedResponse;
-import com.rotiprata.api.zdto.RecommendationResponse;
+import com.rotiprata.api.feed.response.FeedResponse;
+import com.rotiprata.api.feed.response.RecommendationResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;

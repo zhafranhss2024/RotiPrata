@@ -20,7 +20,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.rotiprata.api.content.service.ContentService;
 import com.rotiprata.api.generalutils.DateUtils;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.domain.AppRole;
+import com.rotiprata.security.authorization.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 
 /**

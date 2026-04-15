@@ -13,7 +13,7 @@ import com.rotiprata.api.admin.service.AdminService;
 import com.rotiprata.api.content.domain.Content;
 import com.rotiprata.api.content.dto.ContentQuizQuestionResponse;
 import com.rotiprata.api.content.service.ContentQuizService;
-import com.rotiprata.api.zdto.RejectContentRequest;
+import com.rotiprata.api.admin.request.RejectContentRequest;
 import com.rotiprata.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;

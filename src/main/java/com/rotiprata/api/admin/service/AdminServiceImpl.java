@@ -21,7 +21,7 @@ import com.rotiprata.api.feed.service.ContentLessonLinkService;
 import com.rotiprata.api.user.domain.Profile;
 import com.rotiprata.api.user.domain.UserRole;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.domain.AppRole;
+import com.rotiprata.security.authorization.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminClient;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import java.util.ArrayList;

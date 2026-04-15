@@ -6,7 +6,7 @@ import com.rotiprata.api.content.service.ContentCreatorEnrichmentService;
 import com.rotiprata.api.content.service.ContentService;
 import com.rotiprata.api.feed.service.ContentLessonLinkService;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.domain.AppRole;
+import com.rotiprata.security.authorization.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminClient;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import java.util.List;

@@ -6,7 +6,7 @@ import com.rotiprata.api.content.dto.ContentCommentCreateRequest;
 import com.rotiprata.api.content.dto.ContentFlagRequest;
 import com.rotiprata.api.content.dto.ContentPlaybackEventRequest;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.domain.AppRole;
+import com.rotiprata.security.authorization.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;

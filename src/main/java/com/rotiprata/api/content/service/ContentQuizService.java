@@ -11,7 +11,7 @@ import com.rotiprata.api.content.dto.ContentQuizResponse;
 import com.rotiprata.api.content.dto.ContentQuizSubmitRequest;
 import com.rotiprata.api.content.dto.ContentQuizSubmitResponse;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.domain.AppRole;
+import com.rotiprata.security.authorization.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import com.rotiprata.infrastructure.supabase.SupabaseRestClient;
 import java.time.OffsetDateTime;

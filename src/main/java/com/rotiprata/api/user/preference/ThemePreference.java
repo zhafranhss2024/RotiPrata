@@ -1,4 +1,4 @@
-package com.rotiprata.domain;
+package com.rotiprata.api.user.preference;
 
 public enum ThemePreference {
     SYSTEM,

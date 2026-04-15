@@ -1,8 +1,8 @@
 package com.rotiprata.api.user.controller;
 
-import com.rotiprata.api.zdto.ThemePreferenceRequest;
-import com.rotiprata.api.zdto.LeaderboardResponse;
-import com.rotiprata.domain.ThemePreference;
+import com.rotiprata.api.user.request.ThemePreferenceRequest;
+import com.rotiprata.api.user.response.LeaderboardResponse;
+import com.rotiprata.api.user.preference.ThemePreference;
 import com.rotiprata.security.SecurityUtils;
 
 import jakarta.validation.Valid;

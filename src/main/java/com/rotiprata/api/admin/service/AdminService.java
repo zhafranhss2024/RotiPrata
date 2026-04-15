@@ -5,7 +5,7 @@ import com.rotiprata.api.admin.dto.AdminStatsResponse;
 import com.rotiprata.api.admin.dto.AdminUserDetailResponse;
 import com.rotiprata.api.admin.dto.AdminUserSummaryResponse;
 import com.rotiprata.api.content.domain.Content;
-import com.rotiprata.domain.AppRole;
+import com.rotiprata.security.authorization.AppRole;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
