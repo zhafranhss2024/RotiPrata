@@ -8,12 +8,23 @@ interface HeartsIndicatorProps {
   className?: string;
 }
 
+const MAX_HEARTS = 5;
+
 export function HeartsIndicator({ className }: HeartsIndicatorProps) {
   const location = useLocation();
   const isQuizRoute = /^\/lessons\/[^/]+\/quiz\/?$/.test(location.pathname);
   const [hearts, setHearts] = useState<LessonHeartsStatus | null>(null);
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const showRefillHint =
+    hearts?.heartsRefillAt != null &&
+    typeof hearts.heartsRemaining === 'number' &&
+    hearts.heartsRemaining < MAX_HEARTS;
+  const title = hasError
+    ? 'Hearts unavailable right now'
+    : showRefillHint
+      ? `Refill at ${new Date(hearts.heartsRefillAt!).toLocaleString()}`
+      : 'Hearts ready';
 
   useEffect(() => {
     let active = true;
@@ -59,13 +70,7 @@ export function HeartsIndicator({ className }: HeartsIndicatorProps) {
   return (
     <div
       className={`inline-flex items-center gap-1.5 rounded-full border border-mainAlt bg-main px-3 py-1.5 text-sm font-bold text-mainAccent dark:text-white ${hasError ? 'opacity-80' : ''} ${className ?? ''}`}
-      title={
-        hasError
-          ? 'Hearts unavailable right now'
-          : hearts?.heartsRefillAt
-            ? `Refill at ${new Date(hearts.heartsRefillAt).toLocaleString()}`
-            : 'Global hearts'
-      }
+      title={title}
     >
       <img src="/icon-images/heart.svg" alt="" className="h-4 w-4" />
       <span>{isLoading ? '...' : hearts?.heartsRemaining ?? '--'}</span>

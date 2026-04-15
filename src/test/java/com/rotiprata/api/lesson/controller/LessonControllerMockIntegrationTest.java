@@ -274,6 +274,23 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).completeLessonSection(eq(USER_ID), eq(LESSON_ID), eq("usage"), eq(ACCESS_TOKEN));
     }
 
+    /** Verifies legacy POST completion alias still wraps progress inside SectionCompleteResponse. */
+    @Test
+    void completeLessonSectionPostCompletion_ShouldReturnWrappedProgress_WhenSectionCompleted() {
+        //arrange
+        when(lessonService.completeLessonSection(any(), any(), anyString(), anyString()))
+            .thenReturn(new LessonProgressResponse("in_progress", 60, "usage", 2, 3, "quiz", true, 4, 3, "usage", 1, "available", 5, OffsetDateTime.now(), "quiz"));
+
+        //act
+        var response = auth.when().post("/api/lessons/{lessonId}/sections/{sectionId}/completion", LESSON_ID.toString(), "usage");
+
+        //assert
+        response.then().status(HttpStatus.OK).body("progress.progressPercentage", equalTo(60));
+
+        //verify
+        verify(lessonService).completeLessonSection(eq(USER_ID), eq(LESSON_ID), eq("usage"), eq(ACCESS_TOKEN));
+    }
+
     /** Verifies enroll endpoint delegates enrollment to service. */
     @Test
     void enrollLesson_ShouldReturnOk_WhenEnrollmentSucceeds() {

@@ -169,6 +169,17 @@ public class LessonController {
 
     @Hidden
     @Deprecated
+    @PostMapping("/lessons/{lessonId}/sections/{sectionId}/completion")
+    public SectionCompleteResponse completeLessonSectionViaPostCompletion(
+        @AuthenticationPrincipal Jwt jwt,
+        @PathVariable UUID lessonId,
+        @PathVariable String sectionId
+    ) {
+        return updateLessonSectionCompletion(jwt, lessonId, sectionId);
+    }
+
+    @Hidden
+    @Deprecated
     @PostMapping("/lessons/{lessonId}/sections/{sectionId}/complete")
     public SectionCompleteResponse completeLessonSection(
         @AuthenticationPrincipal Jwt jwt,

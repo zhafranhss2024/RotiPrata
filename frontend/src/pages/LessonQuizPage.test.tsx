@@ -75,7 +75,7 @@ const progressDetail: LessonProgressDetail = {
   remainingStops: 1,
   quizStatus: "available",
   heartsRemaining: 5,
-  heartsRefillAt: null,
+  heartsRefillAt: "2026-04-16T10:00:00.000Z",
   nextStopType: "quiz",
 };
 
@@ -104,7 +104,7 @@ const quizState: LessonQuizState = {
   },
   hearts: {
     heartsRemaining: 5,
-    heartsRefillAt: null,
+    heartsRefillAt: "2026-04-16T10:00:00.000Z",
   },
   canAnswer: true,
   canRestart: false,
@@ -198,7 +198,7 @@ describe("LessonQuizPage", () => {
       nextQuestion: null,
       hearts: {
         heartsRemaining: 5,
-        heartsRefillAt: null,
+        heartsRefillAt: "2026-04-16T10:00:00.000Z",
       },
       wrongQuestionIds: ["question-1"],
     });
@@ -225,7 +225,7 @@ describe("LessonQuizPage", () => {
     expect(screen.getAllByText("5").length).toBeGreaterThan(0);
     expect(emitHeartsUpdated).toHaveBeenCalledWith({
       heartsRemaining: 5,
-      heartsRefillAt: null,
+      heartsRefillAt: "2026-04-16T10:00:00.000Z",
     });
   });
 
@@ -252,7 +252,7 @@ describe("LessonQuizPage", () => {
       nextQuestion: null,
       hearts: {
         heartsRemaining: 4,
-        heartsRefillAt: null,
+        heartsRefillAt: "2026-04-16T10:00:00.000Z",
       },
       wrongQuestionIds: ["question-1"],
     });

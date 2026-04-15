@@ -441,6 +441,7 @@ Audit source: controller mappings in `src/main/java/com/rotiprata/api/*Controlle
   Frontend currently sends `theme_preference` in `frontend/src/lib/api.ts`.
 - Auth redirects for email confirmation and password recovery now use the neutral frontend route `/auth/finish`.
 - Learner quiz endpoints do not expose `correct_answer`; grading is server-side.
+- Learner hearts responses now keep a persisted `heartsRefillAt` schedule even at full hearts; clients should use `heartsRemaining` to decide whether quiz access is blocked.
 - `PUT /lessons/{lessonId}/progress` exists for backward compatibility; section completion + quiz flow is the primary path.
 - `GET /lessons/hub` now returns `summary` plus `categories[]`, where each category includes `categoryId`, `name`, `type`, `color`, `isVirtual`, and ordered `lessons[]`.
 - Real categories are returned even when they have no lessons; legacy published lessons without `category_id` are grouped into a synthetic `Uncategorized` category.

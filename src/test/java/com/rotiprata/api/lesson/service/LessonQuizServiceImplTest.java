@@ -17,21 +17,26 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @ExtendWith(MockitoExtension.class)
 class LessonQuizServiceImplTest {
@@ -78,6 +83,8 @@ class LessonQuizServiceImplTest {
         // arrange
         Map<String, Object> attempt = activeAttempt("attempt-1", 0, 0, 0, 20, "in_progress");
         Map<String, Object> patchedAttempt = activeAttempt("attempt-1", 1, 0, 0, 20, "in_progress");
+        OffsetDateTime scheduledRefillAt = OffsetDateTime.now().plusHours(6);
+        OffsetDateTime consumedRefillAt = OffsetDateTime.now().plusHours(24);
         when(supabaseRestClient.getList(eq("lessons"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(lesson));
         when(supabaseRestClient.getList(eq("user_lesson_progress"), anyString(), eq(ACCESS_TOKEN), any()))
@@ -87,13 +94,13 @@ class LessonQuizServiceImplTest {
         when(supabaseAdminRestClient.getList(eq("quiz_questions"), anyString(), any()))
             .thenReturn(List.of(firstQuestion, secondQuestion));
         when(supabaseRestClient.getList(eq("user_quiz_hearts"), anyString(), eq(ACCESS_TOKEN), any()))
-            .thenReturn(List.of(heartsRow(5, null)), List.of(heartsRow(4, null)));
+            .thenReturn(List.of(heartsRow(5, scheduledRefillAt)), List.of(heartsRow(4, consumedRefillAt)));
         when(supabaseRestClient.getList(eq("user_lesson_quiz_attempts"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(attempt));
         when(supabaseRestClient.patchList(eq("user_lesson_quiz_attempts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(patchedAttempt));
         when(supabaseRestClient.patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
-            .thenReturn(List.of(heartsRow(4, null)));
+            .thenReturn(List.of(heartsRow(4, consumedRefillAt)));
 
         // act
         LessonQuizAnswerResponse response = lessonQuizService.answerQuestion(
@@ -107,10 +114,18 @@ class LessonQuizServiceImplTest {
         assertFalse(response.correct());
         assertEquals(LessonFlowConstants.QUIZ_STATUS_IN_PROGRESS, response.status());
         assertEquals(4, response.hearts().heartsRemaining());
+        assertNotNull(response.hearts().heartsRefillAt());
         assertNotNull(response.nextQuestion());
 
         // verify
         verify(supabaseRestClient).patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> heartsPatchCaptor = ArgumentCaptor.forClass((Class<Map<String, Object>>) (Class<?>) Map.class);
+        verify(supabaseRestClient).patchList(eq("user_quiz_hearts"), anyString(), heartsPatchCaptor.capture(), eq(ACCESS_TOKEN), any());
+        OffsetDateTime updatedAt = (OffsetDateTime) heartsPatchCaptor.getValue().get("updated_at");
+        OffsetDateTime refillAt = (OffsetDateTime) heartsPatchCaptor.getValue().get("refill_at");
+        assertNotNull(updatedAt);
+        assertEquals(updatedAt.plusHours(24), refillAt);
     }
 
     @Test
@@ -119,6 +134,8 @@ class LessonQuizServiceImplTest {
         Map<String, Object> attempt = activeAttempt("attempt-1", 0, 0, 0, 20, "in_progress");
         Map<String, Object> patchedAttempt = activeAttempt("attempt-1", 1, 0, 0, 20, "in_progress");
         OffsetDateTime staleRefillAt = OffsetDateTime.now().minusMinutes(5);
+        OffsetDateTime normalizedRefillAt = OffsetDateTime.now().plusHours(24);
+        OffsetDateTime consumedRefillAt = OffsetDateTime.now().plusHours(24);
         when(supabaseRestClient.getList(eq("lessons"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(lesson));
         when(supabaseRestClient.getList(eq("user_lesson_progress"), anyString(), eq(ACCESS_TOKEN), any()))
@@ -130,16 +147,16 @@ class LessonQuizServiceImplTest {
         when(supabaseRestClient.getList(eq("user_quiz_hearts"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(
                 List.of(heartsRow(5, staleRefillAt)),
-                List.of(heartsRow(5, null)),
-                List.of(heartsRow(4, null)),
-                List.of(heartsRow(4, null))
+                List.of(heartsRow(5, normalizedRefillAt)),
+                List.of(heartsRow(4, consumedRefillAt)),
+                List.of(heartsRow(4, consumedRefillAt))
             );
         when(supabaseRestClient.getList(eq("user_lesson_quiz_attempts"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(attempt));
         when(supabaseRestClient.patchList(eq("user_lesson_quiz_attempts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(patchedAttempt));
         when(supabaseRestClient.patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
-            .thenReturn(List.of(heartsRow(5, null)), List.of(heartsRow(4, null)));
+            .thenReturn(List.of(heartsRow(5, normalizedRefillAt)), List.of(heartsRow(4, consumedRefillAt)));
 
         // act
         LessonQuizAnswerResponse response = lessonQuizService.answerQuestion(
@@ -152,12 +169,18 @@ class LessonQuizServiceImplTest {
 
         // assert
         assertEquals(4, response.hearts().heartsRemaining());
-        assertNull(response.hearts().heartsRefillAt());
+        assertNotNull(response.hearts().heartsRefillAt());
         assertEquals(4, refreshedHearts.heartsRemaining());
-        assertNull(refreshedHearts.heartsRefillAt());
+        assertNotNull(refreshedHearts.heartsRefillAt());
 
         // verify
         verify(supabaseRestClient, times(2)).patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any());
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, Object>> heartsPatchCaptor = ArgumentCaptor.forClass((Class<Map<String, Object>>) (Class<?>) Map.class);
+        verify(supabaseRestClient, times(2)).patchList(eq("user_quiz_hearts"), anyString(), heartsPatchCaptor.capture(), eq(ACCESS_TOKEN), any());
+        for (Map<String, Object> patch : heartsPatchCaptor.getAllValues()) {
+            assertNotNull(patch.get("refill_at"));
+        }
     }
 
     @Test
@@ -165,6 +188,7 @@ class LessonQuizServiceImplTest {
         // arrange
         Map<String, Object> attempt = activeAttempt("attempt-1", 0, 0, 0, 20, "in_progress");
         Map<String, Object> patchedAttempt = activeAttempt("attempt-1", 1, 1, 10, 20, "in_progress");
+        OffsetDateTime scheduledRefillAt = OffsetDateTime.now().plusHours(12);
         when(supabaseRestClient.getList(eq("lessons"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(lesson));
         when(supabaseRestClient.getList(eq("user_lesson_progress"), anyString(), eq(ACCESS_TOKEN), any()))
@@ -174,7 +198,7 @@ class LessonQuizServiceImplTest {
         when(supabaseAdminRestClient.getList(eq("quiz_questions"), anyString(), any()))
             .thenReturn(List.of(firstQuestion, secondQuestion));
         when(supabaseRestClient.getList(eq("user_quiz_hearts"), anyString(), eq(ACCESS_TOKEN), any()))
-            .thenReturn(List.of(heartsRow(5, null)));
+            .thenReturn(List.of(heartsRow(5, scheduledRefillAt)));
         when(supabaseRestClient.getList(eq("user_lesson_quiz_attempts"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(attempt));
         when(supabaseRestClient.patchList(eq("user_lesson_quiz_attempts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
@@ -192,6 +216,7 @@ class LessonQuizServiceImplTest {
         assertTrue(response.correct());
         assertEquals(LessonFlowConstants.QUIZ_STATUS_IN_PROGRESS, response.status());
         assertEquals(5, response.hearts().heartsRemaining());
+        assertNotNull(response.hearts().heartsRefillAt());
 
         // verify
         verify(supabaseRestClient, never()).patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any());
@@ -212,7 +237,7 @@ class LessonQuizServiceImplTest {
         when(supabaseAdminRestClient.getList(eq("quiz_questions"), anyString(), any()))
             .thenReturn(List.of(firstQuestion, secondQuestion));
         when(supabaseRestClient.getList(eq("user_quiz_hearts"), anyString(), eq(ACCESS_TOKEN), any()))
-            .thenReturn(List.of(heartsRow(1, null)), List.of(heartsRow(0, refillAt)));
+            .thenReturn(List.of(heartsRow(1, refillAt)), List.of(heartsRow(0, refillAt)));
         when(supabaseRestClient.getList(eq("user_lesson_quiz_attempts"), anyString(), eq(ACCESS_TOKEN), any()))
             .thenReturn(List.of(attempt));
         when(supabaseRestClient.patchList(eq("user_lesson_quiz_attempts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
@@ -318,23 +343,127 @@ class LessonQuizServiceImplTest {
     }
 
     @Test
-    void getHeartsStatus_ShouldClearStaleRefillTime_WhenHeartsAreAlreadyFull() {
+    void getHeartsStatus_ShouldRescheduleRefillTime_WhenHeartsAreAlreadyFull() {
         // arrange
         OffsetDateTime staleRefillAt = OffsetDateTime.now().minusMinutes(5);
+        OffsetDateTime normalizedRefillAt = OffsetDateTime.now().plusHours(24);
         when(supabaseRestClient.getList(eq("user_quiz_hearts"), anyString(), eq(ACCESS_TOKEN), any()))
-            .thenReturn(List.of(heartsRow(5, staleRefillAt)), List.of(heartsRow(5, null)));
+            .thenReturn(List.of(heartsRow(5, staleRefillAt)), List.of(heartsRow(5, normalizedRefillAt)));
         when(supabaseRestClient.patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
-            .thenReturn(List.of(heartsRow(5, null)));
+            .thenReturn(List.of(heartsRow(5, normalizedRefillAt)));
 
         // act
         LessonHeartsStatusResponse response = lessonQuizService.getHeartsStatus(userId, ACCESS_TOKEN);
 
         // assert
         assertEquals(LessonFlowConstants.MAX_HEARTS, response.heartsRemaining());
-        assertNull(response.heartsRefillAt());
+        assertNotNull(response.heartsRefillAt());
 
         // verify
         verify(supabaseRestClient).patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any());
+    }
+
+    @Test
+    void getProgressMetadata_ShouldRepairMissingRefillSchedule_WhenFullHeartsLoaded() {
+        // arrange
+        OffsetDateTime repairedRefillAt = OffsetDateTime.now().plusHours(24);
+        List<Map<String, Object>> sections = List.of(
+            Map.of("id", LessonFlowConstants.SECTION_INTRO),
+            Map.of("id", LessonFlowConstants.SECTION_DEFINITION)
+        );
+        when(supabaseRestClient.getList(eq("user_quiz_hearts"), anyString(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(heartsRow(5, null)), List.of(heartsRow(5, repairedRefillAt)));
+        when(supabaseAdminRestClient.getList(eq("quizzes"), anyString(), any()))
+            .thenReturn(List.of(quiz));
+        when(supabaseRestClient.getList(eq("user_lesson_quiz_attempts"), anyString(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of());
+        when(supabaseRestClient.patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(heartsRow(5, repairedRefillAt)));
+
+        // act
+        LessonQuizService.ProgressMetadata response = lessonQuizService.getProgressMetadata(
+            userId,
+            lessonId,
+            sections,
+            sections.size(),
+            true,
+            ACCESS_TOKEN
+        );
+
+        // assert
+        assertEquals(LessonFlowConstants.QUIZ_STATUS_AVAILABLE, response.quizStatus());
+        assertEquals(LessonFlowConstants.MAX_HEARTS, response.heartsRemaining());
+        assertNotNull(response.heartsRefillAt());
+
+        // verify
+        verify(supabaseRestClient).patchList(eq("user_quiz_hearts"), anyString(), any(), eq(ACCESS_TOKEN), any());
+    }
+
+    @Test
+    void answerQuestion_ShouldStillPassQuiz_WhenBadgeAchievementAlreadyExists() {
+        // arrange
+        lesson.put("xp_reward", 25);
+        lesson.put("badge_name", "Sigma Starter");
+        Map<String, Object> attempt = activeAttempt("attempt-1", 0, 0, 0, 10, "in_progress");
+        Map<String, Object> patchedAttempt = activeAttempt("attempt-1", 1, 1, 10, 10, "passed");
+        patchedAttempt.put("completed_at", OffsetDateTime.now());
+        OffsetDateTime scheduledRefillAt = OffsetDateTime.now().plusHours(8);
+        when(supabaseRestClient.getList(eq("lessons"), anyString(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(lesson));
+        when(supabaseRestClient.getList(eq("user_lesson_progress"), anyString(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(completedProgressRow()), List.of(completedProgressRow()));
+        when(supabaseAdminRestClient.getList(eq("quizzes"), anyString(), any()))
+            .thenReturn(List.of(quiz));
+        when(supabaseAdminRestClient.getList(eq("quiz_questions"), anyString(), any()))
+            .thenReturn(List.of(firstQuestion));
+        when(supabaseRestClient.getList(eq("user_quiz_hearts"), anyString(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(heartsRow(5, scheduledRefillAt)));
+        when(supabaseRestClient.getList(eq("user_lesson_quiz_attempts"), anyString(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(attempt));
+        when(supabaseRestClient.patchList(eq("user_lesson_quiz_attempts"), anyString(), any(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(patchedAttempt));
+        when(supabaseRestClient.postList(eq("user_quiz_results"), any(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(Map.of("id", "result-1")));
+        when(supabaseRestClient.patchList(eq("user_lesson_progress"), anyString(), any(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(completedProgressRow()));
+        when(supabaseAdminRestClient.getList(eq("user_lesson_rewards"), anyString(), any()))
+            .thenReturn(List.of());
+        when(supabaseRestClient.postList(eq("user_lesson_rewards"), any(), eq(ACCESS_TOKEN), any()))
+            .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN, "row-level security"))
+            .thenReturn(List.of(Map.of("id", "reward-1")));
+        when(supabaseAdminRestClient.postList(eq("user_lesson_rewards"), any(), any()))
+            .thenReturn(List.of(Map.of("id", "reward-1")));
+        when(supabaseRestClient.getList(eq("profiles"), anyString(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(Map.of("id", "profile-1", "reputation_points", 100)));
+        when(supabaseRestClient.patchList(eq("profiles"), anyString(), any(), eq(ACCESS_TOKEN), any()))
+            .thenReturn(List.of(Map.of("id", "profile-1", "reputation_points", 125)));
+        when(supabaseAdminRestClient.getList(eq("lessons"), anyString(), any()))
+            .thenReturn(List.of(Map.of("id", lessonId.toString(), "completion_count", 2)));
+        when(supabaseAdminRestClient.patchList(eq("lessons"), anyString(), any(), any()))
+            .thenReturn(List.of(Map.of("id", lessonId.toString(), "completion_count", 3)));
+        when(supabaseRestClient.postList(eq("user_achievements"), any(), eq(ACCESS_TOKEN), any()))
+            .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "duplicate key value violates unique constraint"));
+
+        // act
+        LessonQuizAnswerResponse response = assertDoesNotThrow(() ->
+            lessonQuizService.answerQuestion(
+                userId,
+                lessonId,
+                new LessonQuizAnswerRequest("attempt-1", firstQuestionId, Map.of("choiceId", "A")),
+                ACCESS_TOKEN
+            )
+        );
+
+        // assert
+        assertTrue(response.correct());
+        assertTrue(response.passed());
+        assertTrue(response.quizCompleted());
+        assertEquals(LessonFlowConstants.QUIZ_STATUS_PASSED, response.status());
+
+        // verify
+        verify(supabaseAdminRestClient).postList(eq("user_lesson_rewards"), any(), any());
+        verify(supabaseRestClient).postList(eq("user_achievements"), any(), eq(ACCESS_TOKEN), any());
+        verify(supabaseAdminRestClient, never()).postList(eq("user_achievements"), any(), any());
     }
 
     private Map<String, Object> learnerLesson() {

@@ -1,5 +1,4 @@
 import type {
-  AdminAnalytics,
   AdminContentFlagReportPage,
   AdminContentFlagGroup,
   AdminFlagReview,
@@ -53,11 +52,10 @@ import {
   mockLessonStats,
 } from "@/mocks/lessons";
 import { buildMockLeaderboardResponse, mockProfile, mockProfileBadges, mockProfileCollections } from "@/mocks/profile";
-import { mockAdminAnalytics, mockAdminStats, mockAdminUserDetails, mockAdminUsers, mockFlags, mockModerationQueue } from "@/mocks/admin";
+import { mockAdminStats, mockAdminUserDetails, mockAdminUsers, mockFlags, mockModerationQueue } from "@/mocks/admin";
 import {
   mockBrowsingHistory,
   mockSearchResults,
-  mockTrendingContent,
 } from "@/mocks/explore";
 import { mockAuthUser, mockRoles } from "@/mocks/auth";
 import { buildSimilarContentList, SIMILAR_CONTENT_LIMIT } from "@/lib/similarContent";
@@ -407,9 +405,6 @@ export const fetchFeed = (cursor: string | null = null, limit = 20) =>
     }
   );
 
-export const fetchTrendingContent = () =>
-  withMockFallback("trending", () => mockTrendingContent, () => apiGet(`/trending`));
-
 export { SIMILAR_CONTENT_LIMIT };
 
 export const searchContent = (query: string, filter?: string | null) =>
@@ -688,7 +683,7 @@ export const completeLessonSection = (lessonId: string, sectionId: string) =>
       return updated;
     },
     async () => {
-      const response = await apiPost<CompleteLessonSectionResponse>(
+      const response = await apiPut<CompleteLessonSectionResponse>(
         `/lessons/${lessonId}/sections/${sectionId}/completion`
       );
       return response.progress;
@@ -927,7 +922,7 @@ export const fetchThemePreference = () =>
   );
 
 export const updateThemePreference = (theme: ThemePreference) =>
-  apiPut<void>(`/users/me/preferences`, { theme_preference: theme });
+  apiPut<void>(`/users/me/preferences`, { themePreference: theme });
 
 export const loginUser = (email: string, password: string) =>
   withMockFallback(
@@ -1084,14 +1079,6 @@ export const updateAdminUserStatus = (userId: string, status: "active" | "suspen
 
 export const resetAdminUserLessonProgress = (userId: string, lessonId: string) =>
   apiDelete<void>(`/admin/users/${userId}/lessons/${lessonId}/progress`);
-
-export const fetchAdminAnalytics = () =>
-  withMockFallback(
-    "admin-analytics",
-    () => mockAdminAnalytics,
-    () => apiGet<AdminAnalytics>(`/admin/analytics`),
-    { allowAutoFallback: false }
-  );
 
 const normalizeNestedContentTags = <T extends { content?: Record<string, unknown> | null }>(
   items: T[]

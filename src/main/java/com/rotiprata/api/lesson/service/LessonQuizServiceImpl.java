@@ -581,7 +581,7 @@ public class LessonQuizServiceImpl implements LessonQuizService {
             Map<String, Object> insert = new LinkedHashMap<>();
             insert.put("user_id", userId);
             insert.put("hearts_remaining", LessonFlowConstants.MAX_HEARTS);
-            insert.put("refill_at", now.plusHours(24));
+            insert.put("refill_at", nextScheduledRefillAt(now));
             insert.put("updated_at", now);
             List<Map<String, Object>> created = supabaseRestClient.postList("user_quiz_hearts", insert, token, MAP_LIST);
             if (created.isEmpty()) {
@@ -594,10 +594,11 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         HeartsState current = heartsStateFromRow(row);
         int hearts = current.heartsRemaining();
         OffsetDateTime refillAt = current.refillAt();
-        if (hearts >= LessonFlowConstants.MAX_HEARTS && refillAt != null && !now.isBefore(refillAt)) {
+        OffsetDateTime nextRefillAt = nextScheduledRefillAt(now);
+        if (hearts >= LessonFlowConstants.MAX_HEARTS && (refillAt == null || !now.isBefore(refillAt))) {
             Map<String, Object> normalizePatch = new LinkedHashMap<>();
             normalizePatch.put("hearts_remaining", LessonFlowConstants.MAX_HEARTS);
-            normalizePatch.put("refill_at", null);
+            normalizePatch.put("refill_at", nextRefillAt);
             normalizePatch.put("updated_at", now);
             List<Map<String, Object>> updated = supabaseRestClient.patchList(
                 "user_quiz_hearts",
@@ -611,9 +612,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
             }
             return fetchPersistedHeartsState(userId, token);
         }
-        if (hearts < LessonFlowConstants.MAX_HEARTS && refillAt != null && !now.isBefore(refillAt)) {
+        if (hearts < LessonFlowConstants.MAX_HEARTS && (refillAt == null || !now.isBefore(refillAt))) {
             hearts = LessonFlowConstants.MAX_HEARTS;
-            refillAt = now.plusHours(24);
+            refillAt = nextRefillAt;
             List<Map<String, Object>> updated = supabaseRestClient.patchList(
                 "user_quiz_hearts",
                 buildQuery(Map.of("user_id", "eq." + userId)),
@@ -637,10 +638,10 @@ public class LessonQuizServiceImpl implements LessonQuizService {
         OffsetDateTime now = OffsetDateTime.now();
         int nextHearts = Math.max(0, hearts.heartsRemaining() - 1);
         OffsetDateTime refillAt = hearts.refillAt();
-        if (nextHearts == 0) {
-            refillAt = now.plusHours(24);
-        } else if (refillAt != null && !now.isBefore(refillAt)) {
-            refillAt = null;
+        if (hearts.heartsRemaining() >= LessonFlowConstants.MAX_HEARTS) {
+            refillAt = nextScheduledRefillAt(now);
+        } else if (refillAt == null || !now.isBefore(refillAt)) {
+            refillAt = nextScheduledRefillAt(now);
         }
         Map<String, Object> heartsPatch = new LinkedHashMap<>();
         heartsPatch.put("hearts_remaining", nextHearts);
@@ -674,10 +675,17 @@ public class LessonQuizServiceImpl implements LessonQuizService {
 
     private HeartsState heartsStateFromRow(Map<String, Object> row) {
         Integer parsedHearts = parseInteger(row.get("hearts_remaining"));
+        int heartsRemaining = parsedHearts == null
+            ? LessonFlowConstants.MAX_HEARTS
+            : Math.max(0, Math.min(parsedHearts, LessonFlowConstants.MAX_HEARTS));
         return new HeartsState(
-            parsedHearts == null ? LessonFlowConstants.MAX_HEARTS : parsedHearts,
+            heartsRemaining,
             parseOffsetDateTime(row.get("refill_at"))
         );
+    }
+
+    private OffsetDateTime nextScheduledRefillAt(OffsetDateTime now) {
+        return now.plusHours(24);
     }
 
     private HeartsState fetchPersistedHeartsState(UUID userId, String token) {
@@ -918,6 +926,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
             List<Map<String, Object>> created = supabaseRestClient.postList("user_lesson_rewards", insert, token, MAP_LIST);
             return !created.isEmpty();
         } catch (ResponseStatusException ex) {
+            if (isUniqueViolation(ex)) {
+                return false;
+            }
             if (!isRowLevelSecurityViolation(ex)) {
                 throw ex;
             }
@@ -927,6 +938,9 @@ public class LessonQuizServiceImpl implements LessonQuizService {
             List<Map<String, Object>> created = supabaseAdminRestClient.postList("user_lesson_rewards", insert, MAP_LIST);
             return !created.isEmpty();
         } catch (ResponseStatusException ex) {
+            if (isUniqueViolation(ex)) {
+                return false;
+            }
             throw ex;
         }
     }
@@ -957,18 +971,33 @@ public class LessonQuizServiceImpl implements LessonQuizService {
     }
 
     private void insertBadgeAchievement(UUID userId, String badgeName, String token) {
-        supabaseRestClient.postList(
-            "user_achievements",
-            Map.of(
-                "user_id", userId,
-                "achievement_name", badgeName,
-                "achievement_type", "lesson_badge",
-                "description", "Earned by passing lesson quiz",
-                "earned_at", OffsetDateTime.now()
-            ),
-            token,
-            MAP_LIST
+        Map<String, Object> insert = Map.of(
+            "user_id", userId,
+            "achievement_name", badgeName,
+            "achievement_type", "lesson_badge",
+            "description", "Earned by passing lesson quiz",
+            "earned_at", OffsetDateTime.now()
         );
+        try {
+            supabaseRestClient.postList("user_achievements", insert, token, MAP_LIST);
+            return;
+        } catch (ResponseStatusException ex) {
+            if (isUniqueViolation(ex)) {
+                return;
+            }
+            if (!isRowLevelSecurityViolation(ex)) {
+                throw ex;
+            }
+        }
+
+        try {
+            supabaseAdminRestClient.postList("user_achievements", insert, MAP_LIST);
+        } catch (ResponseStatusException ex) {
+            if (isUniqueViolation(ex)) {
+                return;
+            }
+            throw ex;
+        }
     }
 
     private void incrementLessonCompletionCount(UUID lessonId) {
