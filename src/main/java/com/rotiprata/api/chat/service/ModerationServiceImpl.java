@@ -23,6 +23,9 @@ public class ModerationServiceImpl implements ModerationService {
     private static final String MODEL_NAME = "omni-moderation-latest";
 
     /**
+     * Creates a moderation service impl instance with its collaborators.
+     */
+    /**
      * Constructor for dependency injection.
      */
     public ModerationServiceImpl(
@@ -33,6 +36,9 @@ public class ModerationServiceImpl implements ModerationService {
         this.moderationPath = moderationPath;
     }
 
+    /**
+     * Checks whether flagged.
+     */
     // Checks if the given text is flagged as inappropriate using the moderation API
     @Override
     public boolean isFlagged(String text) {

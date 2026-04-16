@@ -20,6 +20,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+/**
+ * Covers category service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CategoryServiceImpl tests")
 class CategoryServiceImplTest {
@@ -32,6 +35,9 @@ class CategoryServiceImplTest {
 
     private Category sampleCategory;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         sampleCategory = new Category();
@@ -39,6 +45,9 @@ class CategoryServiceImplTest {
         sampleCategory.setName("Test Category");
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies getAll returns categories when Supabase client provides data.
     @Test
     @SuppressWarnings("unchecked")
@@ -60,6 +69,9 @@ class CategoryServiceImplTest {
                 .getList(anyString(), anyString(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies getAll returns empty list when no categories exist.
     @Test
     @SuppressWarnings("unchecked")
@@ -80,6 +92,9 @@ class CategoryServiceImplTest {
                 .getList(anyString(), anyString(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies getAll throws exception when Supabase client fails.
     @Test
     @SuppressWarnings("unchecked")
@@ -97,6 +112,9 @@ class CategoryServiceImplTest {
                 .getList(anyString(), anyString(), any(TypeReference.class));
     }
 
+    /**
+     * Handles suppress warnings.
+     */
     // Verifies getList is called with correct table and query parameters.
     @Test
     @SuppressWarnings("unchecked")

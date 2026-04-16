@@ -18,12 +18,18 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+/**
+ * Configures the security config components used by the application context.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
     private final AuthRateLimitFilter authRateLimitFilter;
     private final String allowedOrigins;
 
+    /**
+     * Creates a security config instance with its collaborators.
+     */
     public SecurityConfig(
         AuthRateLimitFilter authRateLimitFilter,
         @Value("${ALLOWED_ORIGINS:}") String allowedOrigins
@@ -32,6 +38,9 @@ public class SecurityConfig {
         this.allowedOrigins = allowedOrigins;
     }
 
+    /**
+     * Handles security filter chain.
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -43,13 +52,20 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.GET,
                     "/api/auth/username-available",
+                    "/api/auth/display-name-availability",
                     "/api/categories"
                 ).permitAll()
                 .requestMatchers(HttpMethod.POST,
+                    "/api/auth/sessions",
+                    "/api/auth/registrations",
+                    "/api/auth/password-reset-requests",
                     "/api/auth/login",
                     "/api/auth/register",
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password"
+                ).permitAll()
+                .requestMatchers(HttpMethod.PUT,
+                    "/api/auth/password"
                 ).permitAll()
                 .requestMatchers(
                     "/v3/api-docs/**",

@@ -5,7 +5,7 @@ import io.github.bucket4j.Bucket;
 import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.Refill;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rotiprata.api.zdto.ApiErrorResponse;
+import com.rotiprata.api.common.response.ApiErrorResponse;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,13 +22,21 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+/**
+ * Enforces the auth rate limit filter rules before requests reach the controller layer.
+ */
 @Component
 public class AuthRateLimitFilter extends OncePerRequestFilter {
     private static final String LOGIN_PATH = "/api/auth/login";
+    private static final String LOGIN_SESSIONS_PATH = "/api/auth/sessions";
     private static final String REGISTER_PATH = "/api/auth/register";
+    private static final String REGISTRATIONS_PATH = "/api/auth/registrations";
     private static final String FORGOT_PASSWORD_PATH = "/api/auth/forgot-password";
+    private static final String PASSWORD_RESET_REQUESTS_PATH = "/api/auth/password-reset-requests";
     private static final String RESET_PASSWORD_PATH = "/api/auth/reset-password";
+    private static final String PASSWORD_PATH = "/api/auth/password";
     private static final String QUIZ_ANSWER_SUFFIX = "/quiz/answer";
+    private static final String QUIZ_ANSWERS_SUFFIX = "/quiz/answers";
 
     private static final RateLimitDefinition SIGNIN_LIMIT = new RateLimitDefinition(30, Duration.ofMinutes(5));
     private static final RateLimitDefinition FORGOT_PASSWORD_LIMIT = new RateLimitDefinition(2, Duration.ofHours(1));
@@ -37,19 +45,18 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * Applies endpoint-specific rate limits before the request continues down the filter chain.
+     */
     @Override
     protected void doFilterInternal(
         HttpServletRequest request,
         HttpServletResponse response,
         FilterChain filterChain
     ) throws ServletException, IOException {
-        if (!"POST".equalsIgnoreCase(request.getMethod())) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
+        String method = request.getMethod();
         String path = request.getRequestURI();
-        RateLimitDefinition limit = resolveLimit(path);
+        RateLimitDefinition limit = resolveLimit(method, path);
         if (limit == null) {
             filterChain.doFilter(request, response);
             return;
@@ -77,19 +84,38 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         objectMapper.writeValue(response.getWriter(), body);
     }
 
-    private RateLimitDefinition resolveLimit(String path) {
-        if (path != null && path.startsWith("/api/lessons/") && path.endsWith(QUIZ_ANSWER_SUFFIX)) {
+    /**
+     * Resolves the limit.
+     */
+    private RateLimitDefinition resolveLimit(String method, String path) {
+        if (!"POST".equalsIgnoreCase(method) && !"PUT".equalsIgnoreCase(method)) {
+            return null;
+        }
+        if ("POST".equalsIgnoreCase(method)
+            && path != null
+            && path.startsWith("/api/lessons/")
+            && (path.endsWith(QUIZ_ANSWER_SUFFIX) || path.endsWith(QUIZ_ANSWERS_SUFFIX))) {
             return QUIZ_ANSWER_LIMIT.withKeyPrefix("quiz-answer");
         }
+        if ("POST".equalsIgnoreCase(method)) {
+            return switch (path) {
+                case LOGIN_PATH, LOGIN_SESSIONS_PATH -> SIGNIN_LIMIT.withKeyPrefix("login");
+                case REGISTER_PATH, REGISTRATIONS_PATH -> SIGNIN_LIMIT.withKeyPrefix("register");
+                case FORGOT_PASSWORD_PATH, PASSWORD_RESET_REQUESTS_PATH ->
+                    FORGOT_PASSWORD_LIMIT.withKeyPrefix("forgot-password");
+                case RESET_PASSWORD_PATH -> SIGNIN_LIMIT.withKeyPrefix("reset-password");
+                default -> null;
+            };
+        }
         return switch (path) {
-            case LOGIN_PATH -> SIGNIN_LIMIT.withKeyPrefix("login");
-            case REGISTER_PATH -> SIGNIN_LIMIT.withKeyPrefix("register");
-            case FORGOT_PASSWORD_PATH -> FORGOT_PASSWORD_LIMIT.withKeyPrefix("forgot-password");
-            case RESET_PASSWORD_PATH -> SIGNIN_LIMIT.withKeyPrefix("reset-password");
+            case PASSWORD_PATH -> SIGNIN_LIMIT.withKeyPrefix("reset-password");
             default -> null;
         };
     }
 
+    /**
+     * Handles new bucket.
+     */
     private Bucket newBucket(RateLimitDefinition definition) {
         Bandwidth limit = Bandwidth.classic(
             definition.capacity(),
@@ -98,6 +124,9 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         return Bucket.builder().addLimit(limit).build();
     }
 
+    /**
+     * Resolves the client ip.
+     */
     private String resolveClientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (forwarded != null && !forwarded.isBlank()) {
@@ -116,8 +145,13 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
         return request.getRemoteAddr();
     }
 
+    /**
+     * Resolves the rate limit key.
+     */
     private String resolveRateLimitKey(String path, HttpServletRequest request, RateLimitDefinition definition) {
-        if (path != null && path.startsWith("/api/lessons/") && path.endsWith(QUIZ_ANSWER_SUFFIX)) {
+        if (path != null
+            && path.startsWith("/api/lessons/")
+            && (path.endsWith(QUIZ_ANSWER_SUFFIX) || path.endsWith(QUIZ_ANSWERS_SUFFIX))) {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication != null && authentication.isAuthenticated() && authentication.getName() != null) {
                 String principal = authentication.getName().trim();

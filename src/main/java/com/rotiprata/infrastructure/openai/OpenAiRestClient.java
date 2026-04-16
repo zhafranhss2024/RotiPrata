@@ -11,12 +11,18 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Documents the open ai rest client type.
+ */
 @Component
 public class OpenAiRestClient {
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
+    /**
+     * Creates a open ai rest client instance with its collaborators.
+     */
     public OpenAiRestClient(
             @Value("${spring.ai.openai.api-key}") String apiKey,
             @Value("${spring.ai.openai.base-url}") String baseUrl,
@@ -32,6 +38,9 @@ public class OpenAiRestClient {
         this.objectMapper = new ObjectMapper().findAndRegisterModules();
     }
 
+    /**
+     * Normalizes the base url.
+     */
     private String normalizeBaseUrl(String baseUrl) {
         String trimmed = baseUrl == null ? "" : baseUrl.trim();
         if (trimmed.isEmpty()) {
@@ -46,6 +55,9 @@ public class OpenAiRestClient {
         return trimmed + "/v1";
     }
 
+    /**
+     * Handles post.
+     */
     public <T> T post(String path, Object body, TypeReference<T> typeRef) {
         try {
             String responseBody = restClient.post()

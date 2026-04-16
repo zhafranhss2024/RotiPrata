@@ -1,6 +1,6 @@
 package com.rotiprata.api.exception;
 
-import com.rotiprata.api.zdto.ApiErrorResponse;
+import com.rotiprata.api.common.response.ApiErrorResponse;
 import com.rotiprata.security.RateLimitExceededException;
 import java.util.HashMap;
 import java.util.Map;
@@ -13,9 +13,15 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Documents the api exception handler type.
+ */
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
+    /**
+     * Handles handle rate limit.
+     */
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<ApiErrorResponse> handleRateLimit(RateLimitExceededException ex) {
         HttpHeaders headers = new HttpHeaders();
@@ -29,6 +35,9 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).headers(headers).body(body);
     }
 
+    /**
+     * Handles handle validation.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new HashMap<>();
@@ -46,6 +55,9 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
+    /**
+     * Handles handle response status.
+     */
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ApiErrorResponse> handleResponseStatus(ResponseStatusException ex) {
         HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
@@ -58,6 +70,9 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(status).body(body);
     }
 
+    /**
+     * Handles handle runtime.
+     */
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiErrorResponse> handleRuntime(RuntimeException ex) {
         ApiErrorResponse body = new ApiErrorResponse(
@@ -69,6 +84,9 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
+    /**
+     * Handles handle chat service.
+     */
     @ExceptionHandler(ChatServiceException.class)
     public ResponseEntity<ApiErrorResponse> handleChatService(ChatServiceException ex) {
         ApiErrorResponse body = new ApiErrorResponse(
@@ -80,6 +98,9 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
+    /**
+     * Handles handle moderation service.
+     */
     @ExceptionHandler(ModerationServiceException.class)
     public ResponseEntity<ApiErrorResponse> handleModerationService(ModerationServiceException ex) {
         ApiErrorResponse body = new ApiErrorResponse(
@@ -91,6 +112,9 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
+    /**
+     * Handles handle illegal argument.
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         ApiErrorResponse body = new ApiErrorResponse(
@@ -102,6 +126,9 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
     
+    /**
+     * Maps the status to code.
+     */
     private String mapStatusToCode(HttpStatus status, String message) {
         if (status == HttpStatus.UNAUTHORIZED) {
             return "invalid_credentials";

@@ -3,7 +3,7 @@ package com.rotiprata.api.user.domain;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.databind.annotation.JsonNaming;
-import com.rotiprata.domain.ThemePreference;
+import com.rotiprata.api.user.preference.ThemePreference;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -12,6 +12,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Represents the profile state used by the feature layer.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

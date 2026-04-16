@@ -36,6 +36,9 @@ public class ChatServiceImpl implements ChatService {
     private static final String FLAGGED_ASSISTANT_MESSAGE = "The assistant's response was flagged for inappropriate content.";
 
 
+    /**
+     * Creates a chat service impl instance with its collaborators.
+     */
     public ChatServiceImpl(
             OpenAiChatModel openAiChatModel,
             LessonService lessonService,
@@ -48,6 +51,9 @@ public class ChatServiceImpl implements ChatService {
         this.moderationService = moderationService;
     }
 
+    /**
+     * Handles ask.
+     */
     // Sends a user question to OpenAI, applies moderation, saves messages, and returns the assistant's reply
     @Override
     public String ask(String accessToken, String question) {
@@ -98,6 +104,9 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /**
+     * Handles message.
+     */
     // Saves a chat message (user or assistant) to the database
     @Override
     public void saveMessages(String accessToken, String message, String role) {
@@ -116,6 +125,9 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /**
+     * Returns the message history.
+     */
     // Retrieves the chat history for a given user in chronological order
     @Override
     public List<ChatbotMessageDTO> getMessageHistory(String accessToken, String userId) {
@@ -133,6 +145,9 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /**
+     * Deletes the message history.
+     */
     // Deletes all chat history for a given user
     @Override
     public void deleteMessageHistory(String accessToken, String userId) {

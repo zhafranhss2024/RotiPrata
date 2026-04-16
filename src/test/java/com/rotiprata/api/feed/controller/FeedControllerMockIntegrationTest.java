@@ -2,8 +2,8 @@ package com.rotiprata.api.feed.controller;
 
 import com.rotiprata.api.feed.service.FeedService;
 import com.rotiprata.api.feed.service.RecommendationService;
-import com.rotiprata.api.zdto.FeedResponse;
-import com.rotiprata.api.zdto.RecommendationResponse;
+import com.rotiprata.api.feed.response.FeedResponse;
+import com.rotiprata.api.feed.response.RecommendationResponse;
 import io.restassured.http.ContentType;
 import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import io.restassured.module.mockmvc.specification.MockMvcRequestSpecification;
@@ -26,6 +26,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
+/**
+ * Covers feed controller scenarios and regression behavior for the current branch changes.
+ */
 @WebMvcTest(FeedController.class)
 @AutoConfigureMockMvc
 @DisplayName("FeedController mock integration tests")
@@ -46,6 +49,9 @@ class FeedControllerMockIntegrationTest {
     private UUID userId;
     private MockMvcRequestSpecification authenticatedRequest;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
@@ -58,6 +64,9 @@ class FeedControllerMockIntegrationTest {
         ));
     }
 
+    /**
+     * Verifies that feed should return paged recommendations when user is authenticated.
+     */
     /** Verifies the feed endpoint returns the paged recommendation payload for an authenticated user. */
     @Test
     void feed_ShouldReturnPagedRecommendations_WhenUserIsAuthenticated() {
@@ -87,6 +96,9 @@ class FeedControllerMockIntegrationTest {
         verify(feedService).getFeed(userId, "mocked-jwt-token", "cursor-0", 1);
     }
 
+    /**
+     * Verifies that recommendations should return explore items when user is authenticated.
+     */
     /** Verifies the explore endpoint returns recommendation items for an authenticated user. */
     @Test
     void recommendations_ShouldReturnExploreItems_WhenUserIsAuthenticated() {

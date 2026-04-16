@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { useEffect, useState } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import LessonQuizPage from "@/pages/LessonQuizPage";
@@ -74,7 +75,7 @@ const progressDetail: LessonProgressDetail = {
   remainingStops: 1,
   quizStatus: "available",
   heartsRemaining: 5,
-  heartsRefillAt: null,
+  heartsRefillAt: "2026-04-16T10:00:00.000Z",
   nextStopType: "quiz",
 };
 
@@ -103,11 +104,23 @@ const quizState: LessonQuizState = {
   },
   hearts: {
     heartsRemaining: 5,
-    heartsRefillAt: null,
+    heartsRefillAt: "2026-04-16T10:00:00.000Z",
   },
   canAnswer: true,
   canRestart: false,
   wrongQuestionIds: [],
+};
+
+const LessonProgressProbe = () => {
+  const [heartsRemaining, setHeartsRemaining] = useState<number | null>(null);
+
+  useEffect(() => {
+    void fetchLessonProgressDetail(lesson.id).then((detail: LessonProgressDetail) => {
+      setHeartsRemaining(detail.heartsRemaining);
+    });
+  }, []);
+
+  return <div>{`Lesson hearts: ${heartsRemaining ?? "loading"}`}</div>;
 };
 
 describe("LessonQuizPage", () => {
@@ -122,6 +135,13 @@ describe("LessonQuizPage", () => {
     fetchLessonById.mockResolvedValue(lesson);
     fetchLessonProgressDetail.mockResolvedValue(progressDetail);
     fetchLessonQuizState.mockResolvedValue(quizState);
+
+    vi.stubGlobal(
+      "Audio",
+      vi.fn(() => ({
+        play: vi.fn().mockResolvedValue(undefined),
+      }))
+    );
   });
 
   it("renders the current question for the lesson quiz route", async () => {
@@ -159,5 +179,137 @@ describe("LessonQuizPage", () => {
       expect(screen.getByText("This quiz is missing its current question. Restart it or go back to the lesson.")).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: "Restart Quiz" })).toBeInTheDocument();
+  });
+
+  it("uses the hearts returned by the server after a wrong answer", async () => {
+    submitLessonQuizAnswer.mockResolvedValue({
+      attemptId: "attempt-1",
+      status: "in_progress",
+      correct: false,
+      explanation: "Incorrect.",
+      questionIndex: 1,
+      totalQuestions: 1,
+      correctCount: 0,
+      earnedScore: 0,
+      maxScore: 10,
+      passed: false,
+      quizCompleted: false,
+      blockedByHearts: false,
+      nextQuestion: null,
+      hearts: {
+        heartsRemaining: 5,
+        heartsRefillAt: "2026-04-16T10:00:00.000Z",
+      },
+      wrongQuestionIds: ["question-1"],
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/lessons/${lesson.id}/quiz`]}>
+        <Routes>
+          <Route path="/lessons/:id/quiz" element={<LessonQuizPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("What does sigma usually mean in this lesson?")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /A breakfast food/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    await waitFor(() => {
+      expect(submitLessonQuizAnswer).toHaveBeenCalled();
+    });
+    expect(screen.getByText("Not quite")).toBeInTheDocument();
+    expect(screen.getAllByText("5").length).toBeGreaterThan(0);
+    expect(emitHeartsUpdated).toHaveBeenCalledWith({
+      heartsRemaining: 5,
+      heartsRefillAt: "2026-04-16T10:00:00.000Z",
+    });
+  });
+
+  it("keeps the deducted hearts after exiting back to the lesson page", async () => {
+    fetchLessonProgressDetail
+      .mockResolvedValueOnce(progressDetail)
+      .mockResolvedValueOnce({
+        ...progressDetail,
+        heartsRemaining: 4,
+      } satisfies LessonProgressDetail);
+    submitLessonQuizAnswer.mockResolvedValue({
+      attemptId: "attempt-1",
+      status: "in_progress",
+      correct: false,
+      explanation: "Incorrect.",
+      questionIndex: 1,
+      totalQuestions: 1,
+      correctCount: 0,
+      earnedScore: 0,
+      maxScore: 10,
+      passed: false,
+      quizCompleted: false,
+      blockedByHearts: false,
+      nextQuestion: null,
+      hearts: {
+        heartsRemaining: 4,
+        heartsRefillAt: "2026-04-16T10:00:00.000Z",
+      },
+      wrongQuestionIds: ["question-1"],
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/lessons/${lesson.id}/quiz`]}>
+        <Routes>
+          <Route path="/lessons/:id/quiz" element={<LessonQuizPage />} />
+          <Route path="/lessons/:id" element={<LessonProgressProbe />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("What does sigma usually mean in this lesson?")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /A breakfast food/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Check" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Not quite")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("link", { name: "Exit" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Lesson hearts: 4")).toBeInTheDocument();
+    });
+    expect(fetchLessonProgressDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the blocked hearts screen instead of the missing-question recovery state", async () => {
+    fetchLessonQuizState.mockResolvedValue({
+      ...quizState,
+      status: "blocked_hearts",
+      currentQuestion: null,
+      hearts: {
+        heartsRemaining: 0,
+        heartsRefillAt: "2026-04-13T10:00:00.000Z",
+      },
+      canAnswer: false,
+      canRestart: false,
+    } satisfies LessonQuizState);
+
+    render(
+      <MemoryRouter initialEntries={[`/lessons/${lesson.id}/quiz`]}>
+        <Routes>
+          <Route path="/lessons/:id/quiz" element={<LessonQuizPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("No hearts left")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Lesson content stays available/i)).toBeInTheDocument();
+    expect(screen.queryByText("This quiz is missing its current question. Restart it or go back to the lesson.")).not.toBeInTheDocument();
   });
 });

@@ -9,6 +9,9 @@ import com.rotiprata.api.exception.ModerationServiceException;
 public interface ModerationService {
 
     /**
+     * Checks whether flagged.
+     */
+    /**
      * Checks whether the provided text is flagged as inappropriate.
      *
      * @param text the text to evaluate

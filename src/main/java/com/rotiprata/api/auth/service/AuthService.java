@@ -1,10 +1,10 @@
 package com.rotiprata.api.auth.service;
 
 import com.rotiprata.api.auth.dto.AuthSessionResponse;
-import com.rotiprata.api.zdto.ForgotPasswordRequest;
-import com.rotiprata.api.zdto.LoginRequest;
-import com.rotiprata.api.zdto.RegisterRequest;
-import com.rotiprata.api.zdto.ResetPasswordRequest;
+import com.rotiprata.api.auth.request.ForgotPasswordRequest;
+import com.rotiprata.api.auth.request.LoginRequest;
+import com.rotiprata.api.auth.request.RegisterRequest;
+import com.rotiprata.api.auth.request.ResetPasswordRequest;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
@@ -13,6 +13,9 @@ import org.springframework.web.server.ResponseStatusException;
  */
 public interface AuthService {
 
+    /**
+     * Handles fails.
+     */
     /**
      * Login user using email and password.
      *
@@ -23,6 +26,9 @@ public interface AuthService {
     AuthSessionResponse login(LoginRequest request);
 
     /**
+     * Handles auth session response.
+     */
+    /**
      * Register a new user.
      *
      * @param request register request containing email, password, display name, etc.
@@ -32,6 +38,9 @@ public interface AuthService {
     AuthSessionResponse register(RegisterRequest request);
 
     /**
+     * Handles fails.
+     */
+    /**
      * Send password reset email.
      *
      * @param request contains user email
@@ -40,6 +49,9 @@ public interface AuthService {
     void requestPasswordReset(ForgotPasswordRequest request);
 
     /**
+     * Handles reset password.
+     */
+    /**
      * Reset password using access token.
      *
      * @param request contains new password and access token
@@ -47,6 +59,9 @@ public interface AuthService {
      */
     void resetPassword(ResetPasswordRequest request);
 
+    /**
+     * Handles logout.
+     */
     /**
      * Logout user and invalidate session.
      *

@@ -5,15 +5,24 @@ import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
+/**
+ * Documents the embedding service type.
+ */
 @Service
 public class EmbeddingServiceImpl implements EmbeddingService {
 
     private final OpenAiEmbeddingModel embeddingModel;
 
+    /**
+     * Creates a embedding service impl instance with its collaborators.
+     */
     public EmbeddingServiceImpl(OpenAiEmbeddingModel embeddingModel) {
         this.embeddingModel = embeddingModel;
     }
 
+    /**
+     * Handles generate embedding.
+     */
     // Generates an embedding vector for the given text
     @Override
     public float[] generateEmbedding(String text) {
@@ -27,6 +36,9 @@ public class EmbeddingServiceImpl implements EmbeddingService {
         }
     }
 
+    /**
+     * Converts the value into pg vector.
+     */
     // Converts a float array to a Postgres-compatible vector string
     @Override
     public String toPgVector(float[] vector) {

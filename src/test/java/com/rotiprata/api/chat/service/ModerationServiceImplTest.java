@@ -22,6 +22,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers moderation service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ModerationServiceImpl tests")
 class ModerationServiceImplTest {
@@ -33,6 +36,9 @@ class ModerationServiceImplTest {
 
     private static final String MODERATION_PATH = "/v1/moderations";
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         service = new ModerationServiceImpl(openAiRestClient, MODERATION_PATH);
@@ -69,6 +75,9 @@ class ModerationServiceImplTest {
         assertEquals("unsafe text", sentBody.get("input"));
     }
 
+    /**
+     * Verifies that is flagged should return false when results field is missing.
+     */
     // Returns false when the API response does not contain 'results' field
     @Test
     void isFlagged_ShouldReturnFalse_WhenResultsFieldIsMissing() {
@@ -86,6 +95,9 @@ class ModerationServiceImplTest {
         assertFalse(result);
     }
 
+    /**
+     * Verifies that is flagged should return false when results list is empty.
+     */
     // Returns false when the 'results' list is empty
     @Test
     void isFlagged_ShouldReturnFalse_WhenResultsListIsEmpty() {
@@ -103,6 +115,9 @@ class ModerationServiceImplTest {
         assertFalse(result);
     }
 
+    /**
+     * Verifies that is flagged should return false when first result is not map.
+     */
     // Returns false when first result is not a Map object
     @Test
     void isFlagged_ShouldReturnFalse_WhenFirstResultIsNotMap() {
@@ -120,6 +135,9 @@ class ModerationServiceImplTest {
         assertFalse(result);
     }
 
+    /**
+     * Verifies that is flagged should return false when flagged is false.
+     */
     // Returns false when the 'flagged' field is false
     @Test
     void isFlagged_ShouldReturnFalse_WhenFlaggedIsFalse() {
@@ -137,6 +155,9 @@ class ModerationServiceImplTest {
         assertFalse(result);
     }
 
+    /**
+     * Verifies that is flagged should return false when flagged is not boolean.
+     */
     // Returns false when the 'flagged' field is not a boolean
     @Test
     void isFlagged_ShouldReturnFalse_WhenFlaggedIsNotBoolean() {
@@ -154,6 +175,9 @@ class ModerationServiceImplTest {
         assertFalse(result);
     }
 
+    /**
+     * Verifies that is flagged should throw moderation service exception when client throws exception.
+     */
     // Throws ModerationServiceException when the API client throws an exception
     @Test
     void isFlagged_ShouldThrowModerationServiceException_WhenClientThrowsException() {

@@ -9,8 +9,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Covers recommendation surface scenarios and regression behavior for the current branch changes.
+ */
 class RecommendationSurfaceTest {
 
+    /**
+     * Verifies that values should contain feed and explore when enumerated.
+     */
     /** Verifies RecommendationSurface exposes both supported recommendation surfaces. */
     @Test
     void values_ShouldContainFeedAndExplore_WhenEnumerated() {

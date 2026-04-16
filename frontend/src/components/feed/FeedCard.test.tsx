@@ -1,10 +1,20 @@
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Content } from '@/types';
 import { FeedCard } from './FeedCard';
 
 vi.mock('./FeedVideoPlayer', () => ({
-  FeedVideoPlayer: () => <div data-testid="feed-video-player" />,
+  FeedVideoPlayer: ({ onBufferingChange }: { onBufferingChange?: (isBuffering: boolean) => void }) => (
+    <div>
+      <div data-testid="feed-video-player" />
+      <button type="button" onClick={() => onBufferingChange?.(true)}>
+        Start buffering
+      </button>
+      <button type="button" onClick={() => onBufferingChange?.(false)}>
+        Stop buffering
+      </button>
+    </div>
+  ),
 }));
 
 const buildContent = (): Content => ({
@@ -56,7 +66,7 @@ describe('FeedCard', () => {
     const onLearnMoreClick = vi.fn();
     const onSave = vi.fn();
 
-    const { getByText } = render(
+    const { getByLabelText, getByText } = render(
       <FeedCard
         content={buildContent()}
         commentCount={0}
@@ -64,6 +74,8 @@ describe('FeedCard', () => {
         onSave={onSave}
       />
     );
+
+    fireEvent.click(getByLabelText('More options'));
 
     const saveButton = getByText('Save').closest('button');
     expect(saveButton).not.toBeNull();
@@ -78,5 +90,24 @@ describe('FeedCard', () => {
 
     expect(onLearnMoreClick).not.toHaveBeenCalled();
     expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the buffering overlay once the player reports recovery', () => {
+    render(
+      <FeedCard
+        content={buildContent()}
+        commentCount={0}
+        isActive
+        shouldMountMedia
+      />
+    );
+
+    expect(document.querySelector('.animate-spin')).toBeNull();
+
+    fireEvent.click(screen.getByText('Start buffering'));
+    expect(document.querySelector('.animate-spin')).not.toBeNull();
+
+    fireEvent.click(screen.getByText('Stop buffering'));
+    expect(document.querySelector('.animate-spin')).toBeNull();
   });
 });

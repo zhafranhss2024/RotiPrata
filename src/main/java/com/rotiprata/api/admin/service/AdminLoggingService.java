@@ -38,6 +38,9 @@ public interface AdminLoggingService {
     }
 
     /**
+     * Handles affected.
+     */
+    /**
      * Logs an admin action into the audit_logs table.
      *
      * @param adminId     the ID of the admin performing the action

@@ -26,6 +26,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
+/**
+ * Covers chat scenarios and regression behavior for the current branch changes.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @DisplayName("ChatController Mock Integration Tests")
@@ -42,6 +45,9 @@ class ChatControllerMockIntegrationTest {
 
     private MockMvcRequestSpecification userAuth;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
@@ -52,6 +58,9 @@ class ChatControllerMockIntegrationTest {
         ));
     }
 
+    /**
+     * Verifies that chat should return reply when question is valid.
+     */
     // Verifies successful chat flow returns assistant reply using normalized question and valid JWT details.
     @Test
     void chat_ShouldReturnReply_WhenQuestionIsValid() {
@@ -76,6 +85,9 @@ class ChatControllerMockIntegrationTest {
         verify(chatService).ask("mocked-jwt-token", "What is Roti Prata?");
     }
 
+    /**
+     * Verifies that chat should return bad request when question is blank.
+     */
     // Verifies validation error when question is blank after trim and avoids downstream dependencies.
     @Test
     void chat_ShouldReturnBadRequest_WhenQuestionIsBlank() {
@@ -99,6 +111,9 @@ class ChatControllerMockIntegrationTest {
         verify(chatService, never()).ask(anyString(), anyString());
     }
 
+    /**
+     * Verifies that chat should return bad request when question exceeds max length.
+     */
     // Verifies validation error for question length greater than 250 characters and prevents service execution.
     @Test
     void chat_ShouldReturnBadRequest_WhenQuestionExceedsMaxLength() {
@@ -123,6 +138,9 @@ class ChatControllerMockIntegrationTest {
         verify(chatService, never()).ask(anyString(), anyString());
     }
 
+    /**
+     * Verifies that chat should return too many requests when rate limiter rejects request.
+     */
     // Verifies rate limit errors are translated to 429 with retry metadata and service invocation is skipped.
     @Test
     void chat_ShouldReturnTooManyRequests_WhenRateLimiterRejectsRequest() {
@@ -150,6 +168,9 @@ class ChatControllerMockIntegrationTest {
         verify(chatService, never()).ask(anyString(), anyString());
     }
 
+    /**
+     * Verifies that chat should return internal server error when chat service throws runtime exception.
+     */
     // Verifies runtime failures from chat service are mapped to 500 and still pass through the limiter first.
     @Test
     void chat_ShouldReturnInternalServerError_WhenChatServiceThrowsRuntimeException() {

@@ -12,6 +12,9 @@ import java.util.List;
 public interface ChatService {
 
     /**
+     * Handles ask.
+     */
+    /**
      * Processes a user's question and returns the assistant's response.
      *
      * @param accessToken user's access token for authorization
@@ -21,6 +24,9 @@ public interface ChatService {
      */
     String ask(String accessToken, String question);
 
+    /**
+     * Handles message.
+     */
     /**
      * Saves a message (from user or assistant) to the chat history.
      *
@@ -32,6 +38,9 @@ public interface ChatService {
     void saveMessages(String accessToken, String message, String role);
 
     /**
+     * Returns the message history.
+     */
+    /**
      * Fetches the complete chat history for a given user.
      *
      * @param accessToken user's access token for authorization
@@ -41,6 +50,9 @@ public interface ChatService {
      */
     List<ChatbotMessageDTO> getMessageHistory(String accessToken, String userId);
 
+    /**
+     * Deletes the message history.
+     */
     /**
      * Deletes all chat history for a given user.
      *

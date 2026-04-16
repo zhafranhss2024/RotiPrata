@@ -2,10 +2,10 @@ package com.rotiprata.api.auth.service;
 
 import com.rotiprata.api.auth.dto.AuthSessionResponse;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.api.zdto.ForgotPasswordRequest;
-import com.rotiprata.api.zdto.LoginRequest;
-import com.rotiprata.api.zdto.RegisterRequest;
-import com.rotiprata.api.zdto.ResetPasswordRequest;
+import com.rotiprata.api.auth.request.ForgotPasswordRequest;
+import com.rotiprata.api.auth.request.LoginRequest;
+import com.rotiprata.api.auth.request.RegisterRequest;
+import com.rotiprata.api.auth.request.ResetPasswordRequest;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminClient;
 import com.rotiprata.infrastructure.supabase.SupabaseAuthClient;
 import com.rotiprata.infrastructure.supabase.SupabaseSessionResponse;
@@ -41,6 +41,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers auth service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuthService tests")
 class AuthServiceImplTest {
@@ -56,11 +59,17 @@ class AuthServiceImplTest {
 
     private AuthService authService;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         authService = new AuthServiceImpl(supabaseAuthClient, supabaseAdminClient, userService, "http://localhost:5173");
     }
 
+    /**
+     * Verifies that login should return auth session when credentials are valid.
+     */
     // Verifies login maps a successful provider response into API auth session fields.
     @Test
     void login_ShouldReturnAuthSession_WhenCredentialsAreValid() {
@@ -85,6 +94,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).login("user@example.com", "password");
     }
 
+    /**
+     * Verifies that login should throw forbidden when email not confirmed.
+     */
     // Verifies login returns forbidden when provider reports unconfirmed email.
     @Test
     void login_ShouldThrowForbidden_WhenEmailNotConfirmed() {
@@ -106,6 +118,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).login("user@example.com", "password");
     }
 
+    /**
+     * Verifies that login should throw unauthorized when provider returns unauthorized.
+     */
     // Verifies login maps bad credentials responses to unauthorized.
     @Test
     void login_ShouldThrowUnauthorized_WhenProviderReturnsUnauthorized() {
@@ -127,6 +142,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).login("user@example.com", "wrong");
     }
 
+    /**
+     * Verifies that login should throw bad gateway when provider returns unexpected status.
+     */
     // Verifies login maps other provider failures to bad gateway.
     @Test
     void login_ShouldThrowBadGateway_WhenProviderReturnsUnexpectedStatus() {
@@ -147,6 +165,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).login("user@example.com", "password");
     }
 
+    /**
+     * Verifies that register should throw bad request when display name format is invalid.
+     */
     // Verifies register fails fast when display name format is invalid.
     @Test
     void register_ShouldThrowBadRequest_WhenDisplayNameFormatIsInvalid() {
@@ -167,6 +188,9 @@ class AuthServiceImplTest {
         verify(supabaseAdminClient, never()).emailExists(anyString());
     }
 
+    /**
+     * Verifies that register should throw conflict when email already registered before signup.
+     */
     // Verifies register returns conflict when email already exists in admin lookup.
     @Test
     void register_ShouldThrowConflict_WhenEmailAlreadyRegisteredBeforeSignup() {
@@ -190,6 +214,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient, never()).signup(anyString(), anyString(), anyMap(), anyString());
     }
 
+    /**
+     * Verifies that register should throw conflict when display name already taken.
+     */
     // Verifies register returns conflict when normalized display name is already taken.
     @Test
     void register_ShouldThrowConflict_WhenDisplayNameAlreadyTaken() {
@@ -214,6 +241,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient, never()).signup(anyString(), anyString(), anyMap(), anyString());
     }
 
+    /**
+     * Verifies that register should return pending confirmation when signup returns no session.
+     */
     // Verifies register creates pending confirmation response when signup has no session.
     @Test
     void register_ShouldReturnPendingConfirmation_WhenSignupReturnsNoSession() {
@@ -241,6 +271,9 @@ class AuthServiceImplTest {
         verify(userService).ensureProfileWithServiceRole(userId, "newuser", true, false);
     }
 
+    /**
+     * Verifies that register should fallback to request email when signup user is null.
+     */
     // Verifies register falls back to request email when signup user payload is missing.
     @Test
     void register_ShouldFallbackToRequestEmail_WhenSignupUserIsNull() {
@@ -266,6 +299,9 @@ class AuthServiceImplTest {
         verify(userService, never()).ensureProfileWithServiceRole(any(), anyString(), any(), anyBoolean());
     }
 
+    /**
+     * Verifies that register should use signup user email when signup user id is null.
+     */
     // Verifies register uses signup user email when signup user exists without id.
     @Test
     void register_ShouldUseSignupUserEmail_WhenSignupUserIdIsNull() {
@@ -291,6 +327,9 @@ class AuthServiceImplTest {
         verify(userService, never()).ensureProfileWithServiceRole(any(), anyString(), any(), anyBoolean());
     }
 
+    /**
+     * Verifies that register should return auth session when signup returns session.
+     */
     // Verifies register returns active session response and ensures profile when session exists.
     @Test
     void register_ShouldReturnAuthSession_WhenSignupReturnsSession() {
@@ -318,6 +357,9 @@ class AuthServiceImplTest {
         verify(userService).ensureProfile(userId, "newuser", false, "access", false);
     }
 
+    /**
+     * Verifies that register should return session without user when session user is null.
+     */
     // Verifies register supports session responses where session has no user payload.
     @Test
     void register_ShouldReturnSessionWithoutUser_WhenSessionUserIsNull() {
@@ -344,6 +386,9 @@ class AuthServiceImplTest {
         verify(userService, never()).ensureProfile(any(), anyString(), any(), anyString(), anyBoolean());
     }
 
+    /**
+     * Verifies that register should send normalized metadata when signup is called.
+     */
     // Verifies register includes all expected metadata and resolved redirect in signup request.
     @Test
     void register_ShouldSendNormalizedMetadata_WhenSignupIsCalled() {
@@ -372,6 +417,9 @@ class AuthServiceImplTest {
         assertEquals("http://localhost:5173/auth/finish", redirectCaptor.getValue());
     }
 
+    /**
+     * Verifies that register should throw too many requests when provider returns429.
+     */
     // Verifies register maps status 429 to too many requests.
     @Test
     void register_ShouldThrowTooManyRequests_WhenProviderReturns429() {
@@ -393,6 +441,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).signup(anyString(), anyString(), anyMap(), anyString());
     }
 
+    /**
+     * Verifies that register should throw too many requests when rate limit header is present.
+     */
     // Verifies register maps provider header rate-limit code to too many requests.
     @Test
     void register_ShouldThrowTooManyRequests_WhenRateLimitHeaderIsPresent() {
@@ -416,6 +467,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).signup(anyString(), anyString(), anyMap(), anyString());
     }
 
+    /**
+     * Verifies that register should throw conflict when provider body says already registered.
+     */
     // Verifies register maps duplicate-email provider body to conflict.
     @Test
     void register_ShouldThrowConflict_WhenProviderBodySaysAlreadyRegistered() {
@@ -438,6 +492,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).signup(anyString(), anyString(), anyMap(), anyString());
     }
 
+    /**
+     * Verifies that register should throw bad request when provider error is unhandled.
+     */
     // Verifies register maps unknown provider errors to bad request.
     @Test
     void register_ShouldThrowBadRequest_WhenProviderErrorIsUnhandled() {
@@ -460,6 +517,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).signup(anyString(), anyString(), anyMap(), anyString());
     }
 
+    /**
+     * Verifies that request password reset should call recover password when request is valid.
+     */
     // Verifies password reset request delegates with resolved fallback redirect.
     @Test
     void requestPasswordReset_ShouldCallRecoverPassword_WhenRequestIsValid() {
@@ -476,6 +536,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).recoverPassword("user@example.com", "http://localhost:5173/auth/finish");
     }
 
+    /**
+     * Verifies that request password reset should throw too many requests when provider returns429.
+     */
     // Verifies password reset request maps 429 to too many requests.
     @Test
     void requestPasswordReset_ShouldThrowTooManyRequests_WhenProviderReturns429() {
@@ -496,6 +559,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).recoverPassword(anyString(), anyString());
     }
 
+    /**
+     * Verifies that request password reset should throw bad request when provider returns other error.
+     */
     // Verifies password reset request maps other errors to bad request.
     @Test
     void requestPasswordReset_ShouldThrowBadRequest_WhenProviderReturnsOtherError() {
@@ -516,6 +582,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).recoverPassword("user@example.com", "http://custom/reset");
     }
 
+    /**
+     * Verifies that request password reset should pass null redirect when frontend url and request redirect are blank.
+     */
     // Verifies password reset passes null redirect when frontend url is blank and request redirect is blank.
     @Test
     void requestPasswordReset_ShouldPassNullRedirect_WhenFrontendUrlAndRequestRedirectAreBlank() {
@@ -532,6 +601,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).recoverPassword("user@example.com", null);
     }
 
+    /**
+     * Verifies that reset password should call update password when request is valid.
+     */
     // Verifies reset password delegates to provider update password API.
     @Test
     void resetPassword_ShouldCallUpdatePassword_WhenRequestIsValid() {
@@ -548,6 +620,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).updatePassword("access-token", "Password123!");
     }
 
+    /**
+     * Verifies that reset password should throw bad request when provider throws error.
+     */
     // Verifies reset password maps provider errors to bad request.
     @Test
     void resetPassword_ShouldThrowBadRequest_WhenProviderThrowsError() {
@@ -568,6 +643,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).updatePassword("access-token", "Password123!");
     }
 
+    /**
+     * Verifies that logout should skip provider call when access token is null.
+     */
     // Verifies logout exits early when token is null.
     @Test
     void logout_ShouldSkipProviderCall_WhenAccessTokenIsNull() {
@@ -584,6 +662,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient, never()).logout(anyString());
     }
 
+    /**
+     * Verifies that logout should skip provider call when access token is blank.
+     */
     // Verifies logout exits early when token is blank.
     @Test
     void logout_ShouldSkipProviderCall_WhenAccessTokenIsBlank() {
@@ -600,6 +681,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient, never()).logout(anyString());
     }
 
+    /**
+     * Verifies that logout should call provider when access token is present.
+     */
     // Verifies logout delegates when token is present.
     @Test
     void logout_ShouldCallProvider_WhenAccessTokenIsPresent() {
@@ -616,6 +700,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).logout("access-token");
     }
 
+    /**
+     * Verifies that logout should throw bad request when provider throws error.
+     */
     // Verifies logout maps provider failures to bad request.
     @Test
     void logout_ShouldThrowBadRequest_WhenProviderThrowsError() {
@@ -636,6 +723,9 @@ class AuthServiceImplTest {
         verify(supabaseAuthClient).logout("access-token");
     }
 
+    /**
+     * Handles prime register preconditions.
+     */
     private void primeRegisterPreconditions() {
         when(userService.isDisplayNameFormatValid("newuser")).thenReturn(true);
         when(userService.normalizeDisplayName("newuser")).thenReturn("newuser");
@@ -643,11 +733,17 @@ class AuthServiceImplTest {
         when(userService.isDisplayNameTaken("newuser")).thenReturn(false);
     }
 
+    /**
+     * Builds the exception.
+     */
     private RestClientResponseException buildException(HttpStatus status, String body) {
         byte[] bytes = body == null ? null : body.getBytes(StandardCharsets.UTF_8);
         return HttpClientErrorException.create(status, status.getReasonPhrase(), HttpHeaders.EMPTY, bytes, StandardCharsets.UTF_8);
     }
 
+    /**
+     * Builds the session.
+     */
     private SupabaseSessionResponse buildSession(String email, String userId) {
         SupabaseSessionResponse session = new SupabaseSessionResponse();
         session.setAccessToken("access");
@@ -658,6 +754,9 @@ class AuthServiceImplTest {
         return session;
     }
 
+    /**
+     * Builds the user.
+     */
     private SupabaseUser buildUser(String email, String userId) {
         SupabaseUser user = new SupabaseUser();
         user.setEmail(email);
@@ -665,6 +764,9 @@ class AuthServiceImplTest {
         return user;
     }
 
+    /**
+     * Builds the signup response.
+     */
     private SupabaseSignupResponse buildSignupResponse(SupabaseSessionResponse session, SupabaseUser user) {
         SupabaseSignupResponse response = new SupabaseSignupResponse();
         response.setSession(session);

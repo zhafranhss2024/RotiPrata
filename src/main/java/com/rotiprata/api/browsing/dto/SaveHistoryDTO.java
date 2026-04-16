@@ -6,6 +6,9 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
+/**
+ * Documents the save history dto type.
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

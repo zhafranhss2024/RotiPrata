@@ -36,6 +36,9 @@ interface FeedVideoPlayerProps {
 
 const MAX_NETWORK_RECOVERY_RETRIES = 2;
 const NETWORK_RECOVERY_DELAY_MS = 400;
+const BUFFERING_SHOW_DELAY_MS = 180;
+const RECENT_PLAYBACK_PROGRESS_MS = 400;
+const PLAYBACK_PROGRESS_EPSILON_SECONDS = 0.05;
 
 export const isHlsStreamUrl = (url: string | null | undefined) => {
   if (!url) {
@@ -77,6 +80,8 @@ export function FeedVideoPlayer({
 }: FeedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const bufferingStateRef = useRef(false);
+  const bufferingTimeoutRef = useRef<number | null>(null);
   const usingHlsJsRef = useRef(false);
   const networkRecoveriesRef = useRef(0);
   const startupStartedAtRef = useRef<number | null>(null);
@@ -92,6 +97,9 @@ export function FeedVideoPlayer({
   const loadedDataAtRef = useRef<number | null>(null);
   const canPlayAtRef = useRef<number | null>(null);
   const firstPlayingAtRef = useRef<number | null>(null);
+  const lastPlaybackProgressAtRef = useRef<number | null>(null);
+  const lastObservedCurrentTimeRef = useRef<number | null>(null);
+  const lowReadinessStartedAtRef = useRef<number | null>(null);
 
   const finalizeWatch = () => {
     if (watchStartedAtRef.current == null) {
@@ -158,11 +166,98 @@ export function FeedVideoPlayer({
     firstPlayingAtRef.current = null;
   };
 
+  const emitBufferingChange = (nextIsBuffering: boolean) => {
+    if (bufferingStateRef.current === nextIsBuffering) {
+      return;
+    }
+    bufferingStateRef.current = nextIsBuffering;
+    onBufferingChange?.(nextIsBuffering);
+  };
+
+  const clearPendingBufferingChange = () => {
+    if (bufferingTimeoutRef.current == null) {
+      return;
+    }
+    window.clearTimeout(bufferingTimeoutRef.current);
+    bufferingTimeoutRef.current = null;
+  };
+
+  const scheduleBufferingResync = (delayMs: number) => {
+    if (bufferingTimeoutRef.current != null) {
+      return;
+    }
+    bufferingTimeoutRef.current = window.setTimeout(() => {
+      bufferingTimeoutRef.current = null;
+      const video = videoRef.current;
+      if (!video) {
+        return;
+      }
+      video.dispatchEvent(new Event('progress'));
+    }, delayMs);
+  };
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) {
       return;
     }
+
+    const markPlaybackProgress = (force = false) => {
+      const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+      const previousTime = lastObservedCurrentTimeRef.current;
+      lastObservedCurrentTimeRef.current = currentTime;
+      if (force || previousTime == null || currentTime > previousTime + PLAYBACK_PROGRESS_EPSILON_SECONDS) {
+        lastPlaybackProgressAtRef.current = nowMs();
+      }
+    };
+
+    const syncBufferingState = () => {
+      const lowReadiness =
+        isActive &&
+        !isPaused &&
+        !video.paused &&
+        !video.ended &&
+        video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
+      if (!lowReadiness) {
+        lowReadinessStartedAtRef.current = null;
+      } else if (lowReadinessStartedAtRef.current == null) {
+        lowReadinessStartedAtRef.current = nowMs();
+      }
+
+      const hasRecentPlaybackProgress =
+        lastPlaybackProgressAtRef.current != null &&
+        nowMs() - lastPlaybackProgressAtRef.current < RECENT_PLAYBACK_PROGRESS_MS;
+      const lowReadinessDurationMs =
+        lowReadinessStartedAtRef.current != null ? nowMs() - lowReadinessStartedAtRef.current : 0;
+      const nextIsBuffering =
+        lowReadiness &&
+        !hasRecentPlaybackProgress &&
+        lowReadinessDurationMs >= BUFFERING_SHOW_DELAY_MS;
+
+      if (!nextIsBuffering) {
+        if (!lowReadiness) {
+          finalizeStall();
+        }
+        clearPendingBufferingChange();
+        emitBufferingChange(false);
+        if (lowReadiness) {
+          if (hasRecentPlaybackProgress && lastPlaybackProgressAtRef.current != null) {
+            const remainingGraceMs = Math.max(
+              RECENT_PLAYBACK_PROGRESS_MS - (nowMs() - lastPlaybackProgressAtRef.current),
+              0
+            );
+            scheduleBufferingResync(remainingGraceMs);
+          } else {
+            const remainingDelayMs = Math.max(BUFFERING_SHOW_DELAY_MS - lowReadinessDurationMs, 0);
+            scheduleBufferingResync(remainingDelayMs);
+          }
+        }
+        return;
+      }
+
+      clearPendingBufferingChange();
+      emitBufferingChange(true);
+    };
 
     const onPlaying = () => {
       if (startupStartedAtRef.current != null && startupMsRef.current == null) {
@@ -175,8 +270,9 @@ export function FeedVideoPlayer({
       if (firstPlayingAtRef.current == null) {
         firstPlayingAtRef.current = nowMs();
       }
-      onBufferingChange?.(false);
       lastPlaySucceededRef.current = true;
+      markPlaybackProgress(true);
+      syncBufferingState();
       onPlaybackStarted?.();
     };
 
@@ -184,12 +280,14 @@ export function FeedVideoPlayer({
       if (loadedDataAtRef.current == null) {
         loadedDataAtRef.current = nowMs();
       }
+      syncBufferingState();
     };
 
     const onCanPlay = () => {
       if (canPlayAtRef.current == null) {
         canPlayAtRef.current = nowMs();
       }
+      syncBufferingState();
     };
 
     const onWaiting = () => {
@@ -198,32 +296,53 @@ export function FeedVideoPlayer({
         stallStartedAtRef.current = nowMs();
         stallCountRef.current += 1;
       }
-      onBufferingChange?.(true);
+      syncBufferingState();
     };
 
     const onPause = () => {
       finalizeWatch();
-      onBufferingChange?.(false);
+      syncBufferingState();
+    };
+
+    const onPlaybackProgress = () => {
+      markPlaybackProgress();
+      syncBufferingState();
+    };
+
+    const onBufferDataChange = () => {
+      syncBufferingState();
     };
 
     video.addEventListener('loadeddata', onLoadedData);
     video.addEventListener('canplay', onCanPlay);
+    video.addEventListener('canplaythrough', onBufferDataChange);
     video.addEventListener('playing', onPlaying);
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('stalled', onWaiting);
+    video.addEventListener('timeupdate', onPlaybackProgress);
+    video.addEventListener('progress', onBufferDataChange);
+    video.addEventListener('seeked', onPlaybackProgress);
     video.addEventListener('pause', onPause);
     video.addEventListener('ended', onPause);
+
+    syncBufferingState();
 
     return () => {
       video.removeEventListener('loadeddata', onLoadedData);
       video.removeEventListener('canplay', onCanPlay);
+      video.removeEventListener('canplaythrough', onBufferDataChange);
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('stalled', onWaiting);
+      video.removeEventListener('timeupdate', onPlaybackProgress);
+      video.removeEventListener('progress', onBufferDataChange);
+      video.removeEventListener('seeked', onPlaybackProgress);
       video.removeEventListener('pause', onPause);
       video.removeEventListener('ended', onPause);
+      clearPendingBufferingChange();
+      emitBufferingChange(false);
     };
-  }, [onBufferingChange, onPlaybackStarted]);
+  }, [isActive, isPaused, onBufferingChange, onPlaybackStarted]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -241,6 +360,8 @@ export function FeedVideoPlayer({
     loadedDataAtRef.current = null;
     canPlayAtRef.current = null;
     firstPlayingAtRef.current = null;
+    lastPlaybackProgressAtRef.current = null;
+    lastObservedCurrentTimeRef.current = null;
 
     const canPlayNativeHls = video.canPlayType('application/vnd.apple.mpegurl') !== '';
     if (isHlsStreamUrl(sourceUrl) && !canPlayNativeHls && Hls.isSupported()) {
@@ -283,6 +404,8 @@ export function FeedVideoPlayer({
       video.pause();
       video.removeAttribute('src');
       video.load();
+      clearPendingBufferingChange();
+      emitBufferingChange(false);
     };
   }, [sourceUrl]);
 
@@ -305,6 +428,8 @@ export function FeedVideoPlayer({
     }
     if (!isActive || isPaused) {
       video.pause();
+      clearPendingBufferingChange();
+      emitBufferingChange(false);
       return;
     }
     if (!shouldAutoplay) {
@@ -347,6 +472,7 @@ export function FeedVideoPlayer({
 
   useEffect(() => {
     return () => {
+      clearPendingBufferingChange();
       emitMetrics();
     };
     // Intentionally emit once when this player instance is removed.

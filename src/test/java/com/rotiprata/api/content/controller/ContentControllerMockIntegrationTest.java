@@ -37,6 +37,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
+/**
+ * Covers content controller scenarios and regression behavior for the current branch changes.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 @DisplayName("ContentController Mock Integration Tests")
@@ -54,19 +57,31 @@ class ContentControllerMockIntegrationTest {
     @MockBean
     private ContentQuizService contentQuizService;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
     }
 
+    /**
+     * Handles mocked user id.
+     */
     private UUID mockedUserId() {
         return UUID.fromString("11111111-1111-1111-1111-111111111111");
     }
 
+    /**
+     * Handles random id.
+     */
     private UUID randomId() {
         return UUID.randomUUID();
     }
 
+    /**
+     * Verifies that start upload should return accepted when video file provided.
+     */
     /** Verifies starting a media upload accepts a valid video file. */
     @Test
     void startUpload_ShouldReturnAccepted_WhenVideoFileProvided() {
@@ -80,7 +95,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "video.mp4", "data".getBytes(), "video/mp4")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.ACCEPTED)
@@ -91,6 +106,9 @@ class ContentControllerMockIntegrationTest {
         verify(contentDraftService).startUpload(any(), eq(com.rotiprata.api.content.domain.ContentType.VIDEO), any());
     }
 
+    /**
+     * Verifies that start upload should return accepted when image file provided.
+     */
     /** Verifies starting a media upload accepts a valid image file. */
     @Test
     void startUpload_ShouldReturnAccepted_WhenImageFileProvided() {
@@ -103,7 +121,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "image.png", "data".getBytes(), "image/png")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.ACCEPTED);
@@ -112,6 +130,9 @@ class ContentControllerMockIntegrationTest {
         verify(contentDraftService).startUpload(any(), eq(com.rotiprata.api.content.domain.ContentType.IMAGE), any());
     }
 
+    /**
+     * Verifies that start upload should return bad request when file is empty.
+     */
     /** Verifies upload is rejected when no file content is supplied. */
     @Test
     void startUpload_ShouldReturnBadRequest_WhenFileIsEmpty() {
@@ -120,7 +141,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "empty.mp4", new byte[0], "video/mp4")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.BAD_REQUEST)
@@ -130,6 +151,9 @@ class ContentControllerMockIntegrationTest {
         verify(contentDraftService, org.mockito.Mockito.never()).startUpload(any(), any(), any());
     }
 
+    /**
+     * Verifies that start upload should return bad request when content type missing.
+     */
     /** Verifies upload is rejected when multipart content type is missing. */
     @Test
     void startUpload_ShouldReturnBadRequest_WhenContentTypeMissing() {
@@ -138,7 +162,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "upload.bin", "data".getBytes(), "application/octet-stream")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.BAD_REQUEST)
@@ -148,6 +172,9 @@ class ContentControllerMockIntegrationTest {
         verify(contentDraftService, org.mockito.Mockito.never()).startUpload(any(), any(), any());
     }
 
+    /**
+     * Verifies that start upload should return bad request when content type unsupported.
+     */
     /** Verifies upload is rejected for unsupported media content types. */
     @Test
     void startUpload_ShouldReturnBadRequest_WhenContentTypeUnsupported() {
@@ -156,7 +183,7 @@ class ContentControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
             .multiPart("file", "doc.txt", "data".getBytes(), "text/plain")
         .when()
-            .post("/api/content/media/start")
+            .post("/api/content/uploads")
         .then()
             //assert
             .status(HttpStatus.BAD_REQUEST)
@@ -166,6 +193,9 @@ class ContentControllerMockIntegrationTest {
         verify(contentDraftService, org.mockito.Mockito.never()).startUpload(any(), any(), any());
     }
 
+    /**
+     * Verifies that start link should return accepted when request is valid.
+     */
     /** Verifies starting a link-based upload delegates to draft service. */
     @Test
     void startLink_ShouldReturnAccepted_WhenRequestIsValid() {
@@ -181,7 +211,7 @@ class ContentControllerMockIntegrationTest {
                 {"sourceUrl":"https://example.com/video"}
                 """)
         .when()
-            .post("/api/content/media/start-link")
+            .post("/api/content/link-imports")
         .then()
             //assert
             .status(HttpStatus.ACCEPTED)
@@ -242,7 +272,7 @@ class ContentControllerMockIntegrationTest {
                 }
                 """)
         .when()
-            .post("/api/content/{contentId}/submit", contentId.toString())
+            .post("/api/content/{contentId}/submission", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.OK)
@@ -330,7 +360,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .post("/api/content/{contentId}/view", contentId.toString())
+            .post("/api/content/{contentId}/views", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -372,7 +402,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .post("/api/content/{contentId}/like", contentId.toString())
+            .post("/api/content/{contentId}/likes", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -391,7 +421,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .delete("/api/content/{contentId}/like", contentId.toString())
+            .delete("/api/content/{contentId}/likes", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -410,7 +440,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .post("/api/content/{contentId}/save", contentId.toString())
+            .post("/api/content/{contentId}/saves", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -429,7 +459,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .delete("/api/content/{contentId}/save", contentId.toString())
+            .delete("/api/content/{contentId}/saves", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -448,7 +478,7 @@ class ContentControllerMockIntegrationTest {
         given()
             .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
         .when()
-            .post("/api/content/{contentId}/share", contentId.toString())
+            .post("/api/content/{contentId}/shares", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
@@ -530,7 +560,7 @@ class ContentControllerMockIntegrationTest {
                 {"answers":{"q1":"A"},"timeTakenSeconds":30}
                 """)
         .when()
-            .post("/api/content/{contentId}/quiz/submit", contentId.toString())
+            .post("/api/content/{contentId}/quiz-submissions", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.OK)
@@ -643,12 +673,51 @@ class ContentControllerMockIntegrationTest {
                 {"reason":"spam","description":"Looks misleading"}
                 """)
         .when()
-            .post("/api/content/{contentId}/flag", contentId.toString())
+            .post("/api/content/{contentId}/flags", contentId.toString())
         .then()
             //assert
             .status(HttpStatus.NO_CONTENT);
 
         //verify
         verify(contentService).flagContent(any(), eq(contentId), any(ContentFlagRequest.class), anyString());
+    }
+
+    @Test
+    void legacyContentAliases_ShouldStillWork() {
+        UUID contentId = randomId();
+        when(contentDraftService.startLink(any(), anyString()))
+            .thenReturn(new ContentMediaStartResponse(contentId, "processing", "/api/content/poll"));
+        when(contentQuizService.submitContentQuiz(any(), eq(contentId), any(), anyString()))
+            .thenReturn(new ContentQuizSubmitResponse(8, 10, 80.0, true));
+
+        given()
+            .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
+            .contentType(ContentType.JSON)
+            .body("""
+                {"sourceUrl":"https://example.com/video"}
+                """)
+        .when()
+            .post("/api/content/media/start-link")
+        .then()
+            .status(HttpStatus.ACCEPTED);
+
+        given()
+            .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
+        .when()
+            .post("/api/content/{contentId}/like", contentId.toString())
+        .then()
+            .status(HttpStatus.NO_CONTENT);
+
+        given()
+            .auth().with(jwt().jwt(j -> j.subject(mockedUserId().toString()).tokenValue("mock-token")))
+            .contentType(ContentType.JSON)
+            .body("""
+                {"answers":{"q1":"A"},"timeTakenSeconds":30}
+                """)
+        .when()
+            .post("/api/content/{contentId}/quiz/submit", contentId.toString())
+        .then()
+            .status(HttpStatus.OK)
+            .body("score", equalTo(8));
     }
 }

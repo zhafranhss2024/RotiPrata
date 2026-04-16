@@ -1,18 +1,15 @@
 package com.rotiprata.api.feed.service;
 
-import com.rotiprata.api.zdto.FeedResponse;
+import com.rotiprata.api.feed.response.FeedResponse;
 import java.util.UUID;
-import org.springframework.stereotype.Service;
 
-@Service
-public class FeedService {
-    private final RecommendationService recommendationService;
+/**
+ * Defines the feed service operations exposed to the API layer.
+ */
+public interface FeedService {
 
-    public FeedService(RecommendationService recommendationService) {
-        this.recommendationService = recommendationService;
-    }
-
-    public FeedResponse getFeed(UUID userId, String accessToken, String cursor, Integer limit) {
-        return recommendationService.getFeed(userId, accessToken, cursor, limit);
-    }
+    /**
+     * Returns a paged feed for the current user.
+     */
+    FeedResponse getFeed(UUID userId, String accessToken, String cursor, Integer limit);
 }

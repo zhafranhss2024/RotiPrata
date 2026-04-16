@@ -6,7 +6,7 @@ import com.rotiprata.api.content.service.ContentCreatorEnrichmentService;
 import com.rotiprata.api.content.service.ContentService;
 import com.rotiprata.api.feed.service.ContentLessonLinkService;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.domain.AppRole;
+import com.rotiprata.security.authorization.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminClient;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import java.util.List;
@@ -23,6 +23,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers admin content lesson link scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 class AdminContentLessonLinkTest {
 
@@ -47,13 +50,16 @@ class AdminContentLessonLinkTest {
     @Mock
     private AdminLoggingService adminLoggingService;
 
-    private AdminService adminService;
+    private AdminServiceImpl adminService;
     private UUID adminUserId;
     private UUID contentId;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
-        adminService = new AdminService(
+        adminService = new AdminServiceImpl(
             supabaseAdminClient,
             supabaseAdminRestClient,
             contentCreatorEnrichmentService,
@@ -67,6 +73,9 @@ class AdminContentLessonLinkTest {
         when(userService.getRoles(adminUserId, "token")).thenReturn(List.of(AppRole.ADMIN));
     }
 
+    /**
+     * Verifies that update content metadata should sync lesson concept links when lesson ids are provided.
+     */
     /** Verifies admin metadata updates also sync recommendation lesson links when lesson ids are supplied. */
     @Test
     void updateContentMetadata_ShouldSyncLessonConceptLinks_WhenLessonIdsAreProvided() {

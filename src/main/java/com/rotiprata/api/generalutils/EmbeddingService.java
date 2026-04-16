@@ -7,6 +7,9 @@ package com.rotiprata.api.generalutils;
 public interface EmbeddingService {
 
     /**
+     * Handles generate embedding.
+     */
+    /**
      * Generates an embedding vector for the given text.
      *
      * @param text the input text
@@ -16,6 +19,9 @@ public interface EmbeddingService {
      */
     float[] generateEmbedding(String text);
 
+    /**
+     * Converts the value into pg vector.
+     */
     /**
      * Converts a float array embedding into Postgres-compatible vector string format.
      *

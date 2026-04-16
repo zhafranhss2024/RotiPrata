@@ -16,7 +16,7 @@ import {
   DISPLAY_NAME_POLICY_MESSAGE,
 } from '@/lib/displayNamePolicy';
 
-// Backend: /api/auth/register
+// Backend: /api/auth/registrations
 
 const RegisterPage = () => {
   const navigate = useNavigate();

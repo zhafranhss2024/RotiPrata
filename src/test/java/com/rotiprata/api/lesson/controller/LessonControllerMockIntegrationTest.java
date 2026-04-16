@@ -45,6 +45,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
+/**
+ * Covers lesson controller scenarios and regression behavior for the current branch changes.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.MOCK)
 @AutoConfigureMockMvc
 class LessonControllerMockIntegrationTest {
@@ -70,6 +73,9 @@ class LessonControllerMockIntegrationTest {
 
     private MockMvcRequestSpecification auth;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         RestAssuredMockMvc.mockMvc(mockMvc);
@@ -80,6 +86,9 @@ class LessonControllerMockIntegrationTest {
             ));
     }
 
+    /**
+     * Verifies that lessons should return lesson list when authenticated.
+     */
     /** Verifies lessons endpoint returns service results for authenticated users. */
     @Test
     void lessons_ShouldReturnLessonList_WhenAuthenticated() {
@@ -96,6 +105,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessons(eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson feed should return feed response when request is valid.
+     */
     /** Verifies lesson feed endpoint maps query params and returns paged data. */
     @Test
     void lessonFeed_ShouldReturnFeedResponse_WhenRequestIsValid() {
@@ -120,6 +132,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonFeed(eq(ACCESS_TOKEN), any());
     }
 
+    /**
+     * Verifies that lesson hub should return hub response when authenticated.
+     */
     /** Verifies lesson hub endpoint returns user-specific hub details. */
     @Test
     void lessonHub_ShouldReturnHubResponse_WhenAuthenticated() {
@@ -137,6 +152,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonHub(eq(USER_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that search lessons should return search results when query provided.
+     */
     /** Verifies lesson search endpoint passes query string to service. */
     @Test
     void searchLessons_ShouldReturnSearchResults_WhenQueryProvided() {
@@ -144,7 +162,7 @@ class LessonControllerMockIntegrationTest {
         when(lessonService.searchLessons(anyString(), anyString())).thenReturn(List.of(Map.of("title", "Bonjour")));
 
         //act
-        var response = auth.queryParam("q", "bon").when().get("/api/lessons/search");
+        var response = auth.queryParam("q", "bon").when().get("/api/lessons/search-results");
 
         //assert
         response.then().status(HttpStatus.OK).body("[0].title", equalTo("Bonjour"));
@@ -153,6 +171,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).searchLessons(eq("bon"), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson by id should return lesson when lesson exists.
+     */
     /** Verifies lesson by id endpoint returns lesson payload. */
     @Test
     void lessonById_ShouldReturnLesson_WhenLessonExists() {
@@ -169,6 +190,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonById(eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson sections should return section list when lesson exists.
+     */
     /** Verifies lesson sections endpoint returns section list. */
     @Test
     void lessonSections_ShouldReturnSectionList_WhenLessonExists() {
@@ -185,23 +209,29 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getLessonSections(eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson progress should return progress when authenticated.
+     */
     /** Verifies lesson progress endpoint returns progress snapshot. */
     @Test
     void lessonProgress_ShouldReturnProgress_WhenAuthenticated() {
         //arrange
         when(lessonService.getLessonProgress(any(), any(), anyString()))
-            .thenReturn(new LessonProgressResponse("in_progress", 40, "intro", 1, 3, "def", true, 4, 2, "intro", 2, "available", 5, OffsetDateTime.now(), "section"));
+            .thenReturn(new LessonProgressResponse("in_progress", 40, "intro", 1, 3, "def", true, 4, 2, "intro", 2, "available", 4, OffsetDateTime.now(), "section"));
 
         //act
         var response = auth.when().get("/api/lessons/{lessonId}/progress", LESSON_ID.toString());
 
         //assert
-        response.then().status(HttpStatus.OK).body("progressPercentage", equalTo(40));
+        response.then().status(HttpStatus.OK).body("progressPercentage", equalTo(40)).body("heartsRemaining", equalTo(4));
 
         //verify
         verify(lessonService).getLessonProgress(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson quiz state should return quiz state when authenticated.
+     */
     /** Verifies quiz state endpoint returns active attempt state. */
     @Test
     void lessonQuizState_ShouldReturnQuizState_WhenAuthenticated() {
@@ -219,6 +249,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonQuizService).getQuizState(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that answer lesson quiz should return answer response when payload is valid.
+     */
     /** Verifies answer quiz endpoint forwards answer payload and returns grading result. */
     @Test
     void answerLessonQuiz_ShouldReturnAnswerResponse_WhenPayloadIsValid() throws Exception {
@@ -231,7 +264,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("attemptId", "attempt-1", "questionId", "q1", "response", Map.of("answer", "A"))))
             .when()
-            .post("/api/lessons/{lessonId}/quiz/answer", LESSON_ID.toString());
+            .post("/api/lessons/{lessonId}/quiz/answers", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("correct", equalTo(true));
@@ -240,6 +273,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonQuizService).answerQuestion(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that restart lesson quiz should return quiz state when mode provided.
+     */
     /** Verifies restart quiz endpoint supports custom restart mode. */
     @Test
     void restartLessonQuiz_ShouldReturnQuizState_WhenModeProvided() {
@@ -248,7 +284,7 @@ class LessonControllerMockIntegrationTest {
             .thenReturn(new LessonQuizStateResponse("attempt-2", "in_progress", 0, 3, 0, 0, 30, null, null, true, true, List.of()));
 
         //act
-        var response = auth.queryParam("mode", "retry_wrong").when().post("/api/lessons/{lessonId}/quiz/restart", LESSON_ID.toString());
+        var response = auth.queryParam("mode", "retry_wrong").when().post("/api/lessons/{lessonId}/quiz-attempts", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("attemptId", equalTo("attempt-2"));
@@ -257,6 +293,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonQuizService).restartQuiz(eq(USER_ID), eq(LESSON_ID), eq("retry_wrong"), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that complete lesson section should return wrapped progress when section completed.
+     */
     /** Verifies complete section endpoint wraps progress inside SectionCompleteResponse. */
     @Test
     void completeLessonSection_ShouldReturnWrappedProgress_WhenSectionCompleted() {
@@ -265,7 +304,7 @@ class LessonControllerMockIntegrationTest {
             .thenReturn(new LessonProgressResponse("in_progress", 60, "usage", 2, 3, "quiz", true, 4, 3, "usage", 1, "available", 5, OffsetDateTime.now(), "quiz"));
 
         //act
-        var response = auth.when().post("/api/lessons/{lessonId}/sections/{sectionId}/complete", LESSON_ID.toString(), "usage");
+        var response = auth.when().put("/api/lessons/{lessonId}/sections/{sectionId}/completion", LESSON_ID.toString(), "usage");
 
         //assert
         response.then().status(HttpStatus.OK).body("progress.progressPercentage", equalTo(60));
@@ -274,13 +313,36 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).completeLessonSection(eq(USER_ID), eq(LESSON_ID), eq("usage"), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that complete lesson section post completion should return wrapped progress when section completed.
+     */
+    /** Verifies legacy POST completion alias still wraps progress inside SectionCompleteResponse. */
+    @Test
+    void completeLessonSectionPostCompletion_ShouldReturnWrappedProgress_WhenSectionCompleted() {
+        //arrange
+        when(lessonService.completeLessonSection(any(), any(), anyString(), anyString()))
+            .thenReturn(new LessonProgressResponse("in_progress", 60, "usage", 2, 3, "quiz", true, 4, 3, "usage", 1, "available", 5, OffsetDateTime.now(), "quiz"));
+
+        //act
+        var response = auth.when().post("/api/lessons/{lessonId}/sections/{sectionId}/completion", LESSON_ID.toString(), "usage");
+
+        //assert
+        response.then().status(HttpStatus.OK).body("progress.progressPercentage", equalTo(60));
+
+        //verify
+        verify(lessonService).completeLessonSection(eq(USER_ID), eq(LESSON_ID), eq("usage"), eq(ACCESS_TOKEN));
+    }
+
+    /**
+     * Verifies that enroll lesson should return ok when enrollment succeeds.
+     */
     /** Verifies enroll endpoint delegates enrollment to service. */
     @Test
     void enrollLesson_ShouldReturnOk_WhenEnrollmentSucceeds() {
         //arrange
 
         //act
-        var response = auth.when().post("/api/lessons/{lessonId}/enroll", LESSON_ID.toString());
+        var response = auth.when().put("/api/lessons/{lessonId}/enrollment", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK);
@@ -289,13 +351,16 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).enrollLesson(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that save lesson should return ok when save succeeds.
+     */
     /** Verifies save endpoint delegates bookmark/save action to service. */
     @Test
     void saveLesson_ShouldReturnOk_WhenSaveSucceeds() {
         //arrange
 
         //act
-        var response = auth.when().post("/api/lessons/{lessonId}/save", LESSON_ID.toString());
+        var response = auth.when().put("/api/lessons/{lessonId}/saved", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK);
@@ -304,6 +369,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).saveLesson(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that update progress should return ok when payload is valid.
+     */
     /** Verifies progress update endpoint forwards bounded progress payload. */
     @Test
     void updateProgress_ShouldReturnOk_WhenPayloadIsValid() throws Exception {
@@ -323,6 +391,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).updateLessonProgress(eq(USER_ID), eq(LESSON_ID), eq(80), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that admin lessons should return lesson list when authenticated.
+     */
     /** Verifies admin lessons endpoint returns admin lesson list. */
     @Test
     void adminLessons_ShouldReturnLessonList_WhenAuthenticated() {
@@ -339,6 +410,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getAdminLessons(eq(USER_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that admin lesson by id should return lesson when lesson exists.
+     */
     /** Verifies admin lesson by id endpoint returns lesson details. */
     @Test
     void adminLessonById_ShouldReturnLesson_WhenLessonExists() {
@@ -355,6 +429,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getAdminLessonById(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that create lesson draft should return draft response when payload provided.
+     */
     /** Verifies draft creation endpoint handles nullable payload and returns draft info. */
     @Test
     void createLessonDraft_ShouldReturnDraftResponse_WhenPayloadProvided() throws Exception {
@@ -367,7 +444,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("title", "Intro Lesson")))
             .when()
-            .post("/api/admin/lessons/draft");
+            .post("/api/admin/lesson-drafts");
 
         //assert
         response.then().status(HttpStatus.OK).body("lessonId", equalTo(LESSON_ID.toString()));
@@ -376,6 +453,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).createLessonDraft(eq(USER_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that save lesson draft step should return step response when payload provided.
+     */
     /** Verifies draft step save endpoint persists requested draft step. */
     @Test
     void saveLessonDraftStep_ShouldReturnStepResponse_WhenPayloadProvided() throws Exception {
@@ -388,7 +468,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("lesson", Map.of("title", "Updated"), "questions", List.of())))
             .when()
-            .put("/api/admin/lessons/{lessonId}/draft/step/{stepKey}", LESSON_ID.toString(), "metadata");
+            .put("/api/admin/lesson-drafts/{lessonId}/steps/{stepKey}", LESSON_ID.toString(), "metadata");
 
         //assert
         response.then().status(HttpStatus.OK).body("step", equalTo("metadata"));
@@ -397,6 +477,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).saveLessonStep(eq(USER_ID), eq(LESSON_ID), eq("metadata"), any(AdminStepSaveRequest.class), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that publish lesson should return publish response when request provided.
+     */
     /** Verifies publish endpoint validates and publishes a lesson draft. */
     @Test
     void publishLesson_ShouldReturnPublishResponse_WhenRequestProvided() throws Exception {
@@ -409,7 +492,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("lesson", Map.of("title", "Ready"), "questions", List.of())))
             .when()
-            .post("/api/admin/lessons/{lessonId}/publish", LESSON_ID.toString());
+            .post("/api/admin/lessons/{lessonId}/publication", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("success", equalTo(true));
@@ -418,6 +501,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).publishLessonWithValidation(eq(USER_ID), eq(LESSON_ID), any(AdminStepSaveRequest.class), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that create lesson should return created lesson when payload provided.
+     */
     /** Verifies admin create lesson endpoint returns created lesson payload. */
     @Test
     void createLesson_ShouldReturnCreatedLesson_WhenPayloadProvided() throws Exception {
@@ -438,6 +524,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).createLesson(eq(USER_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that update lesson should return updated lesson when payload provided.
+     */
     /** Verifies admin update lesson endpoint returns updated lesson payload. */
     @Test
     void updateLesson_ShouldReturnUpdatedLesson_WhenPayloadProvided() throws Exception {
@@ -458,6 +547,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).updateLesson(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that delete lesson should return ok when deletion succeeds.
+     */
     /** Verifies admin delete lesson endpoint delegates deletion to service. */
     @Test
     void deleteLesson_ShouldReturnOk_WhenDeletionSucceeds() {
@@ -473,6 +565,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).deleteLesson(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that move lesson to category should return move response when request is valid.
+     */
     /** Verifies move category endpoint forwards source and target category ids. */
     @Test
     void moveLessonToCategory_ShouldReturnMoveResponse_WhenRequestIsValid() throws Exception {
@@ -485,7 +580,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("sourceCategoryId", SOURCE_CATEGORY_ID, "targetCategoryId", TARGET_CATEGORY_ID)))
             .when()
-            .put("/api/admin/lessons/{lessonId}/move-category", LESSON_ID.toString());
+            .put("/api/admin/lessons/{lessonId}/category", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("sourceCategoryId", equalTo(SOURCE_CATEGORY_ID.toString()));
@@ -494,6 +589,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).moveLessonToCategory(eq(USER_ID), eq(LESSON_ID), any(AdminLessonCategoryMoveRequest.class), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that get lesson quiz should return quiz questions when lesson has quiz.
+     */
     /** Verifies admin quiz endpoint returns active quiz questions. */
     @Test
     void getLessonQuiz_ShouldReturnQuizQuestions_WhenLessonHasQuiz() {
@@ -510,6 +608,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getActiveLessonQuizQuestions(eq(USER_ID), eq(LESSON_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that get admin quiz question types should return types when authenticated.
+     */
     /** Verifies admin question types endpoint returns available quiz question types. */
     @Test
     void getAdminQuizQuestionTypes_ShouldReturnTypes_WhenAuthenticated() {
@@ -526,6 +627,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).getAdminQuizQuestionTypes(eq(USER_ID), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that create lesson quiz should return quiz payload when payload provided.
+     */
     /** Verifies admin create quiz endpoint returns created quiz payload. */
     @Test
     void createLessonQuiz_ShouldReturnQuizPayload_WhenPayloadProvided() throws Exception {
@@ -546,6 +650,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).createLessonQuiz(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that replace lesson quiz should return quiz list when payload provided.
+     */
     /** Verifies admin replace quiz endpoint returns replacement question list. */
     @Test
     void replaceLessonQuiz_ShouldReturnQuizList_WhenPayloadProvided() throws Exception {
@@ -566,6 +673,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).replaceLessonQuiz(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that start lesson media upload should return media start response when file provided.
+     */
     /** Verifies media upload endpoint accepts multipart file and returns polling details. */
     @Test
     void startLessonMediaUpload_ShouldReturnMediaStartResponse_WhenFileProvided() throws Exception {
@@ -580,7 +690,7 @@ class LessonControllerMockIntegrationTest {
             .auth().with(jwt().jwt(j -> j.subject(USER_ID.toString()).tokenValue(ACCESS_TOKEN)))
             .multiPart("file", file.getOriginalFilename(), file.getBytes(), file.getContentType())
             .when()
-            .post("/api/admin/lessons/{lessonId}/media/start", LESSON_ID.toString());
+            .post("/api/admin/lessons/{lessonId}/media-uploads", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("assetId", equalTo(ASSET_ID.toString()));
@@ -589,6 +699,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).startLessonMediaUpload(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that start lesson media link should return media start response when payload is valid.
+     */
     /** Verifies media link endpoint validates link payload and returns upload metadata. */
     @Test
     void startLessonMediaLink_ShouldReturnMediaStartResponse_WhenPayloadIsValid() throws Exception {
@@ -601,7 +714,7 @@ class LessonControllerMockIntegrationTest {
             .contentType(ContentType.JSON)
             .body(objectMapper.writeValueAsString(Map.of("sourceUrl", "https://cdn.example.com/media.mp4", "mediaKind", "video")))
             .when()
-            .post("/api/admin/lessons/{lessonId}/media/start-link", LESSON_ID.toString());
+            .post("/api/admin/lessons/{lessonId}/media-link-imports", LESSON_ID.toString());
 
         //assert
         response.then().status(HttpStatus.OK).body("status", equalTo("queued"));
@@ -610,6 +723,9 @@ class LessonControllerMockIntegrationTest {
         verify(lessonService).startLessonMediaLink(eq(USER_ID), eq(LESSON_ID), any(), eq(ACCESS_TOKEN));
     }
 
+    /**
+     * Verifies that lesson media status should return status response when asset exists.
+     */
     /** Verifies media status endpoint returns latest processing status for an asset. */
     @Test
     void lessonMediaStatus_ShouldReturnStatusResponse_WhenAssetExists() {
@@ -625,5 +741,39 @@ class LessonControllerMockIntegrationTest {
 
         //verify
         verify(lessonService).getLessonMediaStatus(eq(USER_ID), eq(LESSON_ID), eq(ASSET_ID), eq(ACCESS_TOKEN));
+    }
+
+    /**
+     * Verifies that legacy lesson aliases should still work.
+     */
+    @Test
+    void legacyLessonAliases_ShouldStillWork() throws Exception {
+        when(lessonQuizService.restartQuiz(any(), any(), anyString(), anyString()))
+            .thenReturn(new LessonQuizStateResponse("attempt-2", "in_progress", 0, 3, 0, 0, 30, null, null, true, true, List.of()));
+        when(lessonService.createLessonDraft(any(), any(), anyString()))
+            .thenReturn(new AdminLessonDraftResponse(LESSON_ID, Map.of("metadata", true), Map.of("id", LESSON_ID.toString())));
+
+        auth
+            .queryParam("mode", "retry_wrong")
+        .when()
+            .post("/api/lessons/{lessonId}/quiz/restart", LESSON_ID.toString())
+        .then()
+            .status(HttpStatus.OK)
+            .body("attemptId", equalTo("attempt-2"));
+
+        auth
+            .contentType(ContentType.JSON)
+            .body(objectMapper.writeValueAsString(Map.of("title", "Intro Lesson")))
+        .when()
+            .post("/api/admin/lessons/draft")
+        .then()
+            .status(HttpStatus.OK)
+            .body("lessonId", equalTo(LESSON_ID.toString()));
+
+        auth
+        .when()
+            .post("/api/lessons/{lessonId}/enroll", LESSON_ID.toString())
+        .then()
+            .status(HttpStatus.OK);
     }
 }

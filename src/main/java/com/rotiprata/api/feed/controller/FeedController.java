@@ -2,8 +2,8 @@ package com.rotiprata.api.feed.controller;
 
 import com.rotiprata.api.feed.service.FeedService;
 import com.rotiprata.api.feed.service.RecommendationService;
-import com.rotiprata.api.zdto.FeedResponse;
-import com.rotiprata.api.zdto.RecommendationResponse;
+import com.rotiprata.api.feed.response.FeedResponse;
+import com.rotiprata.api.feed.response.RecommendationResponse;
 import com.rotiprata.security.SecurityUtils;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -12,17 +12,26 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Exposes REST endpoints for the feed controller flows.
+ */
 @RestController
 @RequestMapping("/api")
 public class FeedController {
     private final FeedService feedService;
     private final RecommendationService recommendationService;
 
+    /**
+     * Creates a feed controller instance with its collaborators.
+     */
     public FeedController(FeedService feedService, RecommendationService recommendationService) {
         this.feedService = feedService;
         this.recommendationService = recommendationService;
     }
 
+    /**
+     * Handles feed.
+     */
     @GetMapping("/feed")
     public FeedResponse feed(
         @AuthenticationPrincipal Jwt jwt,
@@ -35,6 +44,9 @@ public class FeedController {
         return feedService.getFeed(SecurityUtils.getUserId(jwt), SecurityUtils.getAccessToken(), cursor, limit);
     }
 
+    /**
+     * Handles recommendations.
+     */
     @GetMapping("/recommendations")
     public RecommendationResponse recommendations(
         @AuthenticationPrincipal Jwt jwt,

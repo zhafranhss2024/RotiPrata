@@ -6,6 +6,9 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
+/**
+ * Documents the chatbot message dto type.
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

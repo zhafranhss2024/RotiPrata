@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { useAuthContext } from '@/contexts/AuthContext';
 
-// Backend: /api/auth/login
+// Backend: /api/auth/sessions
 
 const LoginPage = () => {
   const navigate = useNavigate();

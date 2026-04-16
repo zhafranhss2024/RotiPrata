@@ -2,7 +2,7 @@ package com.rotiprata.api.admin.service;
 
 import com.rotiprata.api.content.service.ContentService;
 import com.rotiprata.api.user.service.UserService;
-import com.rotiprata.domain.AppRole;
+import com.rotiprata.security.authorization.AppRole;
 import com.rotiprata.infrastructure.supabase.SupabaseAdminRestClient;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +30,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * Covers admin analytics service scenarios and regression behavior for the current branch changes.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AdminAnalyticsServiceImpl tests")
 class AdminAnalyticsServiceImplTest {
@@ -46,6 +49,9 @@ class AdminAnalyticsServiceImplTest {
     private AdminAnalyticsServiceImpl service;
     private UUID adminUserId;
 
+    /**
+     * Builds the shared test fixture and default mock behavior for each scenario.
+     */
     @BeforeEach
     void setUp() {
         service = new AdminAnalyticsServiceImpl(contentService, supabaseAdminRestClient, userService);
@@ -79,6 +85,9 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
+    /**
+     * Verifies that get flagged content by month and year should return empty list when no content exists.
+     */
     // Verifies method returns empty list when no flagged content is present.
     @Test
     void getFlaggedContentByMonthAndYear_shouldReturnEmptyList_whenNoContentExists() {
@@ -97,6 +106,9 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
+    /**
+     * Verifies that get flagged content by month and year should skip invalid timestamps.
+     */
     // Ignores malformed timestamps and counts only valid flagged content rows.
     @Test
     void getFlaggedContentByMonthAndYear_shouldSkipInvalidTimestamps() {
@@ -143,6 +155,9 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
+    /**
+     * Verifies that get average review time by month and year should compute average when reviews exist.
+     */
     // Checks average review time across multiple resolved flags.
     @Test
     void getAverageReviewTimeByMonthAndYear_shouldComputeAverage_whenReviewsExist() {
@@ -162,6 +177,9 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
+    /**
+     * Verifies that get average review time by month and year should return zero when no resolved flags.
+     */
     // Ensures 0 is returned when no flags have a resolved timestamp.
     @Test
     void getAverageReviewTimeByMonthAndYear_shouldReturnZero_whenNoResolvedFlags() {
@@ -185,6 +203,9 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
+    /**
+     * Verifies that get average review time by month and year should return zero when no content exists.
+     */
     // Ensures 0 is returned when no flagged content exists.
     @Test
     void getAverageReviewTimeByMonthAndYear_shouldReturnZero_whenNoContentExists() {
@@ -219,6 +240,9 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient).rpcList(eq("get_top_flag_users"), any(), any());
     }
 
+    /**
+     * Verifies that get top flag users should return empty list when no users exist.
+     */
     // Verifies empty list is returned when no top users exist.
     @Test
     void getTopFlagUsers_shouldReturnEmptyList_whenNoUsersExist() {
@@ -236,6 +260,9 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient).rpcList(eq("get_top_flag_users"), any(), any());
     }
 
+    /**
+     * Verifies that get top flag contents should delegate to rpc.
+     */
     // Verifies top flagged contents are returned when present.
     @Test
     void getTopFlagContents_shouldDelegateToRpc() {
@@ -253,6 +280,9 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient).rpcList(eq("get_top_flag_content"), any(), any());
     }
 
+    /**
+     * Verifies that get top flag contents should return empty list when no contents exist.
+     */
     // Verifies empty list is returned when no top flagged contents exist.
     @Test
     void getTopFlagContents_shouldReturnEmptyList_whenNoContentsExist() {
@@ -270,6 +300,9 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient).rpcList(eq("get_top_flag_content"), any(), any());
     }
 
+    /**
+     * Verifies that get audit logs should query audit log table.
+     */
     // Verifies audit logs are returned correctly when logs exist.
     @Test
     void getAuditLogs_shouldQueryAuditLogTable() {
@@ -287,6 +320,9 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient).getList(eq("audit_logs"), contains("select="), any());
     }
 
+    /**
+     * Verifies that get audit logs should return empty list when no logs exist.
+     */
     // Verifies empty list is returned when no audit logs exist.
     @Test
     void getAuditLogs_shouldReturnEmptyList_whenNoLogsExist() {
@@ -323,6 +359,9 @@ class AdminAnalyticsServiceImplTest {
         assertTrue(thrown.getReason().contains("Admin role required"));
     }
 
+    /**
+     * Verifies that get flagged content by month and year should return empty list when service throws.
+     */
     // Returns an empty list instead of propagating service exceptions.
     @Test
     void getFlaggedContentByMonthAndYear_shouldReturnEmptyList_whenServiceThrows() {
@@ -342,6 +381,9 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
+    /**
+     * Verifies that get average review time by month and year should return zero when service throws.
+     */
     // Returns zero instead of propagating service exceptions.
     @Test
     void getAverageReviewTimeByMonthAndYear_shouldReturnZero_whenServiceThrows() {
@@ -359,6 +401,9 @@ class AdminAnalyticsServiceImplTest {
         verify(contentService, times(1)).getFlaggedContentByMonthAndYear("token", "03", "2026");
     }
 
+    /**
+     * Verifies that get top flag users should return empty list when rpc throws.
+     */
     // Returns an empty list instead of propagating RPC exceptions for top users.
     @Test
     void getTopFlagUsers_shouldReturnEmptyList_whenRpcThrows() {
@@ -377,6 +422,9 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_users"), any(), any());
     }
 
+    /**
+     * Verifies that get top flag contents should return empty list when rpc throws.
+     */
     // Returns an empty list instead of propagating RPC exceptions for top content.
     @Test
     void getTopFlagContents_shouldReturnEmptyList_whenRpcThrows() {
@@ -395,6 +443,9 @@ class AdminAnalyticsServiceImplTest {
         verify(supabaseAdminRestClient, times(1)).rpcList(eq("get_top_flag_content"), any(), any());
     }
 
+    /**
+     * Verifies that get audit logs should return empty list when rpc throws.
+     */
     // Returns an empty list instead of propagating audit log query exceptions.
     @Test
     void getAuditLogs_shouldReturnEmptyList_whenRpcThrows() {
