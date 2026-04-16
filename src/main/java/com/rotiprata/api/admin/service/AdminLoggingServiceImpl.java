@@ -32,11 +32,6 @@ public class AdminLoggingServiceImpl implements AdminLoggingService {
     private static final String DESCRIPTION = "description";
     private static final String CREATED_AT = "created_at";
 
-    /**
-     * Constructor for dependency injection.
-     *
-     * @param supabaseAdminRestClient client used to interact with Supabase
-     */
     public AdminLoggingServiceImpl(SupabaseAdminRestClient supabaseAdminRestClient) {
         this.supabaseAdminRestClient = supabaseAdminRestClient;
     }

@@ -7,9 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 
-/**
- * Documents the get history dto type.
- */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
