@@ -57,9 +57,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         this.userService = userService;
     }
 
-    /**
-     * Returns the flagged content by month and year.
-     */
     /** Retrieves flagged content aggregated by day. */
     @Override
     public List<Map<String, Object>> getFlaggedContentByMonthAndYear(
@@ -101,10 +98,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         }
     }
 
-
-    /**
-     * Returns the average review time by month and year.
-     */
     /** Computes the average review time for resolved flagged content. */
     @Override
     public double getAverageReviewTimeByMonthAndYear(
@@ -131,9 +124,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         }
     }
 
-    /**
-     * Returns the top flag users.
-     */
     /** Retrieves the top users who flagged content. */
     @Override
     public List<Map<String, Object>> getTopFlagUsers(
@@ -151,9 +141,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         }
     }
 
-    /**
-     * Returns the top flag contents.
-     */
     /** Retrieves the top flagged contents. */
     @Override
     public List<Map<String, Object>> getTopFlagContents(
@@ -171,10 +158,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         }
     }
 
-
-    /**
-     * Returns the audit logs.
-     */
     /** Fetches audit logs including user display names. */
     @Override
     public List<Map<String, Object>> getAuditLogs(
@@ -194,9 +177,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         }
     }
 
-    /**
-     * Parses the instant.
-     */
     /**Private Helpers */
     /** Parses an ISO-8601 timestamp string from the map into an Instant, or returns null if missing. */
     private Instant parseInstant(Map<String, Object> map, String key) {
@@ -209,17 +189,11 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         }
     }
 
-    /**
-     * Converts the value into date string.
-     */
     /** Converts an Instant to a UTC date string in yyyy-MM-dd format. */
     private String toDateString(Instant instant) {
         return instant.atZone(java.time.ZoneId.of("UTC")).toLocalDate().toString();
     }
 
-    /**
-     * Computes the review minutes.
-     */
     /** Computes the review time in minutes between created and resolved timestamps, or null if either is missing. */
     private Long computeReviewMinutes(Map<String, Object> f) {
         Instant created = parseInstant(f, CREATED_AT);

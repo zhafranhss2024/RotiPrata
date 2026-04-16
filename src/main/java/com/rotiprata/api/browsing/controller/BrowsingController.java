@@ -13,27 +13,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-
-/**
- * Exposes REST endpoints for the browsing controller flows.
- */
 @RestController
 @RequestMapping("/api")
 public class BrowsingController {
 
     private final BrowsingService browsingService;
 
-    /**
-     * Creates a browsing controller instance with its collaborators.
-     */
     // Constructor injection of browsing service
     public BrowsingController(BrowsingService browsingService) {
         this.browsingService = browsingService;
     }
 
-    /**
-     * Handles get mapping.
-     */
     // Searches content with optional query and filter, using the user's access token
     @GetMapping("/search-results")
     public List<ContentSearchDTO> searchResults(
@@ -45,9 +35,6 @@ public class BrowsingController {
         return browsingService.search(query, filter, accessToken);
     }
 
-    /**
-     * Handles search.
-     */
     @Hidden
     @Deprecated
     @GetMapping("/search")

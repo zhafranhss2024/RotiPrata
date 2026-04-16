@@ -1,26 +1,10 @@
 package com.rotiprata.api.admin.controller;
 
-import com.rotiprata.api.admin.dto.AdminContentQuizRequest;
-import com.rotiprata.api.admin.dto.AdminContentReviewRequest;
-import com.rotiprata.api.admin.dto.AdminContentUpdateRequest;
-import com.rotiprata.api.admin.dto.AdminFlagResolutionRequest;
-import com.rotiprata.api.admin.dto.AdminStatsResponse;
-import com.rotiprata.api.admin.dto.AdminUserDetailResponse;
-import com.rotiprata.api.admin.dto.AdminUserRoleUpdateRequest;
-import com.rotiprata.api.admin.dto.AdminUserStatusUpdateRequest;
-import com.rotiprata.api.admin.dto.AdminUserSummaryResponse;
-import com.rotiprata.api.admin.service.AdminService;
-import com.rotiprata.api.content.domain.Content;
-import com.rotiprata.api.content.dto.ContentQuizQuestionResponse;
-import com.rotiprata.api.content.service.ContentQuizService;
-import com.rotiprata.api.admin.request.RejectContentRequest;
-import com.rotiprata.security.SecurityUtils;
-import io.swagger.v3.oas.annotations.Hidden;
-import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,35 +19,44 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-/**
- * Exposes REST endpoints for the admin controller flows.
- */
+import com.rotiprata.api.admin.dto.AdminContentQuizRequest;
+import com.rotiprata.api.admin.dto.AdminContentReviewRequest;
+import com.rotiprata.api.admin.dto.AdminContentUpdateRequest;
+import com.rotiprata.api.admin.dto.AdminFlagResolutionRequest;
+import com.rotiprata.api.admin.dto.AdminStatsResponse;
+import com.rotiprata.api.admin.dto.AdminUserDetailResponse;
+import com.rotiprata.api.admin.dto.AdminUserRoleUpdateRequest;
+import com.rotiprata.api.admin.dto.AdminUserStatusUpdateRequest;
+import com.rotiprata.api.admin.dto.AdminUserSummaryResponse;
+import com.rotiprata.api.admin.request.RejectContentRequest;
+import com.rotiprata.api.admin.service.AdminService;
+import com.rotiprata.api.content.domain.Content;
+import com.rotiprata.api.content.dto.ContentQuizQuestionResponse;
+import com.rotiprata.api.content.service.ContentQuizService;
+import com.rotiprata.security.SecurityUtils;
+
+import io.swagger.v3.oas.annotations.Hidden;
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
     private final AdminService adminService;
     private final ContentQuizService contentQuizService;
 
-    /**
-     * Creates a admin controller instance with its collaborators.
-     */
     public AdminController(AdminService adminService, ContentQuizService contentQuizService) {
         this.adminService = adminService;
         this.contentQuizService = contentQuizService;
     }
 
-    /**
-     * Handles stats.
-     */
+    // Retrieve statistics 
     @GetMapping("/stats")
     public AdminStatsResponse stats(@AuthenticationPrincipal Jwt jwt) {
         UUID adminUserId = SecurityUtils.getUserId(jwt);
         return adminService.getStats(adminUserId, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Handles users.
-     */
+    // Retrieve users
     @GetMapping("/users")
     public List<AdminUserSummaryResponse> users(
         @AuthenticationPrincipal Jwt jwt,
@@ -73,9 +66,7 @@ public class AdminController {
         return adminService.getUsers(adminUserId, query, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Handles user detail.
-     */
+    // Retrieves user details using a given userId
     @GetMapping("/users/{userId}")
     public AdminUserDetailResponse userDetail(
         @AuthenticationPrincipal Jwt jwt,
@@ -85,9 +76,7 @@ public class AdminController {
         return adminService.getUserDetail(adminUserId, userId, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Updates the user role.
-     */
+    // Updates the user role for a given userId
     @PutMapping("/users/{userId}/role")
     public AdminUserSummaryResponse updateUserRole(
         @AuthenticationPrincipal Jwt jwt,
@@ -98,9 +87,7 @@ public class AdminController {
         return adminService.updateUserRole(adminUserId, userId, request.role(), SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Updates the user status.
-     */
+    // Updates the user status for a given userId
     @PutMapping("/users/{userId}/status")
     public AdminUserSummaryResponse updateUserStatus(
         @AuthenticationPrincipal Jwt jwt,
@@ -111,9 +98,7 @@ public class AdminController {
         return adminService.updateUserStatus(adminUserId, userId, request.status(), SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Handles reset lesson progress.
-     */
+    // Resets lesson progress by deleting the progress
     @DeleteMapping("/users/{userId}/lessons/{lessonId}/progress")
     public ResponseEntity<Void> resetLessonProgress(
         @AuthenticationPrincipal Jwt jwt,
@@ -125,18 +110,14 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Handles moderation queue.
-     */
+    // Retrieve all content items awaiting moderation review
     @GetMapping("/moderation-queue")
     public List<Map<String, Object>> moderationQueue(@AuthenticationPrincipal Jwt jwt) {
         UUID adminUserId = SecurityUtils.getUserId(jwt);
         return adminService.getModerationQueue(adminUserId, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Handles review content.
-     */
+    // To approve or reject content
     @PutMapping("/content/{contentId}/review")
     public ResponseEntity<Void> reviewContent(
         @AuthenticationPrincipal Jwt jwt,
@@ -152,9 +133,7 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Handles approve content.
-     */
+    // For approval of content
     @Hidden
     @Deprecated
     @PutMapping("/content/{contentId}/approve")
@@ -165,9 +144,8 @@ public class AdminController {
         return reviewContent(jwt, contentId, new AdminContentReviewRequest("approved", null));
     }
 
-    /**
-     * Updates the content.
-     */
+
+    // Update content
     @PutMapping("/content/{contentId}")
     public Content updateContent(
         @AuthenticationPrincipal Jwt jwt,
@@ -178,9 +156,8 @@ public class AdminController {
         return adminService.updateContentMetadata(adminUserId, contentId, request, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Handles reject content.
-     */
+
+    // To reject content
     @Hidden
     @Deprecated
     @PutMapping("/content/{contentId}/reject")
@@ -192,9 +169,8 @@ public class AdminController {
         return reviewContent(jwt, contentId, new AdminContentReviewRequest("rejected", request.feedback()));
     }
 
-    /**
-     * Handles content quiz.
-     */
+
+    // Get quiz content for the given contentId
     @GetMapping("/content/{contentId}/quiz")
     public List<ContentQuizQuestionResponse> contentQuiz(
         @AuthenticationPrincipal Jwt jwt,
@@ -204,9 +180,8 @@ public class AdminController {
         return contentQuizService.getAdminContentQuiz(adminUserId, contentId, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Updates the content quiz.
-     */
+
+    // Updates quiz content for the given contentId
     @PutMapping("/content/{contentId}/quiz")
     public List<ContentQuizQuestionResponse> updateContentQuiz(
         @AuthenticationPrincipal Jwt jwt,
@@ -217,18 +192,16 @@ public class AdminController {
         return contentQuizService.replaceAdminContentQuiz(adminUserId, contentId, request, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Flags the s.
-     */
+
+    // Get all the open flags
     @GetMapping("/flags")
     public List<Map<String, Object>> flags(@AuthenticationPrincipal Jwt jwt) {
         UUID adminUserId = SecurityUtils.getUserId(jwt);
         return adminService.getOpenFlags(adminUserId, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Flags the reports.
-     */
+
+    // Retrieves reports for a specific flag
     @GetMapping("/flags/{flagId}/reports")
     public Map<String, Object> flagReports(
         @AuthenticationPrincipal Jwt jwt,
@@ -240,9 +213,7 @@ public class AdminController {
         return adminService.getFlagReports(adminUserId, flagId, page, query, SecurityUtils.getAccessToken());
     }
 
-    /**
-     * Flags the review by content.
-     */
+    // Retrieves flag review data for a specific content item.
     @GetMapping("/flags/content/{contentId}/review")
     public Map<String, Object> flagReviewByContent(
         @AuthenticationPrincipal Jwt jwt,
@@ -260,9 +231,7 @@ public class AdminController {
         );
     }
 
-    /**
-     * Flags the reports by content.
-     */
+    // Retrieves paginated and filtered abuse reports for a specific content item.
     @GetMapping("/flags/content/{contentId}/reports")
     public Map<String, Object> flagReportsByContent(
         @AuthenticationPrincipal Jwt jwt,
@@ -284,9 +253,7 @@ public class AdminController {
         );
     }
 
-    /**
-     * Resolves the flag.
-     */
+    // Finalizes a moderation decision on a flag, either clearing it or enforcing action.
     @PutMapping("/flags/{flagId}/resolution")
     public ResponseEntity<Void> resolveFlag(
         @AuthenticationPrincipal Jwt jwt,
@@ -302,9 +269,7 @@ public class AdminController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Resolves the flag alias.
-     */
+    // To resolve a flag
     @Hidden
     @Deprecated
     @PutMapping("/flags/{flagId}/resolve")
@@ -315,9 +280,7 @@ public class AdminController {
         return resolveFlag(jwt, flagId, new AdminFlagResolutionRequest("resolved", null));
     }
 
-    /**
-     * Handles take down flag.
-     */
+    // To take down a flag
     @Hidden
     @Deprecated
     @PutMapping("/flags/{flagId}/take-down")
@@ -329,9 +292,7 @@ public class AdminController {
         return resolveFlag(jwt, flagId, new AdminFlagResolutionRequest("taken_down", request.feedback()));
     }
 
-    /**
-     * Normalizes the action status.
-     */
+    // Normalizes admin action status input for consistent comparison.
     private String normalizeActionStatus(String status) {
         if (status == null) {
             return "";

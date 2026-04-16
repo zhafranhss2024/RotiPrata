@@ -14,9 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 public interface AuthService {
 
     /**
-     * Handles fails.
-     */
-    /**
      * Login user using email and password.
      *
      * @param request login request containing email and password
@@ -25,9 +22,6 @@ public interface AuthService {
      */
     AuthSessionResponse login(LoginRequest request);
 
-    /**
-     * Handles auth session response.
-     */
     /**
      * Register a new user.
      *
@@ -38,9 +32,6 @@ public interface AuthService {
     AuthSessionResponse register(RegisterRequest request);
 
     /**
-     * Handles fails.
-     */
-    /**
      * Send password reset email.
      *
      * @param request contains user email
@@ -49,9 +40,6 @@ public interface AuthService {
     void requestPasswordReset(ForgotPasswordRequest request);
 
     /**
-     * Handles reset password.
-     */
-    /**
      * Reset password using access token.
      *
      * @param request contains new password and access token
@@ -59,9 +47,6 @@ public interface AuthService {
      */
     void resetPassword(ResetPasswordRequest request);
 
-    /**
-     * Handles logout.
-     */
     /**
      * Logout user and invalidate session.
      *

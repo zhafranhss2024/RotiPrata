@@ -74,9 +74,6 @@ public class AdminServiceImpl implements AdminService {
     private final UserService userService;
     private final AdminLoggingService adminLoggingService;
 
-    /**
-     * Creates a admin service impl instance with its collaborators.
-     */
     @Autowired
     public AdminServiceImpl(
         SupabaseAdminClient supabaseAdminClient,
@@ -97,7 +94,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Returns the moderation queue.
+     * Loads pending moderation submissions ordered by oldest submitted first.
      */
     @Override
     public List<Map<String, Object>> getModerationQueue(UUID adminUserId, String accessToken) {
@@ -115,7 +112,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Handles approve content.
+     * Approves a submitted content item and records the moderation action.
      */
     @Override
     public void approveContent(UUID adminUserId, UUID contentId, String accessToken) {
@@ -134,7 +131,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Handles reject content.
+     * Rejects submitted content with required moderator feedback and logs the action.
      */
     @Override
     public void rejectContent(UUID adminUserId, UUID contentId, String feedback, String accessToken) {
@@ -157,7 +154,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Updates the content metadata.
+     * Updates moderator-editable content fields, tags, and lesson links in one workflow.
      */
     @Override
     public Content updateContentMetadata(
@@ -196,7 +193,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Returns the open flags.
+     * Returns grouped pending flags with enriched creator information for review.
      */
     @Override
     public List<Map<String, Object>> getOpenFlags(UUID adminUserId, String accessToken) {
@@ -216,7 +213,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Resolves the flag.
+     * Resolves the selected pending flag and clears related pending flags for the same content.
      */
     @Override
     public void resolveFlag(UUID adminUserId, UUID flagId, String accessToken) {
@@ -232,7 +229,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Handles take down flag.
+     * Rejects flagged content, resolves related pending flags, and logs a takedown action.
      */
     @Override
     public void takeDownFlag(UUID adminUserId, UUID flagId, String feedback, String accessToken) {
@@ -263,7 +260,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Returns the flag reports.
+     * Returns paginated reporter submissions for a specific pending flag.
      */
     @Override
     public Map<String, Object> getFlagReports(
@@ -308,7 +305,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Returns the flag review by content.
+     * Builds a flag-review summary for a content item, optionally scoped by month and year.
      */
     @Override
     public Map<String, Object> getFlagReviewByContent(
@@ -364,7 +361,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Returns the flag reports by content.
+     * Returns paginated reporter submissions for a content item across matching flag records.
      */
     @Override
     public Map<String, Object> getFlagReportsByContent(
@@ -410,7 +407,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Returns the stats.
+     * Computes admin dashboard statistics for moderation and user activity.
      */
     @Override
     public AdminStatsResponse getStats(UUID adminUserId, String accessToken) {
@@ -452,7 +449,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Returns the users.
+     * Searches users and returns admin summary rows for management screens.
      */
     @Override
     public List<AdminUserSummaryResponse> getUsers(UUID adminUserId, String searchQuery, String accessToken) {
@@ -480,7 +477,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Returns the user detail.
+     * Retrieves profile, roles, activity, and history details for an admin-selected user.
      */
     @Override
     public AdminUserDetailResponse getUserDetail(UUID adminUserId, UUID targetUserId, String accessToken) {
@@ -539,7 +536,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Updates the user role.
+     * Replaces the target user's role assignment and returns the refreshed summary.
      */
     @Override
     public AdminUserSummaryResponse updateUserRole(
@@ -584,7 +581,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Updates the user status.
+     * Changes the target user's account status (active or suspended) with validation.
      */
     @Override
     public AdminUserSummaryResponse updateUserStatus(
@@ -609,7 +606,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * Handles reset user lesson progress.
+     * Resets lesson progress for a user and records the admin action in audit logs.
      */
     @Override
     public void resetUserLessonProgress(
@@ -739,9 +736,6 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
-    /**
-     * Handles count.
-     */
     // Private Helps 
 
     private int count(String table, String query) {

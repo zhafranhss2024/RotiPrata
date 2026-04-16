@@ -15,10 +15,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Implementation of BrowsingService.
- * Handles search operations and manages search history using Supabase.
- */
 @Service
 public class BrowsingServiceImpl implements BrowsingService {
 
@@ -34,9 +30,6 @@ public class BrowsingServiceImpl implements BrowsingService {
     private static final int SNIPPET_LENGTH = 100;
 
     /**
-     * Creates a browsing service impl instance with its collaborators.
-     */
-    /**
      * Constructor for dependency injection.
      */
     public BrowsingServiceImpl(
@@ -49,9 +42,6 @@ public class BrowsingServiceImpl implements BrowsingService {
         this.supabaseRestClient = supabaseRestClient;
     }
 
-    /**
-     * Handles search.
-     */
     /** Performs a search across content and lessons based on query and optional filter */
     @Override
     public List<ContentSearchDTO> search(String query, String filter, String accessToken) {
@@ -73,9 +63,6 @@ public class BrowsingServiceImpl implements BrowsingService {
         return results;
     }
 
-    /**
-     * Saves the history.
-     */
     /** Upsert a user's search history entry */
     @Override
     public void saveHistory(String userId, String query, Instant searchedAt, String accessToken) {
@@ -102,9 +89,6 @@ public class BrowsingServiceImpl implements BrowsingService {
         }
     }
 
-    /**
-     * Fetches the history.
-     */
     /** Fetches the last 5 search history entries for a user */
     @Override
     public List<GetHistoryDTO> fetchHistory(String userId, String accessToken) {
@@ -162,9 +146,6 @@ public class BrowsingServiceImpl implements BrowsingService {
         return results;
     }
 
-    /**
-     * Builds the snippet.
-     */
     /** Builds a short snippet from the description */
     private String buildSnippet(String description) {
         if (description == null) return null;
@@ -173,10 +154,6 @@ public class BrowsingServiceImpl implements BrowsingService {
                 : description;
     }
 
-
-     /**
-      * Converts the value into string value.
-      */
      /** Converts an object to string safely */
     private String toStringValue(Object value) {
         return value == null ? null : value.toString();
